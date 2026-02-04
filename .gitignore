@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log*
+*.log
+
+# Flutter/Dart
+.dart_tool/
+.pub-cache/
+.pub/
+build/
+*.iml
+.idea/
+
+# Ambiente / secrets
+.env
+.env.local
+*.env
+
+# Sistema
+.DS_Store
+Thumbs.db
