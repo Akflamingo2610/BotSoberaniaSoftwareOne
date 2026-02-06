@@ -31,6 +31,7 @@ copy OneDrive_1_1-26-2026\*.pdf rag_server\docs\
 4. **Root Directory**: se o repo tem só `rag_server`, deixe vazio. Se é o repo inteiro, coloque `rag_server`
 5. Em **Variables**, adicione:
    - `GROQ_API_KEY` = sua chave da Groq
+   - `GROQ_MODEL` = `llama-3.3-70b-versatile` (respostas mais naturais; use `llama-3.1-8b-instant` para mais rápido)
 6. Railway detecta Node.js e faz o deploy
 7. Após o deploy, clique em **Settings** → **Generate Domain** para obter a URL (ex: `https://seu-rag.up.railway.app`)
 

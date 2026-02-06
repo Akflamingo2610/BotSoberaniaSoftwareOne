@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 4000;
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:1b';
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; // 70b gera respostas mais naturais; use llama-3.1-8b-instant para mais rápido
 const DOCS_DIR = process.env.DOCS_DIR
   ? path.resolve(process.env.DOCS_DIR)
   : (fs.existsSync(path.join(__dirname, '..', 'OneDrive_1_1-26-2026'))
@@ -86,7 +87,7 @@ async function loadDocs() {
 function buildPrompt(query, context, questionContext) {
   const hasContext = context && context.trim().length > 30;
   const hasQuestion = questionContext && questionContext.trim().length > 10;
-  const system = 'Você é um assistente especializado em leis brasileiras (LGPD, Marco Civil, ECA Digital, normas BCB, MP 1318, etc.). Responda em português, de forma clara e objetiva. Se não tiver informação suficiente nos trechos fornecidos, explique o que sabe sobre o tema de forma geral. Não invente leis ou artigos específicos.';
+  const system = 'Você é um consultor especializado em leis brasileiras (LGPD, Marco Civil, ECA Digital, normas BCB, MP 1318). Responda como um profissional explicando para um cliente: use linguagem natural, sintetize as informações dos trechos e explique com suas próprias palavras. NÃO copie trechos literais dos documentos. Dê uma resposta conversacional e didática. Se não tiver informação suficiente, explique o que sabe sobre o tema. Não invente leis ou artigos específicos.';
   let userPart = `Pergunta do usuário: ${query}`;
   if (hasQuestion) {
     userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda explicando como as leis se aplicam a essa pergunta:`;
@@ -106,10 +107,10 @@ async function askGroq(prompt, sources) {
         Authorization: `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: GROQ_MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 500,
-        temperature: 0.4,
+        max_tokens: 800,
+        temperature: 0.5,
       }),
     });
     if (!res.ok) throw new Error(`Groq ${res.status}`);
@@ -244,7 +245,7 @@ app.post('/ask/stream', async (req, res) => {
   const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
   const hasContext = context && context.trim().length > 30;
   const hasQuestion = qCtx.length > 10;
-  const system = 'Você é um assistente de leis brasileiras. Responda em português, de forma clara e objetiva.';
+  const system = 'Você é um consultor de leis brasileiras. Responda como um profissional explicando para um cliente: use linguagem natural, sintetize as informações e explique com suas próprias palavras. NÃO copie trechos literais. Dê uma resposta conversacional e didática.';
   let userPart = `Pergunta: ${query}`;
   if (hasQuestion) userPart = `Pergunta do assessment:\n"${qCtx}"\n\nDúvida: ${query}\n\nExplique como as leis se aplicam:`;
   const prompt = hasContext
@@ -272,7 +273,7 @@ app.post('/ask/stream', async (req, res) => {
           Authorization: `Bearer ${GROQ_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: GROQ_MODEL,
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 500,
           temperature: 0.4,
