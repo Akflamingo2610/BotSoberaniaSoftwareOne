@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../api/xano_api.dart';
 import '../models/models.dart' show Question, SavedAnswer, scoreOptions;
 import '../storage/app_storage.dart';
+import '../storage/position_persistence.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
 
@@ -20,7 +23,7 @@ class QuestionsScreen extends StatefulWidget {
   State<QuestionsScreen> createState() => _QuestionsScreenState();
 }
 
-class _QuestionsScreenState extends State<QuestionsScreen> {
+class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingObserver {
   final _api = XanoApi();
   final _storage = AppStorage();
 
@@ -32,13 +35,43 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
 
   List<Question> _questions = [];
   final Map<int, SavedAnswer> _answersByQuestionId = {};
+  final Map<int, String> _pendingAnswersByQuestionId = {}; // respostas locais ainda não salvas
 
   int _index = 0;
   String? _selectedScore;
   bool _saving = false;
+  Timer? _persistTimer;
+
+  void _persistPosition() {
+    if (_questions.isNotEmpty && _index >= 0 && _index < _questions.length) {
+      _storage.setLastQuestionIndex(widget.phase, _index);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    registerBeforeUnload(_persistPosition); // Web: salva ao fechar aba
+    _load();
+    _persistTimer = Timer.periodic(const Duration(seconds: 2), (_) => _persistPosition());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _persistPosition();
+    }
+  }
 
   @override
   void dispose() {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    WidgetsBinding.instance.removeObserver(this);
+    _persistPosition();
     super.dispose();
   }
 
@@ -96,13 +129,22 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
         }
       }
 
+      // Restaura posição salva se existir (mesmo questão já respondida).
+      final savedIndex = await _storage.getLastQuestionIndex(widget.phase);
+      if (savedIndex != null &&
+          savedIndex >= 0 &&
+          savedIndex < questions.length) {
+        _index = savedIndex;
+      } else {
+        _index = startIndex;
+      }
+
       _authToken = token;
       _assessmentId = assessmentId;
       _questions = questions;
       _answersByQuestionId
         ..clear()
         ..addAll(map);
-      _index = startIndex;
 
       _hydrateControllers();
     } catch (e) {
@@ -116,7 +158,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     if (_questions.isEmpty) return;
     final q = _questions[_index];
     final saved = _answersByQuestionId[q.id];
-    _selectedScore = saved?.score;
+    final pending = _pendingAnswersByQuestionId[q.id];
+    _selectedScore = saved?.score ?? pending;
   }
 
   String _buildQuestionContext(Question q) {
@@ -152,7 +195,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
         score: score,
       );
 
-      // Atualiza cache local como "salvo"
+      // Atualiza cache local como "salvo" e remove do pendente
+      _pendingAnswersByQuestionId.remove(q.id);
       _answersByQuestionId[q.id] = SavedAnswer(
         id: -1,
         questionId: q.id,
@@ -163,12 +207,16 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
       if (_index < _questions.length - 1) {
         setState(() => _index++);
         _hydrateControllers();
+        await _storage.setLastQuestionIndex(widget.phase, _index);
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Fase concluída!')));
-        Navigator.of(context).pop();
+        await _storage.setLastQuestionIndex(widget.phase, _index);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Todas as questões dessa sessão foram respondidas. Você pode alterar suas respostas se desejar.')),
+        );
+        setState(() {}); // atualiza UI
       }
+      // Resultado só é gerado/atualizado ao voltar para a tela Home (menos requisições)
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -179,17 +227,55 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
+  void _goToPrevious() {
+    if (_index > 0) {
+      if (_selectedScore != null) {
+        _pendingAnswersByQuestionId[_questions[_index].id] = _selectedScore!;
+      }
+      setState(() {
+        _index--;
+        _hydrateControllers();
+      });
+      _storage.setLastQuestionIndex(widget.phase, _index);
+    }
   }
+
+  void _goToNext() {
+    if (_index < _questions.length - 1) {
+      if (_selectedScore != null) {
+        _pendingAnswersByQuestionId[_questions[_index].id] = _selectedScore!;
+      }
+      setState(() {
+        _index++;
+        _hydrateControllers();
+      });
+      _storage.setLastQuestionIndex(widget.phase, _index);
+    }
+  }
+
+  Future<void> _savePositionAndGoHome() async {
+    await _storage.setLastQuestionIndex(widget.phase, _index);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  bool get _allAnsweredInPhase =>
+      _questions.isNotEmpty &&
+      _answersByQuestionId.length >= _questions.length;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Brand.surface,
-      appBar: soberaniaAppBar(context, title: widget.phaseLabel),
+      appBar: soberaniaAppBar(
+        context,
+        title: widget.phaseLabel,
+        leading: IconButton(
+          icon: const Icon(Icons.home_rounded),
+          onPressed: _savePositionAndGoHome,
+          tooltip: 'Voltar às fases',
+        ),
+      ),
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -209,11 +295,13 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
                         child: Column(
                           children: [
                             _ProgressBar(
+                              currentIndex: _index,
                               answered: _questions
                                   .where((q) => _answersByQuestionId.containsKey(q.id))
                                   .length,
                               total: _questions.length,
                               phaseLabel: widget.phaseLabel,
+                              allAnswered: _allAnsweredInPhase,
                             ),
                             Expanded(
                               child: Center(
@@ -230,6 +318,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
                                       setState(() => _selectedScore = v),
                                   saving: _saving,
                                   onSaveNext: _saveAndNext,
+                                  onPrevious: _index > 0 ? _goToPrevious : null,
+                                  onNext: _index < _questions.length - 1 ? _goToNext : null,
                                 ),
                                   ),
                                 ),
@@ -252,19 +342,24 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
 }
 
 class _ProgressBar extends StatelessWidget {
+  final int currentIndex;
   final int answered;
   final int total;
   final String phaseLabel;
+  final bool allAnswered;
 
   const _ProgressBar({
+    required this.currentIndex,
     required this.answered,
     required this.total,
     required this.phaseLabel,
+    this.allAnswered = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final progress = total > 0 ? answered / total : 0.0;
+    // Barra responsiva à questão atual: progresso = (índice atual + 1) / total
+    final progress = total > 0 ? (currentIndex + 1) / total : 0.0;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -281,11 +376,24 @@ class _ProgressBar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
+          if (allAnswered)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Todas as questões dessa sessão foram respondidas. Você pode alterar suas respostas.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Brand.black.withOpacity(0.8),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$answered de $total respondidas nesta fase',
+                allAnswered
+                    ? 'Questão ${currentIndex + 1} de $total'
+                    : '$answered de $total respondidas nesta fase',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: Brand.black,
@@ -324,6 +432,8 @@ class _QuestionCard extends StatelessWidget {
   final ValueChanged<String?> onScoreChanged;
   final bool saving;
   final VoidCallback onSaveNext;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
 
   const _QuestionCard({
     required this.question,
@@ -333,6 +443,8 @@ class _QuestionCard extends StatelessWidget {
     required this.onScoreChanged,
     required this.saving,
     required this.onSaveNext,
+    this.onPrevious,
+    this.onNext,
   });
 
   @override
@@ -342,9 +454,6 @@ class _QuestionCard extends StatelessWidget {
       parts.add(question.questionCode!);
     }
     parts.add(question.pilar);
-    if ((question.associatedAwsService ?? '').trim().isNotEmpty) {
-      parts.add(question.associatedAwsService!.trim());
-    }
     final title = parts.join(' • ');
 
     return Card(
@@ -396,20 +505,6 @@ class _QuestionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            if ((question.guidance ?? '').trim().isNotEmpty)
-              _ExpandableText(
-                title: 'Guidance',
-                text: question.guidance!.trim(),
-              ),
-            if ((question.howToCheck ?? '').trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: _ExpandableText(
-                  title: 'How to check',
-                  text: question.howToCheck!.trim(),
-                ),
-              ),
-            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: selectedScore,
               decoration: const InputDecoration(
@@ -423,7 +518,42 @@ class _QuestionCard extends StatelessWidget {
               onChanged: onScoreChanged,
             ),
             const SizedBox(height: 14),
-            FilledButton.icon(
+            Row(
+              children: [
+                if (onPrevious != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Brand.black,
+                        side: const BorderSide(color: Brand.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: saving ? null : onPrevious,
+                      icon: const Icon(Icons.arrow_back, size: 18),
+                      label: const Text('Anterior'),
+                    ),
+                  ),
+                if (onNext != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Brand.black,
+                        side: const BorderSide(color: Brand.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: saving ? null : onNext,
+                      icon: const Icon(Icons.arrow_forward, size: 18),
+                      label: const Text('Próxima'),
+                    ),
+                  ),
+                Expanded(
+                  child: FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: Brand.black,
                 foregroundColor: Brand.white,
@@ -432,45 +562,22 @@ class _QuestionCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: saving ? null : onSaveNext,
-              icon: saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save),
-              label: Text(saving ? 'Salvando...' : 'Salvar e continuar'),
+                  onPressed: saving ? null : onSaveNext,
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(saving ? 'Salvando...' : 'Salvar e continuar'),
+                ),
+                ),
+              ],
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ExpandableText extends StatelessWidget {
-  final String title;
-  final String text;
-  const _ExpandableText({required this.title, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: EdgeInsets.zero,
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            text,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.black87),
-          ),
-        ),
-      ],
     );
   }
 }

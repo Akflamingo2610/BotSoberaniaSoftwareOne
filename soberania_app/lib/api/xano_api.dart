@@ -4,6 +4,14 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 
+/// Cache simples para reduzir requisições ao Xano (limite 10 req/20s no plano gratuito).
+class _CacheEntry {
+  final dynamic value;
+  final DateTime expiresAt;
+  _CacheEntry(this.value, this.expiresAt);
+  bool get isValid => DateTime.now().isBefore(expiresAt);
+}
+
 class ApiException implements Exception {
   final int statusCode;
   final dynamic body;
@@ -16,6 +24,15 @@ class ApiException implements Exception {
 class XanoApi {
   final http.Client _client;
   XanoApi({http.Client? client}) : _client = client ?? http.Client();
+
+  // Cache em memória (TTL: questões 60s, progresso 25s).
+  static final Map<String, _CacheEntry> _cache = {};
+  static const _questionsTtlSeconds = 60;
+  static const _progressTtlSeconds = 25;
+
+  void _clearProgressCache() {
+    _cache.removeWhere((k, _) => k.startsWith('p_'));
+  }
 
   Uri _uri(String path, [Map<String, String>? query]) {
     final base = xanoBaseUrl.trim();
@@ -123,13 +140,23 @@ class XanoApi {
     required String authToken,
     required String phase,
   }) async {
+    final key = 'q_$phase';
+    final cached = _cache[key];
+    if (cached != null && cached.isValid) return cached.value as List<dynamic>;
+
     final res = await _client.get(
       _uri('/questions', {'phase': phase}),
       headers: _headers(authToken: authToken),
     );
     final body = _tryJson(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      if (body is List) return body;
+      if (body is List) {
+        _cache[key] = _CacheEntry(
+          body,
+          DateTime.now().add(const Duration(seconds: _questionsTtlSeconds)),
+        );
+        return body;
+      }
       throw ApiException(res.statusCode, body);
     }
     throw ApiException(res.statusCode, body);
@@ -139,13 +166,22 @@ class XanoApi {
     required String authToken,
     required int assessmentId,
   }) async {
+    final key = 'p_$assessmentId';
+    final cached = _cache[key];
+    if (cached != null && cached.isValid) return cached.value as Map<String, dynamic>;
+
     final res = await _client.get(
       _uri('/progress/assessment', {'assessment_id': assessmentId.toString()}),
       headers: _headers(authToken: authToken),
     );
     final body = _tryJson(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      return (body as Map).cast<String, dynamic>();
+      final data = (body as Map).cast<String, dynamic>();
+      _cache[key] = _CacheEntry(
+        data,
+        DateTime.now().add(const Duration(seconds: _progressTtlSeconds)),
+      );
+      return data;
     }
     throw ApiException(res.statusCode, body);
   }
@@ -172,7 +208,10 @@ class XanoApi {
       }),
     );
     final body = _tryJson(res.body);
-    if (res.statusCode >= 200 && res.statusCode < 300) return;
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      _clearProgressCache(); // invalida cache de progresso após salvar
+      return;
+    }
     throw ApiException(res.statusCode, body);
   }
 

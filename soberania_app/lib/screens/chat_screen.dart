@@ -128,10 +128,10 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         title: Row(
           children: [
-            Icon(Icons.gavel, color: Brand.black, size: 24),
+            Icon(Icons.smart_toy, color: Brand.black, size: 24),
             const SizedBox(width: 8),
             Text(
-              'Consultar Leis',
+              'Bot de Soberania',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: Brand.black,

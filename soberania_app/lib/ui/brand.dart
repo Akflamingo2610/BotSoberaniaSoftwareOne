@@ -117,11 +117,14 @@ PreferredSizeWidget soberaniaAppBar(
   BuildContext context, {
   required String title,
   String? subtitle,
+  Widget? leading,
 }) {
   return AppBar(
     backgroundColor: Brand.white,
     surfaceTintColor: Brand.white,
     elevation: 0,
+    leading: leading,
+    automaticallyImplyLeading: leading == null,
     titleSpacing: 16,
     title: Row(
       children: [

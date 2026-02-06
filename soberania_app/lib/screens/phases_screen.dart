@@ -17,6 +17,8 @@ class PhasesScreen extends StatefulWidget {
 }
 
 class _PhasesScreenState extends State<PhasesScreen> {
+  DateTime? _lastResultsGeneratedAt;
+
   static const phases = <PhaseOption>[
     // IMPORTANTE: esses valores precisam bater com o enum do Xano.
     PhaseOption('Quick_Wins', 'Quick Wins', 'Ações rápidas com alto impacto'),
@@ -68,18 +70,80 @@ class _PhasesScreenState extends State<PhasesScreen> {
         }
       }
       final allAnswered = totalQuestions > 0 && answeredIds.length >= totalQuestions;
-      if (mounted) setState(() => _allQuestionsAnswered = allAnswered);
+      final lastGenerated = await AppStorage().getLastResultsGeneratedAt();
+
+      // Gera/atualiza resultado e mostra notificação ao chegar no Home (assimila todas as respostas)
+      final wasNotAllAnswered = !_allQuestionsAnswered;
+      if (allAnswered) {
+        await AppStorage().setLastResultsGeneratedAt(DateTime.now());
+      }
+
+      if (mounted) {
+        setState(() {
+          _allQuestionsAnswered = allAnswered;
+          _lastResultsGeneratedAt = allAnswered ? DateTime.now() : lastGenerated;
+        });
+        if (allAnswered && wasNotAllAnswered) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Novo resultado gerado!'),
+              backgroundColor: Brand.black,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     } catch (_) {
-      if (mounted) setState(() => _allQuestionsAnswered = false);
+      // Em erro (429, rede, etc.), não altera _allQuestionsAnswered para não esconder Resultados
     } finally {
-      if (mounted) setState(() => _loadingResults = false);
+      if (mounted) {
+        setState(() => _loadingResults = false);
+        _tryResumeLastPhase();
+      }
     }
   }
+
+  bool _hasAutoNavigated = false;
 
   @override
   void initState() {
     super.initState();
     _checkIfAllAnswered();
+  }
+
+  void _tryResumeLastPhase() {
+    if (_hasAutoNavigated) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _hasAutoNavigated) return;
+      final lastPhase = await AppStorage().getLastViewedPhase();
+      if (lastPhase == null) return;
+      PhaseOption? match;
+      for (final p in phases) {
+        if (p.value == lastPhase) {
+          match = p;
+          break;
+        }
+      }
+      if (match == null || !mounted) return;
+      _hasAutoNavigated = true;
+      final phase = match;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => QuestionsScreen(
+            phase: phase.value,
+            phaseLabel: phase.label,
+          ),
+        ),
+      ).then((_) => _checkIfAllAnswered());
+    });
+  }
+
+  static String _formatTimestamp(DateTime dt) {
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final h = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m ${h}:$min';
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -155,9 +219,11 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                     fontSize: 18,
                                   ),
                                 ),
-                                subtitle: const Text(
-                                  'Ver seus gráficos de pontuação',
-                                  style: TextStyle(
+                                subtitle: Text(
+                                  _lastResultsGeneratedAt != null
+                                      ? 'Gerado em: ${_formatTimestamp(_lastResultsGeneratedAt!)}'
+                                      : 'Ver seus gráficos de pontuação',
+                                  style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 13,
                                   ),

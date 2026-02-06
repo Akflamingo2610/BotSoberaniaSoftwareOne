@@ -162,11 +162,11 @@ class _ChatPanelState extends State<ChatPanel> {
             ),
             child: Row(
               children: [
-                Icon(Icons.gavel, color: Brand.black, size: 22),
+                Icon(Icons.smart_toy, color: Brand.black, size: 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Consultar Leis',
+                    'Bot de Soberania',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: Brand.black,

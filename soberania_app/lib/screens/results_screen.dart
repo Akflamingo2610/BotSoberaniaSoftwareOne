@@ -117,6 +117,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         scoreByPhase: scoreByPhase,
         pilars: pilars,
       );
+      // Timestamp de geração é salvo em QuestionsScreen ao completar questões
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -146,6 +147,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
         context,
         title: 'Resultados',
         subtitle: subtitle,
+        leading: IconButton(
+          icon: const Icon(Icons.home_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Voltar às fases',
+        ),
       ),
       body: SafeArea(
         child: _loading
