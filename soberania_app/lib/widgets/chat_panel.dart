@@ -78,11 +78,27 @@ class _ChatPanelState extends State<ChatPanel> {
         }
       }
       if (!mounted) return;
+      String replyText = _streamingText.trim();
+      List<RagSource>? sources = _streamingSources.isEmpty ? null : _streamingSources;
+
+      if (replyText.isEmpty) {
+        try {
+          final resp = await _rag.ask(text, questionContext: widget.questionContext);
+          replyText = resp.answer.trim();
+          if (resp.sources.isNotEmpty) sources = resp.sources;
+        } catch (_) {
+          replyText = '';
+        }
+      }
+      if (replyText.isEmpty) {
+        replyText = 'Não foi possível obter resposta. Verifique sua conexão ou tente novamente.';
+        sources = null;
+      }
       _messages.add(
         _ChatMessage(
           role: 'bot',
-          text: _streamingText,
-          sources: _streamingSources.isEmpty ? null : _streamingSources,
+          text: replyText,
+          sources: sources,
         ),
       );
     } on RagException catch (e) {
@@ -93,7 +109,7 @@ class _ChatPanelState extends State<ChatPanel> {
       _messages.add(
         _ChatMessage(
           role: 'bot',
-          text: 'Servidor RAG offline. Verifique se está rodando (npm start).',
+          text: 'Não foi possível conectar ao servidor. Verifique sua conexão ou se o RAG está online.',
         ),
       );
     } finally {
@@ -230,10 +246,16 @@ class _ChatPanelState extends State<ChatPanel> {
                     itemCount: _messages.length + (_loading ? 1 : 0),
                     itemBuilder: (context, i) {
                       if (_loading && i == _messages.length) {
+                        if (_streamingText.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.only(bottom: 10),
+                            child: _TypingIndicator(),
+                          );
+                        }
                         return _ChatBubble(
                           message: _ChatMessage(
                             role: 'bot',
-                            text: _streamingText.isEmpty ? '...' : _streamingText,
+                            text: _streamingText,
                             sources: _streamingSources.isEmpty
                                 ? null
                                 : _streamingSources,
@@ -311,6 +333,84 @@ class _ChatMessage {
   final List<RagSource>? sources;
 
   _ChatMessage({required this.role, required this.text, this.sources});
+}
+
+/// Indicador animado de "digitando..." (três pontos pulsantes).
+class _TypingIndicator extends StatefulWidget {
+  const _TypingIndicator();
+
+  @override
+  State<_TypingIndicator> createState() => _TypingIndicatorState();
+}
+
+class _TypingIndicatorState extends State<_TypingIndicator>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 12,
+          backgroundColor: Brand.black.withValues(alpha: 0.1),
+          child: Icon(Icons.gavel, size: 14, color: Brand.black),
+        ),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Brand.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Brand.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              return AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  final t = (_controller.value + i * 0.25) % 1.0;
+                  final scale = 0.5 + 0.5 * (1 + (t * 2 - 1).clamp(-1.0, 1.0));
+                  return Padding(
+                    padding: EdgeInsets.only(right: i < 2 ? 4 : 0),
+                    child: Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Brand.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _ChatBubble extends StatelessWidget {

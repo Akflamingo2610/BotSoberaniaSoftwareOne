@@ -164,7 +164,7 @@ async function askLLM(query, context, sources, questionContext) {
 }
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
 
 app.get('/health', (req, res) => {
