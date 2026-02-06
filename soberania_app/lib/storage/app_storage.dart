@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppStorage {
   static const _kAuthToken = 'authToken';
   static const _kAssessmentId = 'assessmentId';
+  static const _kUserEmail = 'userEmail';
+  static const _kUserName = 'userName';
 
   Future<String?> getAuthToken() async {
     final sp = await SharedPreferences.getInstance();
@@ -31,9 +33,31 @@ class AppStorage {
     await sp.setInt(_kAssessmentId, id);
   }
 
+  Future<String?> getUserEmail() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kUserEmail);
+  }
+
+  Future<void> setUserEmail(String email) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kUserEmail, email);
+  }
+
+  Future<String?> getUserName() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kUserName);
+  }
+
+  Future<void> setUserName(String name) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kUserName, name);
+  }
+
   Future<void> clearAll() async {
     final sp = await SharedPreferences.getInstance();
     await sp.remove(_kAuthToken);
     await sp.remove(_kAssessmentId);
+    await sp.remove(_kUserEmail);
+    await sp.remove(_kUserName);
   }
 }

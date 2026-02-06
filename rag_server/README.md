@@ -1,8 +1,8 @@
 # RAG Server - Chatbot de Leis
 
-Servidor que indexa os PDFs da pasta `OneDrive_1_1-26-2026` (LGPD, Marco Civil, ECA Digital, BCB, etc.) e responde perguntas via busca semântica.
+Servidor que indexa PDFs de leis (LGPD, Marco Civil, ECA Digital, BCB, etc.) e responde perguntas via busca + IA.
 
-## Uso
+## Uso local
 
 ```bash
 cd rag_server
@@ -12,20 +12,20 @@ npm start
 
 O servidor sobe em `http://localhost:4000`.
 
+**PDFs:** Procura em `docs/` (dentro do rag_server) ou em `../OneDrive_1_1-26-2026/`.
+
+**IA:** Sem `GROQ_API_KEY` usa Ollama local. Com `GROQ_API_KEY` usa Groq (nuvem).
+
+## Deploy na nuvem (funcionar em qualquer PC)
+
+Veja [DEPLOY.md](DEPLOY.md) para hospedar no Railway ou Render com Groq.
+
 ## Endpoints
 
 - `GET /health` - Status e quantidade de chunks indexados
 - `POST /ask` - Body: `{ "query": "sua pergunta" }`
-
-## PDFs indexados
-
-- BCB 85 de 2021
-- LEI 15.211 ECA DIGITAL
-- LEI N 12.965 MARCO CIVIL
-- LEI N 13.709 LGPD
-- LEI N 4595 Sistema Financeiro Nacional
-- MEDIDA PROVISÓRIA Nº 1.318
+- `POST /ask/stream` - Mesmo, com resposta em streaming
 
 ## Flutter
 
-Configure `ragBaseUrl` em `lib/config.dart`. Para app web em dev: `http://localhost:4000`. Para emulador Android: use o IP da máquina, ex: `http://10.0.2.2:4000`.
+Configure `ragBaseUrl` em `soberania_app/lib/config.dart`. Local: `http://localhost:4000`. Produção: URL do Railway/Render.

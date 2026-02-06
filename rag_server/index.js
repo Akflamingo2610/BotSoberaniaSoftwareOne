@@ -8,7 +8,12 @@ const MiniSearch = require('minisearch');
 const PORT = process.env.PORT || 4000;
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:1b';
-const DOCS_DIR = path.join(__dirname, '..', 'OneDrive_1_1-26-2026');
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const DOCS_DIR = process.env.DOCS_DIR
+  ? path.resolve(process.env.DOCS_DIR)
+  : (fs.existsSync(path.join(__dirname, '..', 'OneDrive_1_1-26-2026'))
+    ? path.join(__dirname, '..', 'OneDrive_1_1-26-2026')
+    : path.join(__dirname, 'docs'));
 
 let searchIndex = null;
 let docs = [];
@@ -78,7 +83,7 @@ async function loadDocs() {
   console.log('Índice pronto. Total de chunks:', docs.length);
 }
 
-async function askOllama(query, context, sources, questionContext) {
+function buildPrompt(query, context, questionContext) {
   const hasContext = context && context.trim().length > 30;
   const hasQuestion = questionContext && questionContext.trim().length > 10;
   const system = 'Você é um assistente especializado em leis brasileiras (LGPD, Marco Civil, ECA Digital, normas BCB, MP 1318, etc.). Responda em português, de forma clara e objetiva. Se não tiver informação suficiente nos trechos fornecidos, explique o que sabe sobre o tema de forma geral. Não invente leis ou artigos específicos.';
@@ -86,10 +91,43 @@ async function askOllama(query, context, sources, questionContext) {
   if (hasQuestion) {
     userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda explicando como as leis se aplicam a essa pergunta:`;
   }
-  const prompt = hasContext
+  return hasContext
     ? `${system}\n\nTrechos dos documentos (use como base para sua resposta):\n\n${context}\n\n${userPart}`
     : `${system}\n\n${userPart}\n\nNão há trechos específicos dos documentos disponíveis. Ainda assim, responda de forma útil sobre o tema, explicando conceitos gerais quando possível:`;
+}
 
+async function askGroq(prompt, sources) {
+  if (!GROQ_API_KEY) return null;
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 500,
+        temperature: 0.4,
+      }),
+    });
+    if (!res.ok) throw new Error(`Groq ${res.status}`);
+    const data = await res.json();
+    let answer = (data.choices?.[0]?.message?.content || '').trim();
+    if (!answer) throw new Error('Resposta vazia da Groq');
+    if (sources && sources.length > 0) {
+      answer += `\n\n*Fontes consultadas: ${sources.map(s => s.title).join(', ')}*`;
+    }
+    answer += '\n\n*Nota: Esta é uma busca por relevância. Para interpretação jurídica, consulte um profissional.*';
+    return answer;
+  } catch (err) {
+    console.error('Erro Groq:', err.message);
+    return null;
+  }
+}
+
+async function askOllama(prompt, sources) {
   try {
     const res = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
@@ -98,11 +136,7 @@ async function askOllama(query, context, sources, questionContext) {
         model: OLLAMA_MODEL,
         prompt,
         stream: false,
-        options: {
-          num_predict: 450,
-          num_ctx: 4096,
-          temperature: 0.4,
-        },
+        options: { num_predict: 450, num_ctx: 4096, temperature: 0.4 },
       }),
     });
     if (!res.ok) throw new Error(`Ollama ${res.status}`);
@@ -118,6 +152,15 @@ async function askOllama(query, context, sources, questionContext) {
     console.error('Erro Ollama:', err.message);
     return null;
   }
+}
+
+async function askLLM(query, context, sources, questionContext) {
+  const prompt = buildPrompt(query, context, questionContext);
+  if (GROQ_API_KEY) {
+    const answer = await askGroq(prompt, sources);
+    if (answer) return answer;
+  }
+  return askOllama(prompt, sources);
 }
 
 const app = express();
@@ -156,12 +199,13 @@ app.post('/ask', async (req, res) => {
     .join('\n\n---\n\n');
 
   const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
-  let answer = await askOllama(query, context, sources, qCtx || undefined);
+  let answer = await askLLM(query, context, sources, qCtx || undefined);
   if (!answer) {
+    const llmHint = GROQ_API_KEY ? 'Verifique GROQ_API_KEY.' : `Ollama não está rodando (ollama run ${OLLAMA_MODEL}).`;
     if (context && context.trim().length > 50) {
-      answer = `Com base nos documentos:\n\n${context}\n\n*Nota: O Ollama não está disponível. Verifique se está rodando (ollama run ${OLLAMA_MODEL}).*`;
+      answer = `Com base nos documentos:\n\n${context}\n\n*Nota: ${llmHint}*`;
     } else if (sources.length > 0) {
-      answer = `Encontrei referência a: ${sources.map(s => s.title).join(', ')}.\n\nO Ollama não está respondendo. Verifique se está rodando (ollama run ${OLLAMA_MODEL}).`;
+      answer = `Encontrei referência a: ${sources.map(s => s.title).join(', ')}.\n\n*Nota: ${llmHint}*`;
     } else {
       answer = 'Não encontrei trechos relevantes. Tente reformular a pergunta ou usar termos das leis (ex: LGPD, Marco Civil, dados pessoais).';
     }
@@ -212,7 +256,56 @@ app.post('/ask/stream', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
+  const writeChunk = (t) => res.write(JSON.stringify({ t }) + '\n');
+  const writeDone = () => {
+    if (sources.length > 0) writeChunk(`\n\n*Fontes: ${sources.map(s => s.title).join(', ')}*`);
+    res.write(JSON.stringify({ t: '\n\n*Nota: Para interpretação jurídica, consulte um profissional.*', done: true, sources }) + '\n');
+    res.end();
+  };
+
   try {
+    if (GROQ_API_KEY) {
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 500,
+          temperature: 0.4,
+          stream: true,
+        }),
+      });
+      if (groqRes.ok && groqRes.body) {
+        const reader = groqRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const json = line.slice(6).trim();
+              if (json === '[DONE]') continue;
+              try {
+                const obj = JSON.parse(json);
+                const content = obj.choices?.[0]?.delta?.content;
+                if (content) writeChunk(content);
+              } catch (_) { }
+            }
+          }
+        }
+        writeDone();
+        return;
+      }
+    }
+
     const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -224,7 +317,7 @@ app.post('/ask/stream', async (req, res) => {
       }),
     });
     if (!ollamaRes.ok || !ollamaRes.body) {
-      res.write(JSON.stringify({ t: '', done: true, err: 'Ollama indisponível' }) + '\n');
+      res.write(JSON.stringify({ t: '', done: true, err: GROQ_API_KEY ? 'Groq falhou' : 'Ollama indisponível' }) + '\n');
       return res.end();
     }
     const reader = ollamaRes.body.getReader();
@@ -240,32 +333,33 @@ app.post('/ask/stream', async (req, res) => {
         if (!line.trim()) continue;
         try {
           const obj = JSON.parse(line);
-          if (obj.response) res.write(JSON.stringify({ t: obj.response }) + '\n');
+          if (obj.response) writeChunk(obj.response);
         } catch (_) { }
       }
     }
     if (buffer.trim()) {
       try {
         const obj = JSON.parse(buffer);
-        if (obj.response) res.write(JSON.stringify({ t: obj.response }) + '\n');
+        if (obj.response) writeChunk(obj.response);
       } catch (_) { }
     }
-    if (sources.length > 0) {
-      const suffix = `\n\n*Fontes: ${sources.map(s => s.title).join(', ')}*`;
-      res.write(JSON.stringify({ t: suffix }) + '\n');
-    }
-    res.write(JSON.stringify({ t: '\n\n*Nota: Para interpretação jurídica, consulte um profissional.*', done: true, sources }) + '\n');
+    writeDone();
   } catch (err) {
     res.write(JSON.stringify({ t: '', done: true, err: err.message }) + '\n');
+    res.end();
   }
-  res.end();
 });
 
 async function start() {
   await loadDocs();
   app.listen(PORT, () => {
     console.log(`RAG Server rodando em http://localhost:${PORT}`);
-    console.log(`Ollama: ${OLLAMA_URL} (modelo: ${OLLAMA_MODEL})`);
+    if (GROQ_API_KEY) {
+      console.log('LLM: Groq (nuvem)');
+    } else {
+      console.log(`LLM: Ollama ${OLLAMA_URL} (modelo: ${OLLAMA_MODEL})`);
+    }
+    console.log(`Docs: ${DOCS_DIR}`);
     console.log('POST /ask com { "query": "sua pergunta" }');
   });
 }

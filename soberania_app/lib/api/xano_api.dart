@@ -154,11 +154,8 @@ class XanoApi {
     required String authToken,
     required int assessmentId,
     required int questionId,
-    required String justification,
-    required String evidence,
+    required String score,
   }) async {
-    // Xano exige que evidence esteja presente e não vazio; enviamos espaço se vazio.
-    final evidenceValue = evidence.trim().isEmpty ? ' ' : evidence.trim();
     final res = await _client.post(
       _uri('/assessment/save'),
       headers: _headers(authToken: authToken),
@@ -167,8 +164,9 @@ class XanoApi {
         'answers': [
           {
             'question_id': questionId,
-            'justification': justification.trim(),
-            'evidence': evidenceValue,
+            'score': score,
+            'justification': '',
+            'evidence': '',
           },
         ],
       }),

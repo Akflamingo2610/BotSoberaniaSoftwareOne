@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../api/xano_api.dart';
-import '../models/models.dart';
+import '../models/models.dart' show Question, SavedAnswer, scoreOptions;
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
-import 'chat_screen.dart';
+import '../widgets/chat_panel.dart';
 
 class QuestionsScreen extends StatefulWidget {
   final String phase;
@@ -34,14 +34,11 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
   final Map<int, SavedAnswer> _answersByQuestionId = {};
 
   int _index = 0;
-  final _justification = TextEditingController();
-  final _evidence = TextEditingController();
+  String? _selectedScore;
   bool _saving = false;
 
   @override
   void dispose() {
-    _justification.dispose();
-    _evidence.dispose();
     super.dispose();
   }
 
@@ -119,8 +116,17 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     if (_questions.isEmpty) return;
     final q = _questions[_index];
     final saved = _answersByQuestionId[q.id];
-    _justification.text = saved?.justification ?? '';
-    _evidence.text = saved?.evidence ?? '';
+    _selectedScore = saved?.score;
+  }
+
+  String _buildQuestionContext(Question q) {
+    return [
+      q.recommendation,
+      if ((q.guidance ?? '').trim().isNotEmpty)
+        'Guidance: ${q.guidance!.trim()}',
+      if ((q.howToCheck ?? '').trim().isNotEmpty)
+        'How to check: ${q.howToCheck!.trim()}',
+    ].join('\n\n');
   }
 
   Future<void> _saveAndNext() async {
@@ -128,6 +134,13 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     final assessmentId = _assessmentId;
     if (token == null || assessmentId == null) return;
     if (_questions.isEmpty) return;
+    final score = _selectedScore;
+    if (score == null || score.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione uma opção antes de salvar')),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -136,16 +149,14 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
         authToken: token,
         assessmentId: assessmentId,
         questionId: q.id,
-        justification: _justification.text.trim(),
-        evidence: _evidence.text.trim(),
+        score: score,
       );
 
       // Atualiza cache local como "salvo"
       _answersByQuestionId[q.id] = SavedAnswer(
         id: -1,
         questionId: q.id,
-        justification: _justification.text.trim(),
-        evidence: _evidence.text.trim(),
+        score: score,
       );
 
       if (!mounted) return;
@@ -188,51 +199,52 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
             ? const Center(
                 child: Text('Nenhuma pergunta encontrada para essa fase.'),
               )
-            : Column(
-                children: [
-                  _ProgressBar(
-                    answered: _questions
-                        .where((q) => _answersByQuestionId.containsKey(q.id))
-                        .length,
-                    total: _questions.length,
-                    phaseLabel: widget.phaseLabel,
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 880),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: _QuestionCard(
-                            question: _questions[_index],
-                            index: _index,
-                            total: _questions.length,
-                            justificationController: _justification,
-                            evidenceController: _evidence,
-                            saving: _saving,
-                            onSaveNext: _saveAndNext,
-                            onAskBot: () {
-                              final q = _questions[_index];
-                              final ctx = [
-                                q.recommendation,
-                                if ((q.guidance ?? '').trim().isNotEmpty)
-                                  'Guidance: ${q.guidance!.trim()}',
-                                if ((q.howToCheck ?? '').trim().isNotEmpty)
-                                  'How to check: ${q.howToCheck!.trim()}',
-                              ].join('\n\n');
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      ChatScreen(questionContext: ctx),
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final showPanel = constraints.maxWidth > 800;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            _ProgressBar(
+                              answered: _questions
+                                  .where((q) => _answersByQuestionId.containsKey(q.id))
+                                  .length,
+                              total: _questions.length,
+                              phaseLabel: widget.phaseLabel,
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 720),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                child: _QuestionCard(
+                                  question: _questions[_index],
+                                  index: _index,
+                                  total: _questions.length,
+                                  selectedScore: _selectedScore,
+                                  onScoreChanged: (v) =>
+                                      setState(() => _selectedScore = v),
+                                  saving: _saving,
+                                  onSaveNext: _saveAndNext,
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ],
                     ),
                   ),
-                ],
+                      if (showPanel)
+                        ChatPanel(
+                          questionContext: _buildQuestionContext(_questions[_index]),
+                        ),
+                    ],
+                  );
+                },
               ),
       ),
     );
@@ -308,28 +320,32 @@ class _QuestionCard extends StatelessWidget {
   final Question question;
   final int index;
   final int total;
-  final TextEditingController justificationController;
-  final TextEditingController evidenceController;
+  final String? selectedScore;
+  final ValueChanged<String?> onScoreChanged;
   final bool saving;
   final VoidCallback onSaveNext;
-  final VoidCallback onAskBot;
 
   const _QuestionCard({
     required this.question,
     required this.index,
     required this.total,
-    required this.justificationController,
-    required this.evidenceController,
+    required this.selectedScore,
+    required this.onScoreChanged,
     required this.saving,
     required this.onSaveNext,
-    required this.onAskBot,
   });
 
   @override
   Widget build(BuildContext context) {
-    final title = question.questionCode?.isNotEmpty == true
-        ? '${question.questionCode} • ${question.pilar}'
-        : question.pilar;
+    final parts = <String>[];
+    if (question.questionCode?.isNotEmpty == true) {
+      parts.add(question.questionCode!);
+    }
+    parts.add(question.pilar);
+    if ((question.associatedAwsService ?? '').trim().isNotEmpty) {
+      parts.add(question.associatedAwsService!.trim());
+    }
+    final title = parts.join(' • ');
 
     return Card(
       elevation: 0,
@@ -394,40 +410,19 @@ class _QuestionCard extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 12),
-            TextField(
-              controller: justificationController,
-              maxLines: 4,
+            DropdownButtonFormField<String>(
+              value: selectedScore,
               decoration: const InputDecoration(
-                labelText: 'Justificativa',
+                labelText: 'Alinhamento',
                 border: OutlineInputBorder(),
-                alignLabelWithHint: true,
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: evidenceController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Evidências (links, docs, etc.)',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
+              hint: const Text('Selecione o nível de alinhamento'),
+              items: scoreOptions
+                  .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                  .toList(),
+              onChanged: onScoreChanged,
             ),
             const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: onAskBot,
-              icon: const Icon(Icons.gavel, size: 18),
-              label: const Text('Dúvida? Consulte as leis'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Brand.black,
-                side: const BorderSide(color: Brand.border),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: Brand.black,

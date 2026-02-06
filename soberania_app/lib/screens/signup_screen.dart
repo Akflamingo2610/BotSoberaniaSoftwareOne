@@ -60,6 +60,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
       final storage = AppStorage();
       await storage.setAuthToken(authToken);
+      await storage.setUserEmail(_email.text.trim());
+      await storage.setUserName(_name.text.trim().isEmpty
+          ? _email.text.split('@').first
+          : _name.text.trim());
 
       final assessment = await api.resumeAssessment(authToken: authToken);
       final assessmentId = (assessment['id'] as num).toInt();

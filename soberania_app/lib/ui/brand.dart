@@ -116,6 +116,7 @@ class SoftwareOneMark extends StatelessWidget {
 PreferredSizeWidget soberaniaAppBar(
   BuildContext context, {
   required String title,
+  String? subtitle,
 }) {
   return AppBar(
     backgroundColor: Brand.white,
@@ -135,15 +136,42 @@ PreferredSizeWidget soberaniaAppBar(
         const SoftwareOneMark(size: 24),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: Brand.black,
-            ),
-          ),
+          child: subtitle != null && subtitle.isNotEmpty
+              ? Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Brand.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Brand.black.withValues(alpha: 0.7),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: Brand.black,
+                  ),
+                ),
         ),
       ],
     ),

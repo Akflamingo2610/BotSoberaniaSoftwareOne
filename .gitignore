@@ -11,6 +11,9 @@ build/
 *.iml
 .idea/
 
+# Firebase
+.firebase/
+
 # Ambiente / secrets
 .env
 .env.local
@@ -19,3 +22,4 @@ build/
 # Sistema
 .DS_Store
 Thumbs.db
+assessment_save.xs

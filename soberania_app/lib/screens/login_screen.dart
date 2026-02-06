@@ -44,6 +44,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final storage = AppStorage();
       await storage.setAuthToken(authToken);
+      await storage.setUserEmail(_email.text.trim());
+      final name = (res['user'] as Map?)?['name']?.toString() ??
+          (res['admin_name'] ?? res['name'])?.toString() ??
+          _email.text.split('@').first;
+      await storage.setUserName(name);
 
       // Cria/retoma assessment logo após logar.
       final assessment = await api.resumeAssessment(authToken: authToken);
