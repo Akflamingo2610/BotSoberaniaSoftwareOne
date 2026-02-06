@@ -232,7 +232,7 @@ class _ChatPanelState extends State<ChatPanel> {
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        'Pergunte sobre as leis\nou peça ajuda nesta pergunta',
+                        'Pergunte sobre AWS, soberania digital\nou leis brasileiras',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.black54,
@@ -280,7 +280,7 @@ class _ChatPanelState extends State<ChatPanel> {
                   child: TextField(
                     controller: _controller,
                     decoration: InputDecoration(
-                      hintText: 'Pergunte sobre as leis...',
+                      hintText: 'Pergunte sobre AWS, soberania digital ou leis...',
                       border: const OutlineInputBorder(),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,

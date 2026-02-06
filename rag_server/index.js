@@ -12,9 +12,15 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; // 70b gera respostas mais naturais; use llama-3.1-8b-instant para mais rápido
 const DOCS_DIR = process.env.DOCS_DIR
   ? path.resolve(process.env.DOCS_DIR)
-  : (fs.existsSync(path.join(__dirname, '..', 'OneDrive_1_1-26-2026'))
-    ? path.join(__dirname, '..', 'OneDrive_1_1-26-2026')
-    : path.join(__dirname, 'docs'));
+  : path.join(__dirname, 'docs');
+
+// Arquivos AWS (soberania, security, well-architected) vs leis brasileiras
+const AWS_FILE_PATTERNS = ['aws-', 'aws_', 'sovereign', 'digital-sovereignty', 'wellarchitected-security'];
+
+function getDocType(fileName) {
+  const lower = fileName.toLowerCase();
+  return AWS_FILE_PATTERNS.some(p => lower.includes(p.toLowerCase())) ? 'aws' : 'lei';
+}
 
 let searchIndex = null;
 let docs = [];
@@ -55,8 +61,9 @@ async function loadDocs() {
       const title = file.replace(/\.pdf$/i, '');
       let chunks = chunkText(raw);
       if (chunks.length === 0 && raw.length > 0) chunks = [raw.slice(0, 2000)];
+      const docType = getDocType(file);
       if (chunks.length === 0) {
-        docs.push({ id: title, title, file, text: title, chunkIndex: 0 });
+        docs.push({ id: title, title, file, text: title, chunkIndex: 0, docType });
         console.log('Indexado (metadado):', file, '- PDF pode ser escaneado');
       } else {
         chunks.forEach((chunk, i) => {
@@ -66,6 +73,7 @@ async function loadDocs() {
             file,
             text: chunk,
             chunkIndex: i,
+            docType,
           });
         });
         console.log('Indexado:', file, '-', chunks.length, 'chunks');
@@ -77,17 +85,99 @@ async function loadDocs() {
 
   searchIndex = new MiniSearch({
     fields: ['title', 'text'],
-    storeFields: ['title', 'file', 'text'],
+    storeFields: ['title', 'file', 'text', 'docType'],
     searchOptions: { boost: { title: 2 }, prefix: true, fuzzy: 0.2 },
   });
   searchIndex.addAll(docs);
   console.log('Índice pronto. Total de chunks:', docs.length);
 }
 
+/** Detecta se a pergunta é sobre AWS, soberania digital em nuvem ou compliance AWS */
+function isAwsQuery(query) {
+  const q = (query || '').toLowerCase();
+  const tokens = [
+    'aws', 'amazon', 'amazon web', 'soberania', 'soberania digital', 'soberania na nuvem',
+    'well-architected', 'well architected', 'security pillar', 'digital sovereignty',
+    'sovereign cloud', 'região são paulo', 'são paulo region', 'sa-east-1', 'compliance aws',
+    'shared responsibility', 'pilares aws', 'princípios segurança aws', 'dados no brasil',
+    'nuvem', 'cloud',
+  ];
+  return tokens.some(t => q.includes(t));
+}
+
+/** Expande termos PT→EN para encontrar conteúdo nos PDFs AWS (que estão em inglês) */
+function expandQueryForAws(query) {
+  const map = {
+    soberania: 'sovereignty',
+    'soberania digital': 'digital sovereignty data sovereignty',
+    'dados no brasil': 'data residency brazil region',
+    'pilares': 'pillars principles',
+    'segurança': 'security',
+    'compliance': 'compliance',
+    'continuidade': 'continuity resilience',
+    'controle': 'control governance',
+    'privacidade': 'privacy',
+    'criptografia': 'encryption',
+    'responsabilidade compartilhada': 'shared responsibility',
+    'região': 'region',
+  };
+  let expanded = query;
+  for (const [pt, en] of Object.entries(map)) {
+    if (query.toLowerCase().includes(pt)) expanded += ' ' + en;
+  }
+  return expanded;
+}
+
+/** Termos em inglês que garantem hits nos PDFs AWS (digital-sovereignty-lens, wellarchitected, etc.) */
+const AWS_SEED_QUERY = 'digital sovereignty data residency AWS region well-architected security';
+
+/** Busca em 2 etapas: para perguntas AWS, NUNCA retorna docs de leis (ECA, LGPD, etc.) */
+function searchDocs(query, limit = 8) {
+  const q = query.trim();
+  const awsQuery = isAwsQuery(q);
+
+  if (awsQuery) {
+    const awsSearchQuery = expandQueryForAws(q);
+    let awsHits = searchIndex.search(awsSearchQuery, { combineWith: 'OR', filter: (r) => r.docType === 'aws' }).slice(0, limit);
+    const seen = new Set(awsHits.map(h => h.id));
+
+    // Fallback: se não achou nada, busca com termos em inglês
+    if (awsHits.length === 0) {
+      awsHits = searchIndex.search(AWS_SEED_QUERY, { combineWith: 'OR', filter: (r) => r.docType === 'aws' }).slice(0, limit);
+      awsHits.forEach(h => seen.add(h.id));
+    }
+
+    // Complementa APENAS com outros docs AWS (NUNCA leis)
+    if (awsHits.length < limit) {
+      const allHits = searchIndex.search(awsSearchQuery + ' ' + AWS_SEED_QUERY, { combineWith: 'OR' });
+      const awsFromAll = allHits.filter(h => h.docType === 'aws');
+      for (const h of awsFromAll) {
+        if (seen.has(h.id)) continue;
+        awsHits.push(h);
+        seen.add(h.id);
+        if (awsHits.length >= limit) break;
+      }
+    }
+
+    // Último recurso: pega chunks AWS direto do índice (garante que nunca vai ECA)
+    if (awsHits.length === 0) {
+      const awsDocs = docs.filter(d => d.docType === 'aws');
+      const take = Math.min(limit, awsDocs.length);
+      for (let i = 0; i < take; i++) {
+        awsHits.push({ ...awsDocs[i], score: 1, id: awsDocs[i].id });
+      }
+    }
+
+    return awsHits.slice(0, limit);
+  }
+
+  return searchIndex.search(q, { combineWith: 'OR' }).slice(0, limit);
+}
+
 function buildPrompt(query, context, questionContext) {
   const hasContext = context && context.trim().length > 30;
   const hasQuestion = questionContext && questionContext.trim().length > 10;
-  const system = 'Você é um consultor especializado em leis brasileiras (LGPD, Marco Civil, ECA Digital, normas BCB, MP 1318). Responda como um profissional explicando para um cliente: use linguagem natural, sintetize as informações dos trechos e explique com suas próprias palavras. NÃO copie trechos literais dos documentos. Dê uma resposta conversacional e didática. Se não tiver informação suficiente, explique o que sabe sobre o tema. Não invente leis ou artigos específicos.';
+  const system = 'Você é um ESPECIALISTA AWS em segurança, soberania digital e compliance/continuidade. Responda SEMPRE como consultor AWS. REGRA CRÍTICA: Se a pergunta for sobre AWS, soberania digital em nuvem, pilares AWS ou dados na AWS, use EXCLUSIVAMENTE os trechos dos documentos AWS (digital-sovereignty-lens, aws-overview, wellarchitected-security, AWS_Sovereign_workshop). NÃO mencione ECA Digital, Lei 15.211 ou leis de proteção a crianças – isso é outro tema. Se houver trechos de leis brasileiras mas a pergunta for sobre AWS, IGNORE-OS e priorize os trechos AWS. Traduza conteúdo em inglês para português. Use linguagem natural, sintetize e explique com suas palavras. NÃO copie trechos literais. Para perguntas específicas sobre LGPD, Marco Civil ou ECA Digital, aí sim use os documentos de leis.';
   let userPart = `Pergunta do usuário: ${query}`;
   if (hasQuestion) {
     userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda explicando como as leis se aplicam a essa pergunta:`;
@@ -177,14 +267,18 @@ app.post('/ask', async (req, res) => {
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Envie { "query": "sua pergunta" }' });
   }
+  const q = query.trim();
+  if (q.length < 3) {
+    return res.status(400).json({ error: 'Sua pergunta está muito curta. Digite pelo menos 3 caracteres (ex: "O que é soberania digital na AWS?").' });
+  }
 
   if (!searchIndex || docs.length === 0) {
     return res.status(503).json({
-      error: 'Índice não carregado. Verifique se a pasta OneDrive_1_1-26-2026 existe e contém PDFs.',
+      error: 'Índice não carregado. Verifique se a pasta docs existe e contém PDFs.',
     });
   }
 
-  const hits = searchIndex.search(query.trim(), { combineWith: 'OR' }).slice(0, 4);
+  const hits = searchDocs(q, 8);
   const sources = hits.map(h => {
     const doc = docs.find(d => d.id === h.id) || h;
     return { title: doc.title || h.title, file: doc.file || h.file };
@@ -200,7 +294,7 @@ app.post('/ask', async (req, res) => {
     .join('\n\n---\n\n');
 
   const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
-  let answer = await askLLM(query, context, sources, qCtx || undefined);
+  let answer = await askLLM(q, context, sources, qCtx || undefined);
   if (!answer) {
     const llmHint = GROQ_API_KEY ? 'Verifique GROQ_API_KEY.' : `Ollama não está rodando (ollama run ${OLLAMA_MODEL}).`;
     if (context && context.trim().length > 50) {
@@ -221,13 +315,17 @@ app.post('/ask/stream', async (req, res) => {
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Envie { "query": "sua pergunta" }' });
   }
+  const qStream = query.trim();
+  if (qStream.length < 3) {
+    return res.status(400).json({ error: 'Sua pergunta está muito curta. Digite pelo menos 3 caracteres.' });
+  }
   if (!searchIndex || docs.length === 0) {
     return res.status(503).json({
-      error: 'Índice não carregado. Verifique se a pasta OneDrive_1_1-26-2026 existe e contém PDFs.',
+      error: 'Índice não carregado. Verifique se a pasta docs existe e contém PDFs.',
     });
   }
 
-  const hits = searchIndex.search(query.trim(), { combineWith: 'OR' }).slice(0, 3);
+  const hits = searchDocs(qStream, 6);
   const sources = hits.map(h => {
     const doc = docs.find(d => d.id === h.id) || h;
     return { title: doc.title || h.title, file: doc.file || h.file };
@@ -245,9 +343,9 @@ app.post('/ask/stream', async (req, res) => {
   const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
   const hasContext = context && context.trim().length > 30;
   const hasQuestion = qCtx.length > 10;
-  const system = 'Você é um consultor de leis brasileiras. Responda como um profissional explicando para um cliente: use linguagem natural, sintetize as informações e explique com suas próprias palavras. NÃO copie trechos literais. Dê uma resposta conversacional e didática.';
-  let userPart = `Pergunta: ${query}`;
-  if (hasQuestion) userPart = `Pergunta do assessment:\n"${qCtx}"\n\nDúvida: ${query}\n\nExplique como as leis se aplicam:`;
+  const system = 'Você é um ESPECIALISTA AWS. Se a pergunta for sobre AWS ou soberania digital em nuvem, use APENAS os trechos de documentos AWS. NÃO mencione ECA Digital. Traduza inglês para português. Responda como consultor AWS.';
+  let userPart = `Pergunta: ${qStream}`;
+  if (hasQuestion) userPart = `Pergunta do assessment:\n"${qCtx}"\n\nDúvida: ${qStream}\n\nExplique como as leis se aplicam:`;
   const prompt = hasContext
     ? `${system}\n\nTrechos:\n\n${context}\n\n${userPart}`
     : `${system}\n\n${userPart}`;
