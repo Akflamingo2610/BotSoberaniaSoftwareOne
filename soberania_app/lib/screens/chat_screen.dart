@@ -29,6 +29,11 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _checkHealth();
+    // Explicação automática quando há pergunta do assessment
+    if (widget.questionContext != null &&
+        widget.questionContext!.trim().length > 10) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _requestAutoExplanation());
+    }
   }
 
   @override
@@ -41,6 +46,60 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _checkHealth() async {
     final ok = await _rag.health();
     if (mounted) setState(() => _connected = ok);
+  }
+
+  Future<void> _requestAutoExplanation() async {
+    final q = widget.questionContext?.trim() ?? '';
+    if (q.isEmpty || q.length < 10 || _loading || _messages.isNotEmpty) return;
+
+    setState(() {
+      _loading = true;
+      _streamingText = '';
+      _streamingSources = [];
+    });
+    _scrollToBottom();
+
+    try {
+      await for (final chunk in _rag.explainQuestionStream(q)) {
+        if (!mounted) return;
+        if (chunk.text != null && chunk.text!.isNotEmpty) {
+          setState(() => _streamingText += chunk.text!);
+          _scrollToBottom();
+        }
+        if (chunk.done && chunk.sources.isNotEmpty) {
+          setState(() => _streamingSources = chunk.sources);
+        }
+      }
+      if (!mounted) return;
+      _messages.add(
+        _Message(
+          role: 'bot',
+          text: _streamingText,
+          sources: _streamingSources.isEmpty ? null : _streamingSources,
+        ),
+      );
+    } on RagException catch (e) {
+      if (!mounted) return;
+      _messages.add(_Message(role: 'bot', text: 'Erro: ${e.message}'));
+    } catch (e) {
+      if (!mounted) return;
+      _messages.add(
+        _Message(
+          role: 'bot',
+          text:
+              'Não foi possível obter a explicação. Verifique se o servidor RAG está rodando.',
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _streamingText = '';
+          _streamingSources = [];
+        });
+        _scrollToBottom();
+      }
+    }
   }
 
   Future<void> _send() async {
@@ -164,7 +223,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           Expanded(
-            child: _messages.isEmpty
+            child: _messages.isEmpty && !_loading
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),

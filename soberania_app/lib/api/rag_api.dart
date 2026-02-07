@@ -130,6 +130,80 @@ class RagApi {
       return false;
     }
   }
+
+  /// Explicação automática da pergunta do assessment (resposta proativa)
+  Stream<RagStreamChunk> explainQuestionStream(String questionContext) async* {
+    final uri = Uri.parse('$baseUrl/ask/explain-question/stream');
+    final body = <String, dynamic>{'questionContext': questionContext.trim()};
+
+    final request = http.Request('POST', uri)
+      ..headers['Content-Type'] = 'application/json'
+      ..body = jsonEncode(body);
+
+    final client = http.Client();
+    try {
+      final response = await client.send(request);
+      if (response.statusCode >= 400) {
+        final body = await response.stream.bytesToString();
+        String msg = 'Erro ${response.statusCode}';
+        try {
+          final err = jsonDecode(body);
+          if (err is Map && err['error'] != null) msg = err['error'].toString();
+        } catch (_) {}
+        throw RagException(msg);
+      }
+
+      String buffer = '';
+      await for (final chunk in response.stream.transform(utf8.decoder)) {
+        buffer += chunk;
+        final lines = buffer.split('\n');
+        buffer = lines.removeLast();
+        for (final line in lines) {
+          if (line.trim().isEmpty) continue;
+          try {
+            final obj = jsonDecode(line) as Map<String, dynamic>;
+            final t = obj['t']?.toString();
+            if (t != null && t.isNotEmpty) {
+              yield RagStreamChunk(text: t);
+            }
+            if (obj['done'] == true) {
+              final src = obj['sources'] as List<dynamic>?;
+              final sources =
+                  src
+                      ?.map(
+                        (e) => RagSource.fromJson(e as Map<String, dynamic>),
+                      )
+                      .toList() ??
+                  [];
+              yield RagStreamChunk(sources: sources, done: true);
+            }
+          } catch (_) {}
+        }
+      }
+      if (buffer.trim().isNotEmpty) {
+        try {
+          final obj = jsonDecode(buffer) as Map<String, dynamic>;
+          final t = obj['t']?.toString();
+          if (t != null && t.isNotEmpty) yield RagStreamChunk(text: t);
+          if (obj['done'] == true) {
+            final src = obj['sources'] as List<dynamic>?;
+            yield RagStreamChunk(
+              sources:
+                  src
+                      ?.map(
+                        (e) => RagSource.fromJson(e as Map<String, dynamic>),
+                      )
+                      .toList() ??
+                  [],
+              done: true,
+            );
+          }
+        } catch (_) {}
+      }
+    } finally {
+      client.close();
+    }
+  }
 }
 
 class RagResponse {

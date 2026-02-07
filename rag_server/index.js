@@ -174,17 +174,31 @@ function searchDocs(query, limit = 8) {
   return searchIndex.search(q, { combineWith: 'OR' }).slice(0, limit);
 }
 
-function buildPrompt(query, context, questionContext) {
+/** Prompt base do especialista – respostas precisas e acessíveis */
+const SYSTEM_PROMPT = `Você é um ESPECIALISTA AWS em segurança, soberania digital e compliance/continuidade. Responda SEMPRE como consultor AWS de forma clara e acessível.
+
+REGRA CRÍTICA – Documentos: Se a pergunta for sobre AWS, soberania digital em nuvem, pilares AWS ou dados na AWS, use EXCLUSIVAMENTE os trechos dos documentos AWS (digital-sovereignty-lens, aws-overview, wellarchitected-security, AWS_Sovereign_workshop). NÃO mencione ECA Digital, Lei 15.211 ou leis de proteção a crianças – isso é outro tema. Se houver trechos de leis brasileiras mas a pergunta for sobre AWS, IGNORE-OS e priorize os trechos AWS. Para perguntas específicas sobre LGPD, Marco Civil ou ECA Digital, use os documentos de leis.
+
+USER-FRIENDLY – Linguagem acessível: O público pode não ter conhecimento técnico. Explique cada termo técnico ao mencioná-lo pela primeira vez (ex: "incidentes de segurança" = situações em que a integridade ou confidencialidade dos dados é comprometida; "contatos oficiais" = pessoas ou equipes designadas para tratar ocorrências). Use linguagem natural, evite jargões desnecessários; quando usar jargão, explique-o em seguida.
+
+PRECISÃO: Responda de forma estruturada quando possível. Sintetize com suas palavras, NÃO copie trechos literais. Traduza conteúdo em inglês para português.
+
+EXPLICAÇÃO DE PERGUNTAS DO ASSESSMENT: Quando receber uma pergunta do assessment para explicar, faça: (1) Explique o que a pergunta está avaliando no contexto de soberania digital; (2) Defina cada termo técnico de forma simples; (3) Diga por que isso importa para Compliance, Continuity ou Control; (4) Dê exemplos práticos quando ajudar.`;
+
+function buildPrompt(query, context, questionContext, isAutoExplain = false) {
   const hasContext = context && context.trim().length > 30;
   const hasQuestion = questionContext && questionContext.trim().length > 10;
-  const system = 'Você é um ESPECIALISTA AWS em segurança, soberania digital e compliance/continuidade. Responda SEMPRE como consultor AWS. REGRA CRÍTICA: Se a pergunta for sobre AWS, soberania digital em nuvem, pilares AWS ou dados na AWS, use EXCLUSIVAMENTE os trechos dos documentos AWS (digital-sovereignty-lens, aws-overview, wellarchitected-security, AWS_Sovereign_workshop). NÃO mencione ECA Digital, Lei 15.211 ou leis de proteção a crianças – isso é outro tema. Se houver trechos de leis brasileiras mas a pergunta for sobre AWS, IGNORE-OS e priorize os trechos AWS. Traduza conteúdo em inglês para português. Use linguagem natural, sintetize e explique com suas palavras. NÃO copie trechos literais. Para perguntas específicas sobre LGPD, Marco Civil ou ECA Digital, aí sim use os documentos de leis.';
   let userPart = `Pergunta do usuário: ${query}`;
   if (hasQuestion) {
-    userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda explicando como as leis se aplicam a essa pergunta:`;
+    if (isAutoExplain) {
+      userPart = `Explique PROATIVAMENTE esta pergunta do assessment para quem pode não entender termos técnicos:\n\n"${questionContext.trim()}"\n\nFaça: (1) o que a pergunta avalia no contexto de soberania digital; (2) definição de cada termo técnico em linguagem simples; (3) por que isso importa; (4) exemplos práticos se relevante.`;
+    } else {
+      userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda explicando de forma acessível, definindo termos técnicos e como as leis/normas se aplicam:`;
+    }
   }
   return hasContext
-    ? `${system}\n\nTrechos dos documentos (use como base para sua resposta):\n\n${context}\n\n${userPart}`
-    : `${system}\n\n${userPart}\n\nNão há trechos específicos dos documentos disponíveis. Ainda assim, responda de forma útil sobre o tema, explicando conceitos gerais quando possível:`;
+    ? `${SYSTEM_PROMPT}\n\nTrechos dos documentos (use como base para sua resposta):\n\n${context}\n\n${userPart}`
+    : `${SYSTEM_PROMPT}\n\n${userPart}\n\nNão há trechos específicos dos documentos disponíveis. Ainda assim, responda de forma útil sobre o tema, explicando conceitos gerais de forma acessível:`;
 }
 
 async function askGroq(prompt, sources) {
@@ -309,6 +323,134 @@ app.post('/ask', async (req, res) => {
   res.json({ answer, sources });
 });
 
+/** Explicação automática da pergunta do assessment – sem precisar digitar nada */
+app.post('/ask/explain-question/stream', async (req, res) => {
+  const { questionContext } = req.body || {};
+  const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
+  if (!qCtx || qCtx.length < 10) {
+    return res.status(400).json({ error: 'Envie { "questionContext": "texto da pergunta" }' });
+  }
+  if (!searchIndex || docs.length === 0) {
+    return res.status(503).json({
+      error: 'Índice não carregado. Verifique se a pasta docs existe e contém PDFs.',
+    });
+  }
+
+  const hits = searchDocs(qCtx, 8);
+  const sources = hits.map(h => {
+    const doc = docs.find(d => d.id === h.id) || h;
+    return { title: doc.title || h.title, file: doc.file || h.file };
+  });
+  const context = hits
+    .map(h => {
+      const doc = docs.find(d => d.id === h.id) || h;
+      const text = (doc.text || h.text || '').trim().slice(0, 700);
+      const title = doc.title || h.title || 'Documento';
+      return text ? `[Fonte: ${title}]\n\n${text}` : null;
+    })
+    .filter(Boolean)
+    .join('\n\n---\n\n');
+
+  const prompt = buildPrompt('', context, qCtx, true);
+
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const writeChunk = (t) => res.write(JSON.stringify({ t }) + '\n');
+  const writeDone = () => {
+    if (sources.length > 0) writeChunk(`\n\n*Fontes: ${sources.map(s => s.title).join(', ')}*`);
+    res.write(JSON.stringify({ t: '\n\n*Nota: Para interpretação jurídica, consulte um profissional.*', done: true, sources }) + '\n');
+    res.end();
+  };
+
+  try {
+    if (GROQ_API_KEY) {
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 900,
+          temperature: 0.4,
+          stream: true,
+        }),
+      });
+      if (groqRes.ok && groqRes.body) {
+        const reader = groqRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const json = line.slice(6).trim();
+              if (json === '[DONE]') continue;
+              try {
+                const obj = JSON.parse(json);
+                const content = obj.choices?.[0]?.delta?.content;
+                if (content) writeChunk(content);
+              } catch (_) { }
+            }
+          }
+        }
+        writeDone();
+        return;
+      }
+    }
+
+    const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        prompt,
+        stream: true,
+        options: { num_predict: 600, num_ctx: 4096, temperature: 0.4 },
+      }),
+    });
+    if (ollamaRes.ok && ollamaRes.body) {
+      const reader = ollamaRes.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const obj = JSON.parse(line);
+            if (obj.response) writeChunk(obj.response);
+          } catch (_) { }
+        }
+      }
+      if (buffer.trim()) {
+        try {
+          const obj = JSON.parse(buffer);
+          if (obj.response) writeChunk(obj.response);
+        } catch (_) { }
+      }
+      writeDone();
+      return;
+    }
+  } catch (err) {
+    res.write(JSON.stringify({ t: '', done: true, err: err.message }) + '\n');
+  }
+  res.end();
+});
+
 // Resposta em streaming: o usuário vê o texto aparecer em tempo real (latência percebida muito menor)
 app.post('/ask/stream', async (req, res) => {
   const { query, questionContext } = req.body || {};
@@ -341,14 +483,7 @@ app.post('/ask/stream', async (req, res) => {
     .join('\n\n---\n\n');
 
   const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
-  const hasContext = context && context.trim().length > 30;
-  const hasQuestion = qCtx.length > 10;
-  const system = 'Você é um ESPECIALISTA AWS. Se a pergunta for sobre AWS ou soberania digital em nuvem, use APENAS os trechos de documentos AWS. NÃO mencione ECA Digital. Traduza inglês para português. Responda como consultor AWS.';
-  let userPart = `Pergunta: ${qStream}`;
-  if (hasQuestion) userPart = `Pergunta do assessment:\n"${qCtx}"\n\nDúvida: ${qStream}\n\nExplique como as leis se aplicam:`;
-  const prompt = hasContext
-    ? `${system}\n\nTrechos:\n\n${context}\n\n${userPart}`
-    : `${system}\n\n${userPart}`;
+  const prompt = buildPrompt(qStream, context, qCtx || undefined, false);
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Cache-Control', 'no-cache');
