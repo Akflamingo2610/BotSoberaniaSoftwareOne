@@ -24,17 +24,32 @@ class _ChatPanelState extends State<ChatPanel> {
   String _streamingText = '';
   List<RagSource> _streamingSources = [];
 
+  bool _autoExplainRequested = false;
+
   @override
   void initState() {
     super.initState();
     _checkHealth();
+    if (widget.questionContext != null &&
+        widget.questionContext!.trim().length > 10) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _requestAutoExplanation());
+    }
   }
 
   @override
   void didUpdateWidget(covariant ChatPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.questionContext != widget.questionContext) {
-      setState(() {});
+      if (widget.questionContext != null &&
+          widget.questionContext!.trim().length > 10) {
+        setState(() {
+          _messages.clear();
+          _autoExplainRequested = false;
+        });
+        _requestAutoExplanation();
+      } else {
+        setState(() {});
+      }
     }
   }
 
@@ -48,6 +63,62 @@ class _ChatPanelState extends State<ChatPanel> {
   Future<void> _checkHealth() async {
     final ok = await _rag.health();
     if (mounted) setState(() => _connected = ok);
+  }
+
+  Future<void> _requestAutoExplanation() async {
+    final q = widget.questionContext?.trim() ?? '';
+    if (q.isEmpty || q.length < 10 || _loading || _autoExplainRequested) return;
+
+    _autoExplainRequested = true;
+    setState(() {
+      _loading = true;
+      _streamingText = '';
+      _streamingSources = [];
+    });
+    _scrollToBottom();
+
+    try {
+      await for (final chunk in _rag.explainQuestionStream(q)) {
+        if (!mounted) return;
+        if (chunk.text != null && chunk.text!.isNotEmpty) {
+          setState(() => _streamingText += chunk.text!);
+          _scrollToBottom();
+        }
+        if (chunk.done && chunk.sources.isNotEmpty) {
+          setState(() => _streamingSources = chunk.sources);
+        }
+      }
+      if (!mounted) return;
+      _messages.add(
+        _ChatMessage(
+          role: 'bot',
+          text: _streamingText,
+          sources: _streamingSources.isEmpty ? null : _streamingSources,
+        ),
+      );
+    } on RagException catch (e) {
+      if (!mounted) return;
+      _messages.add(_ChatMessage(role: 'bot', text: 'Erro: ${e.message}'));
+      _autoExplainRequested = false;
+    } catch (e) {
+      if (!mounted) return;
+      _messages.add(
+        _ChatMessage(
+          role: 'bot',
+          text: 'Não foi possível obter a explicação. Verifique sua conexão ou se o RAG está online.',
+        ),
+      );
+      _autoExplainRequested = false;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _streamingText = '';
+          _streamingSources = [];
+        });
+        _scrollToBottom();
+      }
+    }
   }
 
   Future<void> _send() async {
@@ -227,7 +298,7 @@ class _ChatPanelState extends State<ChatPanel> {
               ),
             ),
           Expanded(
-            child: _messages.isEmpty
+            child: _messages.isEmpty && !_loading
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16),

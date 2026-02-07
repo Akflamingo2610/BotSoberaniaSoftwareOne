@@ -8,107 +8,83 @@ class Brand {
   static const Color border = Color(0xFFE6E6E6);
 }
 
-/// Logo oficial AWS: "aws" em minúsculo + traço laranja (fundo claro).
-/// Para usar sua própria imagem: coloque em assets/images/aws_logo.png,
-/// declare em pubspec.yaml e troque por Image.asset('assets/images/aws_logo.png').
-const String _awsLogoUrl =
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Amazon_Web_Services_Logo.svg/240px-Amazon_Web_Services_Logo.svg.png';
+const String _awsLogoAsset = 'assets/images/aws-logo-logo-png-transparent.png';
+const String _softwareOneLogoAsset = 'assets/images/logo_da_software.png';
 
-/// Logo da AWS (wordmark "aws" + swoosh laranja) para uso no header.
+/// Logo da AWS (à direita do header).
+/// [size] define altura e largura da caixa para manter proporção igual ao SoftwareOne.
 class AwsMark extends StatelessWidget {
-  final double height;
-  const AwsMark({super.key, this.height = 28});
+  final double size;
+  const AwsMark({super.key, this.size = 28});
 
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      _awsLogoUrl,
-      height: height,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => _AwsMarkFallback(height: height),
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return SizedBox(
-          height: height,
-          width: height * 2.2,
-          child: Center(
-            child: SizedBox(
-              width: height * 0.5,
-              height: height * 0.5,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Brand.black,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Fallback quando a imagem do logo não carrega (rede/offline).
-class _AwsMarkFallback extends StatelessWidget {
-  final double height;
-
-  const _AwsMarkFallback({required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      alignment: Alignment.center,
-      child: Text(
-        'AWS',
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: Brand.black,
-              letterSpacing: 0.5,
-            ),
+    return SizedBox(
+      width: size * 2,
+      height: size,
+      child: Image.asset(
+        _awsLogoAsset,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _AwsMarkFallback(height: size),
       ),
     );
   }
 }
 
-/// Logo "SoftwareOne" desenhado em Flutter (sem precisar de asset).
+class _AwsMarkFallback extends StatelessWidget {
+  final double height;
+  const _AwsMarkFallback({required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: Icon(Icons.cloud, size: height, color: Brand.black),
+    );
+  }
+}
+
+/// Logo SoftwareOne (apenas a imagem).
+/// [size] define altura; largura proporcional para manter proporção igual à AWS.
 class SoftwareOneMark extends StatelessWidget {
   final double size;
   const SoftwareOneMark({super.key, this.size = 28});
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: size,
-          height: size,
-          decoration: const BoxDecoration(
-            color: Brand.black,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            'one',
-            style: textTheme.labelLarge?.copyWith(
+    return SizedBox(
+      width: size * 2,
+      height: size,
+      child: Image.asset(
+        _softwareOneLogoAsset,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _SoftwareOneFallback(size: size),
+      ),
+    );
+  }
+}
+
+class _SoftwareOneFallback extends StatelessWidget {
+  final double size;
+  const _SoftwareOneFallback({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        color: Brand.black,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '1',
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: Brand.white,
               fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
             ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          'Soberania',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: Brand.black,
-            letterSpacing: -0.2,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -128,7 +104,14 @@ PreferredSizeWidget soberaniaAppBar(
     titleSpacing: 16,
     title: Row(
       children: [
-        const AwsMark(height: 26),
+        Text(
+          'Soberania Digital',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: Brand.black,
+                letterSpacing: -0.2,
+              ),
+        ),
         const SizedBox(width: 16),
         Container(
           width: 1,
@@ -136,8 +119,6 @@ PreferredSizeWidget soberaniaAppBar(
           color: Brand.border,
         ),
         const SizedBox(width: 16),
-        const SoftwareOneMark(size: 24),
-        const SizedBox(width: 12),
         Expanded(
           child: subtitle != null && subtitle.isNotEmpty
               ? Column(
@@ -176,6 +157,9 @@ PreferredSizeWidget soberaniaAppBar(
                   ),
                 ),
         ),
+        const SoftwareOneMark(size: 36),
+        const SizedBox(width: 16),
+        const AwsMark(size: 36),
       ],
     ),
     iconTheme: const IconThemeData(color: Brand.black),

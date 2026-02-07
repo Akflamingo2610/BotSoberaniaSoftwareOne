@@ -25,16 +25,16 @@ class WelcomeScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const AwsMark(height: 32),
-                      const SizedBox(width: 20),
-                      Container(width: 1, height: 24, color: Brand.border),
-                      const SizedBox(width: 20),
-                      const SoftwareOneMark(size: 28),
+                      const SoftwareOneMark(size: 64),
+                      const SizedBox(width: 24),
+                      Container(width: 1, height: 48, color: Brand.border),
+                      const SizedBox(width: 24),
+                      const AwsMark(size: 64),
                     ],
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 48),
                   Text(
-                    'Bem-vindo ao bot de soberania AWS da Software One',
+                    'Bem-vindo à aplicação de soberania digital da Software One com a AWS',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
