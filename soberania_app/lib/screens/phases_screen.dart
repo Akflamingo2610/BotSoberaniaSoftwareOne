@@ -19,16 +19,11 @@ class PhasesScreen extends StatefulWidget {
 class _PhasesScreenState extends State<PhasesScreen> {
   DateTime? _lastResultsGeneratedAt;
 
+  /// 3 pilares: Compliance, Continuity, Control
   static const phases = <PhaseOption>[
-    // IMPORTANTE: esses valores precisam bater com o enum do Xano.
-    PhaseOption('Quick_Wins', 'Quick Wins', 'Ações rápidas com alto impacto'),
-    PhaseOption(
-      'Foundational',
-      'Foundational',
-      'Base de governança e controles',
-    ),
-    PhaseOption('Efficient', 'Efficient', 'Eficiência operacional e automação'),
-    PhaseOption('Optimized', 'Optimized', 'Maturidade avançada e resiliência'),
+    PhaseOption('Compliance', 'Compliance', 'Conformidade e requisitos regulatórios'),
+    PhaseOption('Continuity', 'Continuity', 'Continuidade de negócio e resiliência'),
+    PhaseOption('Control', 'Control', 'Controles e governança'),
   ];
 
   final _api = XanoApi();
@@ -47,7 +42,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
       var totalQuestions = 0;
       final answeredIds = <int>{};
       for (final p in phases) {
-        final raw = await _api.listQuestions(authToken: token, phase: p.value);
+        final raw = await _api.listQuestionsByPilar(authToken: token, pilar: p.value);
         for (final e in raw) {
           if (e is Map && e['id'] != null) {
             totalQuestions++;
@@ -127,14 +122,15 @@ class _PhasesScreenState extends State<PhasesScreen> {
       if (match == null || !mounted) return;
       _hasAutoNavigated = true;
       final phase = match;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => QuestionsScreen(
-            phase: phase.value,
-            phaseLabel: phase.label,
-          ),
-        ),
-      ).then((_) => _checkIfAllAnswered());
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => QuestionsScreen(
+                phase: phase.value,
+                phaseLabel: phase.label,
+                byPilar: true,
+              ),
+            ),
+          ).then((_) => _checkIfAllAnswered());
     });
   }
 
@@ -193,7 +189,44 @@ class _PhasesScreenState extends State<PhasesScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
+                          ...phases.map(
+                            (p) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Card(
+                                elevation: 0,
+                                color: Brand.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: const BorderSide(color: Brand.border),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  title: Text(
+                                    p.label,
+                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                  subtitle: Text(p.subtitle),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => QuestionsScreen(
+                                          phase: p.value,
+                                          phaseLabel: p.label,
+                                          byPilar: true,
+                                        ),
+                                      ),
+                                    ).then((_) => _checkIfAllAnswered());
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
                           if (_allQuestionsAnswered) ...[
+                            const SizedBox(height: 12),
                             Card(
                               elevation: 0,
                               color: Brand.black,
@@ -242,8 +275,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                 },
                               ),
                             ),
-                            const SizedBox(height: 16),
-                          ] else if (!_loadingResults)
+                          ] else if (!_loadingResults) ...[
+                            const SizedBox(height: 12),
                             Text(
                               'Responda todas as questões de todas as fases para ver os resultados.',
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -251,46 +284,10 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                     fontStyle: FontStyle.italic,
                                   ),
                             ),
-                          const SizedBox(height: 12),
-                          ...phases.map(
-                            (p) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Card(
-                                elevation: 0,
-                                color: Brand.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: const BorderSide(color: Brand.border),
-                                ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  title: Text(
-                                    p.label,
-                                    style: const TextStyle(fontWeight: FontWeight.w800),
-                                  ),
-                                  subtitle: Text(p.subtitle),
-                                  trailing: const Icon(Icons.chevron_right),
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => QuestionsScreen(
-                                          phase: p.value,
-                                          phaseLabel: p.label,
-                                        ),
-                                      ),
-                                    ).then((_) => _checkIfAllAnswered());
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
+                          ],
                           const SizedBox(height: 8),
                           Text(
-                            'Obs: os valores das fases precisam bater com seu enum no Xano.\n'
-                            'Se der erro de "not one of the allowable values", copie o valor exato do enum no Swagger do Xano.',
+                            'Obs: os valores dos pilares (Compliance, Continuity, Control) devem corresponder ao campo "pilar" das questões no Xano.',
                             style: Theme.of(
                               context,
                             ).textTheme.bodySmall?.copyWith(color: Colors.black54),

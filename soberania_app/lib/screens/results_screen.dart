@@ -9,12 +9,10 @@ import '../ui/brand.dart';
 /// Dados agregados para os gráficos.
 class ResultsData {
   final Map<String, double> scoreByPilar; // Compliance, Control, Continuity
-  final Map<String, double> scoreByPhase; // Quick Wins, Foundational, etc.
   final List<String> pilars;
 
   ResultsData({
     required this.scoreByPilar,
-    required this.scoreByPhase,
     required this.pilars,
   });
 }
@@ -37,12 +35,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
   String? _userEmail;
 
   static const _phaseOrder = ['Quick_Wins', 'Foundational', 'Efficient', 'Optimized'];
-  static const _phaseLabels = {
-    'Quick_Wins': 'Quick Wins',
-    'Foundational': 'Foundational',
-    'Efficient': 'Efficient',
-    'Optimized': 'Optimized',
-  };
 
   Future<void> _load() async {
     setState(() {
@@ -86,14 +78,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
 
       final byPilar = <String, List<int>>{};
-      final byPhase = <String, List<int>>{};
       for (final a in answers) {
         final q = questionMap[a.questionId];
         if (q == null || a.score == null) continue;
         final pct = scoreTextToPercent(a.score);
-
         byPilar.putIfAbsent(q.pilar, () => []).add(pct);
-        byPhase.putIfAbsent(q.phase, () => []).add(pct);
       }
 
       double avg(List<int> list) =>
@@ -104,17 +93,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
         scoreByPilar[e.key] = avg(e.value).roundToDouble();
       }
 
-      final scoreByPhase = <String, double>{};
-      for (final e in byPhase.entries) {
-        scoreByPhase[e.key] = avg(e.value).roundToDouble();
-      }
-
       final pilars = scoreByPilar.keys.toList()
         ..sort((a, b) => a.compareTo(b));
 
       _data = ResultsData(
         scoreByPilar: scoreByPilar,
-        scoreByPhase: scoreByPhase,
         pilars: pilars,
       );
       // Timestamp de geração é salvo em QuestionsScreen ao completar questões
@@ -167,19 +150,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           children: [
                             const SizedBox(height: 8),
                             _ChartCard(
-                              title: 'Score por Pilar',
-                              child: _PilarBarChart(data: _data!),
-                            ),
-                            const SizedBox(height: 24),
-                            _ChartCard(
-                              title: 'Score por Fase',
-                              child: _PhaseBarChart(data: _data!),
-                            ),
-                            const SizedBox(height: 24),
-                            _ChartCard(
                               title: 'Visão Geral (Radar)',
                               height: 400,
                               child: _RadarChart(data: _data!),
+                            ),
+                            const SizedBox(height: 24),
+                            _ChartCard(
+                              title: 'Score por Pilar',
+                              child: _PilarBarChart(data: _data!),
                             ),
                             const SizedBox(height: 32),
                           ],
@@ -291,117 +269,6 @@ class _PilarBarChart extends StatelessWidget {
                 return const SizedBox();
               },
               reservedSize: 28,
-              interval: 1,
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 32,
-              interval: 25,
-              getTitlesWidget: (value, meta) => Text(
-                '${value.toInt()}%',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Brand.black,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        ),
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: 25,
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: Brand.border,
-            strokeWidth: 1,
-          ),
-        ),
-        borderData: FlBorderData(show: false),
-        barGroups: items,
-      ),
-      duration: const Duration(milliseconds: 300),
-    );
-  }
-}
-
-class _PhaseBarChart extends StatelessWidget {
-  final ResultsData data;
-
-  const _PhaseBarChart({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final orderedPhases = _ResultsScreenState._phaseOrder
-        .where((p) => data.scoreByPhase.containsKey(p))
-        .toList();
-
-    final items = orderedPhases
-        .map((phase) {
-          final i = orderedPhases.indexOf(phase);
-          return BarChartGroupData(
-            x: i,
-            barRods: [
-              BarChartRodData(
-                toY: (data.scoreByPhase[phase] ?? 0).toDouble(),
-                color: Brand.black,
-                width: 36,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-              ),
-            ],
-            showingTooltipIndicators: [0],
-          );
-        })
-        .toList();
-
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: 100,
-        barTouchData: BarTouchData(
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => Brand.black,
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final phase = orderedPhases[group.x];
-              final label = _ResultsScreenState._phaseLabels[phase] ?? phase;
-              return BarTooltipItem(
-                '$label\n${rod.toY.toInt()}%',
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-              );
-            },
-          ),
-        ),
-        titlesData: FlTitlesData(
-          show: true,
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                if (value.toInt() >= 0 && value.toInt() < orderedPhases.length) {
-                  final phase = orderedPhases[value.toInt()];
-                  final label = _ResultsScreenState._phaseLabels[phase] ?? phase;
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Brand.black,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                  );
-                }
-                return const SizedBox();
-              },
-              reservedSize: 40,
               interval: 1,
             ),
           ),

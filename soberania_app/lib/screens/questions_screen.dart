@@ -12,11 +12,13 @@ import '../widgets/chat_panel.dart';
 class QuestionsScreen extends StatefulWidget {
   final String phase;
   final String phaseLabel;
+  final bool byPilar;
 
   const QuestionsScreen({
     super.key,
     required this.phase,
     required this.phaseLabel,
+    this.byPilar = false,
   });
 
   @override
@@ -89,10 +91,15 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         throw StateError('Sem assessmentId. Rode /assessment/resume.');
       }
 
-      final rawQuestions = await _api.listQuestions(
-        authToken: token,
-        phase: widget.phase,
-      );
+      final rawQuestions = widget.byPilar
+          ? await _api.listQuestionsByPilar(
+              authToken: token,
+              pilar: widget.phase,
+            )
+          : await _api.listQuestions(
+              authToken: token,
+              phase: widget.phase,
+            );
       final questions = rawQuestions
           .whereType<Map>()
           .map((e) => Question.fromJson(e.cast<String, dynamic>()))
@@ -320,6 +327,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                   onSaveNext: _saveAndNext,
                                   onPrevious: _index > 0 ? _goToPrevious : null,
                                   onNext: _index < _questions.length - 1 ? _goToNext : null,
+                                  hideCodeAndPilar: widget.byPilar,
                                 ),
                                   ),
                                 ),
@@ -393,7 +401,7 @@ class _ProgressBar extends StatelessWidget {
               Text(
                 allAnswered
                     ? 'Questão ${currentIndex + 1} de $total'
-                    : '$answered de $total respondidas nesta fase',
+                    : '$answered de $total respondidas',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: Brand.black,
@@ -434,6 +442,7 @@ class _QuestionCard extends StatelessWidget {
   final VoidCallback onSaveNext;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
+  final bool hideCodeAndPilar;
 
   const _QuestionCard({
     required this.question,
@@ -445,17 +454,23 @@ class _QuestionCard extends StatelessWidget {
     required this.onSaveNext,
     this.onPrevious,
     this.onNext,
+    this.hideCodeAndPilar = false,
   });
+
+  Widget _buildBadge(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Brand.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Brand.border),
+      ),
+      child: Text('${index + 1}/$total', style: const TextStyle(fontWeight: FontWeight.w700)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final parts = <String>[];
-    if (question.questionCode?.isNotEmpty == true) {
-      parts.add(question.questionCode!);
-    }
-    parts.add(question.pilar);
-    final title = parts.join(' • ');
-
     return Card(
       elevation: 0,
       color: Brand.white,
@@ -468,34 +483,31 @@ class _QuestionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: Brand.black,
+            if (!hideCodeAndPilar) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      [
+                        if (question.questionCode?.isNotEmpty == true)
+                          question.questionCode!,
+                        question.pilar,
+                      ].join(' • '),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Brand.black,
+                      ),
                     ),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Brand.surface,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Brand.border),
-                  ),
-                  child: Text(
-                    '${index + 1}/$total',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
+                  _buildBadge(context),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ] else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [_buildBadge(context)],
+              ),
             const SizedBox(height: 10),
             Text(
               question.recommendation,

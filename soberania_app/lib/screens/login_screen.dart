@@ -105,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Use seu e-mail e senha cadastrados no Xano.',
+                          'Use seu e-mail e senha para entrar.',
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: Colors.black54),
                         ),

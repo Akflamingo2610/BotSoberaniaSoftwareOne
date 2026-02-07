@@ -16,11 +16,12 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final _name = TextEditingController();
+  final _lastName = TextEditingController();
   final _email = TextEditingController();
-  final _password = TextEditingController();
+  final _phone = TextEditingController();
   final _companyName = TextEditingController();
-  final _cnpj = TextEditingController();
-  final _segment = TextEditingController(text: 'Teste');
+  final _role = TextEditingController();
+  final _password = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   bool _obscurePassword = true;
@@ -28,11 +29,12 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   void dispose() {
     _name.dispose();
+    _lastName.dispose();
     _email.dispose();
-    _password.dispose();
+    _phone.dispose();
     _companyName.dispose();
-    _cnpj.dispose();
-    _segment.dispose();
+    _role.dispose();
+    _password.dispose();
     super.dispose();
   }
 
@@ -43,14 +45,13 @@ class _SignupScreenState extends State<SignupScreen> {
     try {
       final api = XanoApi();
       final res = await api.signupCompany(
+        name: _name.text.trim(),
+        lastName: _lastName.text.trim(),
         email: _email.text.trim(),
+        phone: _phone.text.replaceAll(RegExp(r'[^\d]'), ''),
+        companyName: _companyName.text.trim(),
+        role: _role.text.trim().isEmpty ? null : _role.text.trim(),
         password: _password.text,
-        cnpj: _cnpj.text.replaceAll(RegExp(r'[^\d]'), ''),
-        segment: _segment.text.trim().isEmpty ? 'Teste' : _segment.text.trim(),
-        name: _name.text.trim().isEmpty ? null : _name.text.trim(),
-        companyName: _companyName.text.trim().isEmpty
-            ? null
-            : _companyName.text.trim(),
       );
 
       final authToken = (res['authToken'] ?? '').toString();
@@ -61,9 +62,7 @@ class _SignupScreenState extends State<SignupScreen> {
       final storage = AppStorage();
       await storage.setAuthToken(authToken);
       await storage.setUserEmail(_email.text.trim());
-      await storage.setUserName(_name.text.trim().isEmpty
-          ? _email.text.split('@').first
-          : _name.text.trim());
+      await storage.setUserName(_name.text.trim());
 
       final assessment = await api.resumeAssessment(authToken: authToken);
       final assessmentId = (assessment['id'] as num).toInt();
@@ -149,6 +148,26 @@ class _SignupScreenState extends State<SignupScreen> {
                               hintText: 'Seu nome',
                               border: OutlineInputBorder(),
                             ),
+                            validator: (v) {
+                              final t = (v ?? '').trim();
+                              if (t.isEmpty) return 'Informe seu nome';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _lastName,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'Sobrenome',
+                              hintText: 'Seu sobrenome',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (v) {
+                              final t = (v ?? '').trim();
+                              if (t.isEmpty) return 'Informe seu sobrenome';
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -156,14 +175,60 @@ class _SignupScreenState extends State<SignupScreen> {
                             keyboardType: TextInputType.emailAddress,
                             decoration: const InputDecoration(
                               labelText: 'E-mail',
+                              hintText: 'seu@email.com',
                               border: OutlineInputBorder(),
                             ),
                             validator: (v) {
                               final t = (v ?? '').trim();
                               if (t.isEmpty) return 'Informe seu e-mail';
-                              if (!t.contains('@')) return 'E-mail inválido';
+                              if (!t.contains('@') || !t.contains('.')) {
+                                return 'E-mail inválido';
+                              }
                               return null;
                             },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _phone,
+                            keyboardType: TextInputType.phone,
+                            decoration: const InputDecoration(
+                              labelText: 'Telefone',
+                              hintText: '(11) 99999-9999',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (v) {
+                              final digits = (v ?? '').replaceAll(RegExp(r'[^\d]'), '');
+                              if (digits.isEmpty) return 'Informe seu telefone';
+                              if (digits.length < 10 || digits.length > 11) {
+                                return 'Telefone deve ter 10 ou 11 dígitos (com DDD)';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _companyName,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'Nome da empresa',
+                              hintText: 'Nome da sua empresa',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (v) {
+                              final t = (v ?? '').trim();
+                              if (t.isEmpty) return 'Informe o nome da empresa';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _role,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'Função na empresa',
+                              hintText: 'Ex: Gerente, Analista',
+                              border: OutlineInputBorder(),
+                            ),
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -193,43 +258,6 @@ class _SignupScreenState extends State<SignupScreen> {
                               }
                               return null;
                             },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _companyName,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: const InputDecoration(
-                              labelText: 'Nome da empresa',
-                              hintText: 'Opcional',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _cnpj,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'CNPJ da empresa',
-                              hintText: '00.000.000/0001-00',
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (v) {
-                              final t = (v ?? '').replaceAll(RegExp(r'[^\d]'), '');
-                              if (t.isEmpty) return 'Informe o CNPJ da empresa';
-                              if (t.length != 14) {
-                                return 'CNPJ deve ter 14 dígitos';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _segment,
-                            decoration: const InputDecoration(
-                              labelText: 'Segmento',
-                              hintText: 'Teste (enquanto cria as empresas)',
-                              border: OutlineInputBorder(),
-                            ),
                           ),
                           const SizedBox(height: 20),
                           FilledButton(

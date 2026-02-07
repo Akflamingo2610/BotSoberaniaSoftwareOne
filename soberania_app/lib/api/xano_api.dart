@@ -77,37 +77,30 @@ class XanoApi {
 
   /// Cadastro de nova empresa/usuário. Endpoint: POST /signup_company
   Future<Map<String, dynamic>> signupCompany({
+    required String name,
+    required String lastName,
     required String email,
+    required String phone,
+    required String companyName,
+    String? role,
     required String password,
-    required String cnpj,
-    required String segment,
-    String? name,
-    String? companyName,
   }) async {
-    final nameVal = (name != null && name.trim().isNotEmpty)
-        ? name.trim()
-        : email.split('@').first;
-    final companyNameVal =
-        (companyName != null && companyName.trim().isNotEmpty)
-        ? companyName.trim()
-        : 'Empresa';
+    final phoneDigits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    final emailTrim = email.trim();
 
-    final cnpjDigits = cnpj.trim().replaceAll(RegExp(r'[^\d]'), '');
-    final cnpjVal = (cnpjDigits == '00000000000000' || cnpjDigits.length != 14)
-        ? '11222333000181'
-        : cnpjDigits;
-    final segmentVal = segment.trim().isEmpty ? 'Teste' : segment.trim();
-
-    final payload = <String, String>{
-      'email': email.trim(),
-      'password': password,
-      'cnpj': cnpjVal,
-      'segment': segmentVal,
-      'admin_name': nameVal,
-      'admin_email': email.trim(),
+    final payload = <String, dynamic>{
+      'admin_name': name.trim(),
+      'admin_email': emailTrim,
       'admin_password': password,
-      'name': nameVal,
-      'company_name': companyNameVal,
+      'name': name.trim(),
+      'last_name': lastName.trim(),
+      'email': emailTrim,
+      'phone': phoneDigits,
+      'company_name': companyName.trim(),
+      if (role != null && role.trim().isNotEmpty) 'role': role.trim(),
+      'password': password,
+      'cnpj': '00000000000191',
+      'segment': 'Geral',
     };
     final res = await _client.post(
       _uri('/signup_company'),
@@ -136,6 +129,8 @@ class XanoApi {
     throw ApiException(res.statusCode, body);
   }
 
+  static const _allPhases = ['Quick_Wins', 'Foundational', 'Efficient', 'Optimized'];
+
   Future<List<dynamic>> listQuestions({
     required String authToken,
     required String phase,
@@ -160,6 +155,34 @@ class XanoApi {
       throw ApiException(res.statusCode, body);
     }
     throw ApiException(res.statusCode, body);
+  }
+
+  /// Busca questões filtradas por pilar (Compliance, Continuity, Control).
+  Future<List<dynamic>> listQuestionsByPilar({
+    required String authToken,
+    required String pilar,
+  }) async {
+    final key = 'q_pilar_$pilar';
+    final cached = _cache[key];
+    if (cached != null && cached.isValid) return cached.value as List<dynamic>;
+
+    final all = <Map<String, dynamic>>[];
+    for (final phase in _allPhases) {
+      final raw = await listQuestions(authToken: authToken, phase: phase);
+      for (final e in raw) {
+        if (e is Map) {
+          final m = Map<String, dynamic>.from(e);
+          final qPilar = (m['pilar'] ?? '').toString();
+          if (qPilar.toLowerCase() == pilar.toLowerCase()) all.add(m);
+        }
+      }
+    }
+    all.sort((a, b) => ((a['order_index'] ?? 0) as num).toInt().compareTo(((b['order_index'] ?? 0) as num).toInt()));
+    _cache[key] = _CacheEntry(
+      all,
+      DateTime.now().add(const Duration(seconds: _questionsTtlSeconds)),
+    );
+    return all;
   }
 
   Future<Map<String, dynamic>> getProgress({
