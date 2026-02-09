@@ -442,7 +442,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
         CircleAvatar(
           radius: 12,
           backgroundColor: Brand.black.withValues(alpha: 0.1),
-          child: Icon(Icons.gavel, size: 14, color: Brand.black),
+          child: Icon(Icons.smart_toy, size: 14, color: Brand.black),
         ),
         const SizedBox(width: 6),
         Container(
@@ -504,7 +504,7 @@ class _ChatBubble extends StatelessWidget {
             CircleAvatar(
               radius: 12,
               backgroundColor: Brand.black.withOpacity(0.1),
-              child: Icon(Icons.gavel, size: 14, color: Brand.black),
+              child: Icon(Icons.smart_toy, size: 14, color: Brand.black),
             ),
           if (!isUser) const SizedBox(width: 6),
           Flexible(

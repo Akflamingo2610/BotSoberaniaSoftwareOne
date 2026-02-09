@@ -155,7 +155,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Brand.surface,
-      appBar: soberaniaAppBar(context, title: 'Fases'),
+      appBar: soberaniaAppBar(context, title: 'Pilares da Soberania Digital')
+      ,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
