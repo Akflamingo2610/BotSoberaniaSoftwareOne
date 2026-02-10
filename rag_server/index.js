@@ -131,10 +131,19 @@ function expandQueryForAws(query) {
 /** Termos em inglês que garantem hits nos PDFs AWS (digital-sovereignty-lens, wellarchitected, etc.) */
 const AWS_SEED_QUERY = 'digital sovereignty data residency AWS region well-architected security';
 
+/** Perguntas do assessment tratam de soberania digital, Control, Compliance, Continuity – preferir docs AWS */
+function isAssessmentContext(query, questionContext) {
+  const hasContext = questionContext && questionContext.trim().length > 20;
+  const q = (query || '').toLowerCase();
+  const ctx = ((query || '') + ' ' + (questionContext || '')).toLowerCase();
+  const assessmentTerms = ['empresa', 'controla', 'processo', 'seleção', 'onboarding', 'fornecedores', 'audita', 'ações administrativas', 'ambientes', 'compliance', 'continuity', 'control', 'governança'];
+  return hasContext && assessmentTerms.some(t => ctx.includes(t));
+}
+
 /** Busca em 2 etapas: para perguntas AWS, NUNCA retorna docs de leis (ECA, LGPD, etc.) */
-function searchDocs(query, limit = 8) {
+function searchDocs(query, limit = 8, preferAws = false) {
   const q = query.trim();
-  const awsQuery = isAwsQuery(q);
+  const awsQuery = isAwsQuery(q) || preferAws;
 
   if (awsQuery) {
     const awsSearchQuery = expandQueryForAws(q);
@@ -174,16 +183,24 @@ function searchDocs(query, limit = 8) {
   return searchIndex.search(q, { combineWith: 'OR' }).slice(0, limit);
 }
 
-/** Prompt base do especialista – respostas precisas e acessíveis */
+/** Prompt base do especialista – respostas precisas e acessíveis, SEM alucinações */
 const SYSTEM_PROMPT = `Você é um ESPECIALISTA AWS em segurança, soberania digital e compliance/continuidade. Responda SEMPRE como consultor AWS de forma clara e acessível.
 
-REGRA CRÍTICA – Documentos: Se a pergunta for sobre AWS, soberania digital em nuvem, pilares AWS ou dados na AWS, use EXCLUSIVAMENTE os trechos dos documentos AWS (digital-sovereignty-lens, aws-overview, wellarchitected-security, AWS_Sovereign_workshop). NÃO mencione ECA Digital, Lei 15.211 ou leis de proteção a crianças – isso é outro tema. Se houver trechos de leis brasileiras mas a pergunta for sobre AWS, IGNORE-OS e priorize os trechos AWS. Para perguntas específicas sobre LGPD, Marco Civil ou ECA Digital, use os documentos de leis.
+IDIOMA OBRIGATÓRIO: Responda SEMPRE em português. NUNCA responda em inglês. Os documentos podem estar em inglês – TRADUZA todo o conteúdo relevante para português. O usuário espera resposta em português.
 
-USER-FRIENDLY – Linguagem acessível: O público pode não ter conhecimento técnico. Explique cada termo técnico ao mencioná-lo pela primeira vez (ex: "incidentes de segurança" = situações em que a integridade ou confidencialidade dos dados é comprometida; "contatos oficiais" = pessoas ou equipes designadas para tratar ocorrências). Use linguagem natural, evite jargões desnecessários; quando usar jargão, explique-o em seguida.
+REGRA CRÍTICA – RELEVÂNCIA DOS TRECHOS:
+- Use APENAS trechos que respondam DIRETAMENTE à pergunta. Se um trecho contém a mesma palavra mas em contexto COMPLETAMENTE DIFERENTE (ex: "fornecedores" em lei sobre crianças/adolescentes vs "onboarding de fornecedores" em processo corporativo), IGNORE esse trecho.
+- NUNCA cite ou use leis/fontes irrelevantes só porque contêm uma palavra em comum. Palavras como "fornecedores", " controle", "dados" aparecem em vários contextos – use só o que REALMENTE responde à dúvida.
+- Se NENHUM trecho for relevante, responda com conhecimento geral e comece: "Com base em conhecimento geral:". NÃO invente citações nem force uso de documentos irrelevantes.
 
-PRECISÃO: Responda de forma estruturada quando possível. Sintetize com suas palavras, NÃO copie trechos literais. Traduza conteúdo em inglês para português.
+ESCOPO POR TEMA:
+- AWS, soberania digital, pilares AWS, dados na nuvem → use EXCLUSIVAMENTE docs AWS (digital-sovereignty-lens, aws-overview, wellarchitected-security). NÃO misture com ECA ou LGPD.
+- LGPD, Marco Civil, ECA Digital, leis brasileiras → use os docs de leis APENAS se falam diretamente do assunto perguntado.
+- Conceitos de negócio (onboarding, processos, governança corporativa) → explique em linguagem simples; use leis só se falarem especificamente disso. Se a lei fala de "fornecedores" em outro contexto (ex: proteção infantil), ignore.
 
-EXPLICAÇÃO DE PERGUNTAS DO ASSESSMENT: Quando receber uma pergunta do assessment para explicar, faça: (1) Explique o que a pergunta está avaliando no contexto de soberania digital; (2) Defina cada termo técnico de forma simples; (3) Diga por que isso importa para Compliance, Continuity ou Control; (4) Dê exemplos práticos quando ajudar.`;
+USER-FRIENDLY: Explique termos técnicos ao usá-los. Use linguagem natural.
+
+PRECISÃO: Sintetize com suas palavras em português. NÃO copie trechos literais em inglês. NÃO repita o mesmo texto genérico para perguntas diferentes – adapte a resposta a cada pergunta específica.`;
 
 function buildPrompt(query, context, questionContext, isAutoExplain = false) {
   const hasContext = context && context.trim().length > 30;
@@ -191,14 +208,15 @@ function buildPrompt(query, context, questionContext, isAutoExplain = false) {
   let userPart = `Pergunta do usuário: ${query}`;
   if (hasQuestion) {
     if (isAutoExplain) {
-      userPart = `Explique PROATIVAMENTE esta pergunta do assessment para quem pode não entender termos técnicos:\n\n"${questionContext.trim()}"\n\nFaça: (1) o que a pergunta avalia no contexto de soberania digital; (2) definição de cada termo técnico em linguagem simples; (3) por que isso importa; (4) exemplos práticos se relevante.`;
+      userPart = `Explique esta pergunta do assessment em português, de forma específica para ELA (não repita texto genérico):\n\n"${questionContext.trim()}"\n\nFaça em 2-4 parágrafos curtos: (1) o que esta pergunta avalia no contexto de soberania digital; (2) defina os termos técnicos em linguagem simples; (3) por que isso importa. Use os trechos APENAS se forem relevantes PARA ESTA PERGUNTA; caso contrário, explique com conhecimento geral. Responda SEMPRE em português.`;
     } else {
-      userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda explicando de forma acessível, definindo termos técnicos e como as leis/normas se aplicam:`;
+      userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda em português, de forma acessível e específica para a dúvida. Se os trechos não forem relevantes, use conhecimento geral. Não cite fontes irrelevantes.`;
     }
   }
-  return hasContext
-    ? `${SYSTEM_PROMPT}\n\nTrechos dos documentos (use como base para sua resposta):\n\n${context}\n\n${userPart}`
-    : `${SYSTEM_PROMPT}\n\n${userPart}\n\nNão há trechos específicos dos documentos disponíveis. Ainda assim, responda de forma útil sobre o tema, explicando conceitos gerais de forma acessível:`;
+  const docInstruction = hasContext
+    ? `Trechos dos documentos (podem estar em inglês – use só os relevantes e TRADUZA para português na sua resposta):\n\n${context}\n\n${userPart}`
+    : `${userPart}\n\nNão há trechos relevantes. Responda em português com conhecimento geral, de forma clara e acessível.`;
+  return `${SYSTEM_PROMPT}\n\n${docInstruction}`;
 }
 
 async function askGroq(prompt, sources) {
@@ -214,7 +232,7 @@ async function askGroq(prompt, sources) {
         model: GROQ_MODEL,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 800,
-        temperature: 0.5,
+        temperature: 0.3,
       }),
     });
     if (!res.ok) throw new Error(`Groq ${res.status}`);
@@ -292,7 +310,9 @@ app.post('/ask', async (req, res) => {
     });
   }
 
-  const hits = searchDocs(q, 8);
+  const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
+  const preferAws = isAssessmentContext(q, qCtx);
+  const hits = searchDocs(q, 8, preferAws);
   const sources = hits.map(h => {
     const doc = docs.find(d => d.id === h.id) || h;
     return { title: doc.title || h.title, file: doc.file || h.file };
@@ -307,7 +327,6 @@ app.post('/ask', async (req, res) => {
     .filter(Boolean)
     .join('\n\n---\n\n');
 
-  const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
   let answer = await askLLM(q, context, sources, qCtx || undefined);
   if (!answer) {
     const llmHint = GROQ_API_KEY ? 'Verifique GROQ_API_KEY.' : `Ollama não está rodando (ollama run ${OLLAMA_MODEL}).`;
@@ -336,7 +355,8 @@ app.post('/ask/explain-question/stream', async (req, res) => {
     });
   }
 
-  const hits = searchDocs(qCtx, 8);
+  // Busca normal (sem preferAws) para obter contexto variado por pergunta
+  const hits = searchDocs(qCtx, 8, false);
   const sources = hits.map(h => {
     const doc = docs.find(d => d.id === h.id) || h;
     return { title: doc.title || h.title, file: doc.file || h.file };
@@ -365,6 +385,27 @@ app.post('/ask/explain-question/stream', async (req, res) => {
     res.end();
   };
 
+  const tryGroqNonStream = async () => {
+    if (!GROQ_API_KEY) return null;
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 900,
+        temperature: 0.3,
+        stream: false,
+      }),
+    });
+    if (!groqRes.ok) return null;
+    const data = await groqRes.json();
+    return (data.choices?.[0]?.message?.content || '').trim();
+  };
+
   try {
     if (GROQ_API_KEY) {
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -377,7 +418,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
           model: GROQ_MODEL,
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 900,
-          temperature: 0.4,
+          temperature: 0.3,
           stream: true,
         }),
       });
@@ -385,6 +426,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
         const reader = groqRes.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let wroteAny = false;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -398,11 +440,20 @@ app.post('/ask/explain-question/stream', async (req, res) => {
               try {
                 const obj = JSON.parse(json);
                 const content = obj.choices?.[0]?.delta?.content;
-                if (content) writeChunk(content);
+                if (content) { writeChunk(content); wroteAny = true; }
               } catch (_) { }
             }
           }
         }
+        if (wroteAny) {
+          writeDone();
+          return;
+        }
+      }
+      // Fallback: streaming falhou ou veio vazio — tentar não-streaming
+      const fallback = await tryGroqNonStream();
+      if (fallback) {
+        writeChunk(fallback);
         writeDone();
         return;
       }
@@ -446,6 +497,14 @@ app.post('/ask/explain-question/stream', async (req, res) => {
       return;
     }
   } catch (err) {
+    try {
+      const fallback = GROQ_API_KEY ? await tryGroqNonStream() : null;
+      if (fallback) {
+        writeChunk(fallback);
+        writeDone();
+        return;
+      }
+    } catch (_) {}
     res.write(JSON.stringify({ t: '', done: true, err: err.message }) + '\n');
   }
   res.end();
@@ -467,7 +526,9 @@ app.post('/ask/stream', async (req, res) => {
     });
   }
 
-  const hits = searchDocs(qStream, 6);
+  const qCtxStream = (typeof questionContext === 'string') ? questionContext.trim() : '';
+  const preferAwsStream = isAssessmentContext(qStream, qCtxStream);
+  const hits = searchDocs(qStream, 6, preferAwsStream);
   const sources = hits.map(h => {
     const doc = docs.find(d => d.id === h.id) || h;
     return { title: doc.title || h.title, file: doc.file || h.file };
@@ -482,8 +543,7 @@ app.post('/ask/stream', async (req, res) => {
     .filter(Boolean)
     .join('\n\n---\n\n');
 
-  const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
-  const prompt = buildPrompt(qStream, context, qCtx || undefined, false);
+  const prompt = buildPrompt(qStream, context, qCtxStream || undefined, false);
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Cache-Control', 'no-cache');
@@ -508,8 +568,8 @@ app.post('/ask/stream', async (req, res) => {
         body: JSON.stringify({
           model: GROQ_MODEL,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 500,
-          temperature: 0.4,
+          max_tokens: 600,
+          temperature: 0.3,
           stream: true,
         }),
       });

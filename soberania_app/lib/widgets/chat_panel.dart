@@ -87,13 +87,38 @@ class _ChatPanelState extends State<ChatPanel> {
         }
       }
       if (!mounted) return;
-      _messages.add(
-        _ChatMessage(
-          role: 'bot',
-          text: _streamingText,
-          sources: _streamingSources.isEmpty ? null : _streamingSources,
-        ),
-      );
+      String replyText = _streamingText.trim();
+      List<RagSource>? replySources = _streamingSources.isEmpty ? null : _streamingSources;
+      if (replyText.isEmpty) {
+        // Fallback: streaming veio vazio — tentar endpoint /ask (não-streaming)
+        try {
+          final resp = await _rag.ask(
+            'Explique em linguagem simples o que esta pergunta avalia, defina os termos técnicos e por que isso importa para soberania digital.',
+            questionContext: q,
+          );
+          if (resp.answer.trim().isNotEmpty) {
+            replyText = resp.answer.trim();
+            replySources = resp.sources.isEmpty ? null : resp.sources;
+          }
+        } catch (_) {}
+      }
+      if (replyText.isEmpty) {
+        _autoExplainRequested = false;
+        _messages.add(
+          _ChatMessage(
+            role: 'bot',
+            text: 'Não foi possível gerar a explicação automática. Faça uma pergunta no campo abaixo sobre a questão.',
+          ),
+        );
+      } else {
+        _messages.add(
+          _ChatMessage(
+            role: 'bot',
+            text: replyText,
+            sources: replySources,
+          ),
+        );
+      }
     } on RagException catch (e) {
       if (!mounted) return;
       _messages.add(_ChatMessage(role: 'bot', text: 'Erro: ${e.message}'));
