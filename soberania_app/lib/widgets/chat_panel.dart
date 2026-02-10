@@ -42,10 +42,8 @@ class _ChatPanelState extends State<ChatPanel> {
     if (oldWidget.questionContext != widget.questionContext) {
       if (widget.questionContext != null &&
           widget.questionContext!.trim().length > 10) {
-        setState(() {
-          _messages.clear();
-          _autoExplainRequested = false;
-        });
+        _autoExplainRequested = false; // Reset antes de chamar (setState é assíncrono)
+        setState(() => _messages.clear());
         _requestAutoExplanation();
       } else {
         setState(() {});

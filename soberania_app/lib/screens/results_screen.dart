@@ -10,10 +10,14 @@ import '../ui/brand.dart';
 class ResultsData {
   final Map<String, double> scoreByPilar; // Compliance, Control, Continuity
   final List<String> pilars;
+  final Map<String, double> scoreByDominio; // Soberania de Dados, etc.
+  final List<String> dominios;
 
   ResultsData({
     required this.scoreByPilar,
     required this.pilars,
+    required this.scoreByDominio,
+    required this.dominios,
   });
 }
 
@@ -78,11 +82,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
 
       final byPilar = <String, List<int>>{};
+      final byDominio = <String, List<int>>{};
       for (final a in answers) {
         final q = questionMap[a.questionId];
         if (q == null || a.score == null) continue;
         final pct = scoreTextToPercent(a.score);
         byPilar.putIfAbsent(q.pilar, () => []).add(pct);
+        final dom = (q.dominio ?? '').trim();
+        if (dom.isNotEmpty) {
+          byDominio.putIfAbsent(dom, () => []).add(pct);
+        }
       }
 
       double avg(List<int> list) =>
@@ -92,13 +101,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
       for (final e in byPilar.entries) {
         scoreByPilar[e.key] = avg(e.value).roundToDouble();
       }
-
       final pilars = scoreByPilar.keys.toList()
+        ..sort((a, b) => a.compareTo(b));
+
+      final scoreByDominio = <String, double>{};
+      for (final e in byDominio.entries) {
+        scoreByDominio[e.key] = avg(e.value).roundToDouble();
+      }
+      final dominios = scoreByDominio.keys.toList()
         ..sort((a, b) => a.compareTo(b));
 
       _data = ResultsData(
         scoreByPilar: scoreByPilar,
         pilars: pilars,
+        scoreByDominio: scoreByDominio,
+        dominios: dominios,
       );
       // Timestamp de geração é salvo em QuestionsScreen ao completar questões
     } catch (e) {
@@ -159,6 +176,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
                               title: 'Score por Pilar',
                               child: _PilarBarChart(data: _data!),
                             ),
+                            if (_data!.dominios.isNotEmpty) ...[
+                              const SizedBox(height: 24),
+                              _ChartCard(
+                                title: 'Score por Domínio',
+                                height: 400,
+                                child: _DominioRadarChart(data: _data!),
+                              ),
+                            ],
                             const SizedBox(height: 32),
                           ],
                         ),
@@ -205,6 +230,74 @@ class _ChartCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Gráfico de teia (radar) para domínios.
+class _DominioRadarChart extends StatelessWidget {
+  final ResultsData data;
+
+  const _DominioRadarChart({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.dominios.isEmpty) {
+      return const Center(child: Text('Sem dados para radar'));
+    }
+
+    final entries = data.dominios
+        .map((d) => RadarEntry(value: (data.scoreByDominio[d] ?? 0).toDouble()))
+        .toList();
+
+    final minEntries = List.generate(data.dominios.length, (_) => const RadarEntry(value: 0));
+    final maxEntries = List.generate(data.dominios.length, (_) => const RadarEntry(value: 125));
+
+    return RadarChart(
+      RadarChartData(
+        radarShape: RadarShape.polygon,
+        tickCount: 5,
+        titlePositionPercentageOffset: 0.15,
+        ticksTextStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: Brand.black,
+        ),
+        dataSets: [
+          RadarDataSet(
+            fillColor: Colors.transparent,
+            borderColor: Colors.transparent,
+            borderWidth: 0,
+            dataEntries: minEntries,
+          ),
+          RadarDataSet(
+            fillColor: Colors.transparent,
+            borderColor: Colors.transparent,
+            borderWidth: 0,
+            dataEntries: maxEntries,
+          ),
+          RadarDataSet(
+            fillColor: _radarBlue.withValues(alpha: 0.15),
+            borderColor: _radarBlue,
+            borderWidth: 2,
+            dataEntries: entries,
+            entryRadius: 4,
+          ),
+        ],
+        titleTextStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: Brand.black,
+        ),
+        getTitle: (index, angle) => RadarChartTitle(
+          text: data.dominios[index],
+        ),
+        radarBackgroundColor: Brand.surface,
+        tickBorderData: const BorderSide(color: Brand.border, width: 1),
+        gridBorderData: const BorderSide(color: Brand.border, width: 1),
+        borderData: FlBorderData(show: false),
+      ),
+      duration: const Duration(milliseconds: 300),
     );
   }
 }

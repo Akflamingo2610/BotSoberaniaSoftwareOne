@@ -2,6 +2,7 @@ class Question {
   final int id;
   final String phase;
   final String pilar;
+  final String? dominio;
   final String recommendation;
   final String? guidance;
   final String? howToCheck;
@@ -13,6 +14,7 @@ class Question {
     required this.id,
     required this.phase,
     required this.pilar,
+    this.dominio,
     required this.recommendation,
     required this.orderIndex,
     this.guidance,
@@ -26,6 +28,7 @@ class Question {
       id: (json['id'] as num).toInt(),
       phase: (json['phase'] ?? '').toString(),
       pilar: (json['pilar'] ?? '').toString(),
+      dominio: json['dominio']?.toString(),
       recommendation: (json['recommendation'] ?? '').toString(),
       guidance: json['guidance']?.toString(),
       howToCheck: json['how_to_check']?.toString(),

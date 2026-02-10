@@ -21,8 +21,16 @@ class _PhasesScreenState extends State<PhasesScreen> {
 
   /// 3 pilares: Compliance, Continuity, Control
   static const phases = <PhaseOption>[
-    PhaseOption('Compliance', 'Compliance', 'Conformidade e requisitos regulatórios'),
-    PhaseOption('Continuity', 'Continuity', 'Continuidade de negócio e resiliência'),
+    PhaseOption(
+      'Compliance',
+      'Compliance',
+      'Conformidade e requisitos regulatórios',
+    ),
+    PhaseOption(
+      'Continuity',
+      'Continuity',
+      'Continuidade de negócio e resiliência',
+    ),
     PhaseOption('Control', 'Control', 'Controles e governança'),
   ];
 
@@ -42,7 +50,10 @@ class _PhasesScreenState extends State<PhasesScreen> {
       var totalQuestions = 0;
       final answeredIds = <int>{};
       for (final p in phases) {
-        final raw = await _api.listQuestionsByPilar(authToken: token, pilar: p.value);
+        final raw = await _api.listQuestionsByPilar(
+          authToken: token,
+          pilar: p.value,
+        );
         for (final e in raw) {
           if (e is Map && e['id'] != null) {
             totalQuestions++;
@@ -64,7 +75,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
           }
         }
       }
-      final allAnswered = totalQuestions > 0 && answeredIds.length >= totalQuestions;
+      final allAnswered =
+          totalQuestions > 0 && answeredIds.length >= totalQuestions;
       final lastGenerated = await AppStorage().getLastResultsGeneratedAt();
 
       // Gera/atualiza resultado e mostra notificação ao chegar no Home (assimila todas as respostas)
@@ -76,7 +88,9 @@ class _PhasesScreenState extends State<PhasesScreen> {
       if (mounted) {
         setState(() {
           _allQuestionsAnswered = allAnswered;
-          _lastResultsGeneratedAt = allAnswered ? DateTime.now() : lastGenerated;
+          _lastResultsGeneratedAt = allAnswered
+              ? DateTime.now()
+              : lastGenerated;
         });
         if (allAnswered && wasNotAllAnswered) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -122,7 +136,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
       if (match == null || !mounted) return;
       _hasAutoNavigated = true;
       final phase = match;
-          Navigator.of(context).push(
+      Navigator.of(context)
+          .push(
             MaterialPageRoute(
               builder: (_) => QuestionsScreen(
                 phase: phase.value,
@@ -130,7 +145,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
                 byPilar: true,
               ),
             ),
-          ).then((_) => _checkIfAllAnswered());
+          )
+          .then((_) => _checkIfAllAnswered());
     });
   }
 
@@ -155,8 +171,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Brand.surface,
-      appBar: soberaniaAppBar(context, title: 'Pilares da Soberania Digital')
-      ,
+      appBar: soberaniaAppBar(context, title: 'Pilares da Soberania Digital'),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -176,10 +191,11 @@ class _PhasesScreenState extends State<PhasesScreen> {
                               Expanded(
                                 child: Text(
                                   'Escolha uma fase para responder',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: Brand.black,
-                                  ),
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: Brand.black,
+                                      ),
                                 ),
                               ),
                               TextButton.icon(
@@ -207,20 +223,24 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                   ),
                                   title: Text(
                                     p.label,
-                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
                                   ),
                                   subtitle: Text(p.subtitle),
                                   trailing: const Icon(Icons.chevron_right),
                                   onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => QuestionsScreen(
-                                          phase: p.value,
-                                          phaseLabel: p.label,
-                                          byPilar: true,
-                                        ),
-                                      ),
-                                    ).then((_) => _checkIfAllAnswered());
+                                    Navigator.of(context)
+                                        .push(
+                                          MaterialPageRoute(
+                                            builder: (_) => QuestionsScreen(
+                                              phase: p.value,
+                                              phaseLabel: p.label,
+                                              byPilar: true,
+                                            ),
+                                          ),
+                                        )
+                                        .then((_) => _checkIfAllAnswered());
                                   },
                                 ),
                               ),
@@ -268,11 +288,13 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                   size: 28,
                                 ),
                                 onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const ResultsScreen(),
-                                    ),
-                                  ).then((_) => _checkIfAllAnswered());
+                                  Navigator.of(context)
+                                      .push(
+                                        MaterialPageRoute(
+                                          builder: (_) => const ResultsScreen(),
+                                        ),
+                                      )
+                                      .then((_) => _checkIfAllAnswered());
                                 },
                               ),
                             ),
@@ -280,7 +302,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
                             const SizedBox(height: 12),
                             Text(
                               'Responda todas as questões de todas as fases para ver os resultados.',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
                                     color: Colors.black54,
                                     fontStyle: FontStyle.italic,
                                   ),
@@ -289,9 +312,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
                           const SizedBox(height: 8),
                           Text(
                             'Obs: os valores dos pilares (Compliance, Continuity, Control) devem corresponder ao campo "pilar" das questões no Xano.',
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Colors.black54),
                           ),
                         ],
                       ),

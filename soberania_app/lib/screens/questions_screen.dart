@@ -266,9 +266,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     Navigator.of(context).pop();
   }
 
+  /// Verifica se todas as questões DESTE pilar foram respondidas (não das outras abas).
   bool get _allAnsweredInPhase =>
       _questions.isNotEmpty &&
-      _answersByQuestionId.length >= _questions.length;
+      _questions.every((q) => _answersByQuestionId.containsKey(q.id));
 
   @override
   Widget build(BuildContext context) {
