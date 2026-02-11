@@ -3,11 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/xano_api.dart';
-import '../models/models.dart' show Question, SavedAnswer, scoreOptions;
+import '../models/models.dart' show Question, SavedAnswer, scoreOptions, normalizeScore;
 import '../storage/app_storage.dart';
 import '../storage/position_persistence.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
+import '../widgets/criteria_panel.dart';
 
 class QuestionsScreen extends StatefulWidget {
   final String phase;
@@ -43,6 +44,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
   String? _selectedScore;
   bool _saving = false;
   Timer? _persistTimer;
+  bool _showCriteria = false;
 
   void _persistPosition() {
     if (_questions.isNotEmpty && _index >= 0 && _index < _questions.length) {
@@ -166,7 +168,9 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     final q = _questions[_index];
     final saved = _answersByQuestionId[q.id];
     final pending = _pendingAnswersByQuestionId[q.id];
-    _selectedScore = saved?.score ?? pending;
+    // Normaliza o score para o novo formato
+    final rawScore = saved?.score ?? pending;
+    _selectedScore = rawScore != null ? normalizeScore(rawScore) : null;
   }
 
   String _buildQuestionContext(Question q) {
@@ -296,10 +300,16 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
             : LayoutBuilder(
                 builder: (context, constraints) {
                   final showPanel = constraints.maxWidth > 800;
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  return Stack(
                     children: [
-                      Expanded(
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_showCriteria)
+                            CriteriaPanel(
+                              onClose: () => setState(() => _showCriteria = false),
+                            ),
+                          Expanded(
                         child: Column(
                           children: [
                             _ProgressBar(
@@ -337,9 +347,64 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                       ],
                     ),
                   ),
-                      if (showPanel)
-                        ChatPanel(
-                          questionContext: _buildQuestionContext(_questions[_index]),
+                          if (showPanel)
+                            ChatPanel(
+                              questionContext: _buildQuestionContext(_questions[_index]),
+                            ),
+                        ],
+                      ),
+                      // Botão vertical colado na borda esquerda
+                      if (!_showCriteria)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _showCriteria = true),
+                              child: Container(
+                                width: 40,
+                                padding: const EdgeInsets.symmetric(vertical: 20),
+                                decoration: BoxDecoration(
+                                  color: Brand.black,
+                                  borderRadius: const BorderRadius.only(
+                                    topRight: Radius.circular(8),
+                                    bottomRight: Radius.circular(8),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(2, 0),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.rule,
+                                      color: Brand.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    RotatedBox(
+                                      quarterTurns: 3,
+                                      child: Text(
+                                        'CRITÉRIOS DE ALINHAMENTO',
+                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                              color: Brand.white,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 1.2,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                     ],
                   );
@@ -525,8 +590,16 @@ class _QuestionCard extends StatelessWidget {
                 border: OutlineInputBorder(),
               ),
               hint: const Text('Selecione o nível de alinhamento'),
+              isExpanded: true,
               items: scoreOptions
-                  .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+                  .map((v) => DropdownMenuItem(
+                        value: v,
+                        child: Text(
+                          v,
+                          style: const TextStyle(fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ))
                   .toList(),
               onChanged: onScoreChanged,
             ),

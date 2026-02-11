@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../api/xano_api.dart';
+import '../api/rag_api.dart';
 import '../models/models.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
+import '../widgets/custom_radar_chart.dart';
 
 /// Dados agregados para os gráficos.
 class ResultsData {
@@ -31,12 +33,14 @@ class ResultsScreen extends StatefulWidget {
 class _ResultsScreenState extends State<ResultsScreen> {
   final _api = XanoApi();
   final _storage = AppStorage();
+  final _rag = RagApi();
 
   bool _loading = true;
   String? _error;
   ResultsData? _data;
   String? _userName;
   String? _userEmail;
+  String _overview = '';
 
   static const _phaseOrder = ['Quick_Wins', 'Foundational', 'Efficient', 'Optimized'];
 
@@ -118,10 +122,72 @@ class _ResultsScreenState extends State<ResultsScreen> {
         dominios: dominios,
       );
       // Timestamp de geração é salvo em QuestionsScreen ao completar questões
+      
+      // Gerar overview automático dos resultados
+      _generateOverview();
     } catch (e) {
       _error = e.toString();
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _generateOverview() async {
+    if (_data == null) return;
+
+    setState(() => _overview = 'Gerando análise dos resultados...');
+
+    try {
+      // Construir contexto dos resultados
+      final pilarScores = _data!.pilars
+          .map((p) => '$p: ${_data!.scoreByPilar[p]?.toInt() ?? 0}%')
+          .join(', ');
+      
+      final dominioScores = _data!.dominios
+          .map((d) => '$d: ${_data!.scoreByDominio[d]?.toInt() ?? 0}%')
+          .join(', ');
+
+      final query = '''Você é um consultor especialista em Soberania Digital. Analise os resultados deste assessment de maturidade e forneça um overview executivo COMPLETO.
+
+RESULTADOS POR PILAR:
+$pilarScores
+
+RESULTADOS POR DOMÍNIO:
+$dominioScores
+
+IMPORTANTE:
+- NÃO mencione "Amazon", "AWS" ou nomes de empresas específicas
+- Refira-se sempre como "a organização" ou "a empresa avaliada"
+- Complete TODA a análise, não pare no meio
+- Seja conciso mas completo
+
+Forneça uma análise estruturada em 4 seções curtas (2-3 frases cada):
+
+**Visão Geral do Nível de Maturidade**
+[Descreva o nível atual baseado nos scores]
+
+**Principais Pontos Fortes**
+[Liste 2-3 áreas com melhor desempenho]
+
+**Principais Áreas de Melhoria e Riscos**
+[Identifique 2-3 pontos críticos]
+
+**Recomendações Prioritárias**
+[Liste 3 ações concretas e práticas]
+
+Use linguagem clara, objetiva e acessível. COMPLETE todas as 4 seções.''';
+
+      final response = await _rag.ask(query);
+      
+      if (mounted) {
+        // Remover ** do markdown
+        final cleanAnswer = response.answer.replaceAll('**', '');
+        setState(() => _overview = cleanAnswer);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _overview = 'Não foi possível gerar a análise automática dos resultados.');
+      }
     }
   }
 
@@ -166,6 +232,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             const SizedBox(height: 8),
+                            // Card de Overview Automático
+                            _OverviewCard(overview: _overview),
+                            const SizedBox(height: 24),
                             _ChartCard(
                               title: 'Visão Geral (Radar)',
                               height: 400,
@@ -246,58 +315,17 @@ class _DominioRadarChart extends StatelessWidget {
       return const Center(child: Text('Sem dados para radar'));
     }
 
-    final entries = data.dominios
-        .map((d) => RadarEntry(value: (data.scoreByDominio[d] ?? 0).toDouble()))
+    final values = data.dominios
+        .map((d) => (data.scoreByDominio[d] ?? 0).toDouble())
         .toList();
 
-    final minEntries = List.generate(data.dominios.length, (_) => const RadarEntry(value: 0));
-    final maxEntries = List.generate(data.dominios.length, (_) => const RadarEntry(value: 125));
-
-    return RadarChart(
-      RadarChartData(
-        radarShape: RadarShape.polygon,
-        tickCount: 5,
-        titlePositionPercentageOffset: 0.15,
-        ticksTextStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: Brand.black,
-        ),
-        dataSets: [
-          RadarDataSet(
-            fillColor: Colors.transparent,
-            borderColor: Colors.transparent,
-            borderWidth: 0,
-            dataEntries: minEntries,
-          ),
-          RadarDataSet(
-            fillColor: Colors.transparent,
-            borderColor: Colors.transparent,
-            borderWidth: 0,
-            dataEntries: maxEntries,
-          ),
-          RadarDataSet(
-            fillColor: _radarBlue.withValues(alpha: 0.15),
-            borderColor: _radarBlue,
-            borderWidth: 2,
-            dataEntries: entries,
-            entryRadius: 4,
-          ),
-        ],
-        titleTextStyle: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: Brand.black,
-        ),
-        getTitle: (index, angle) => RadarChartTitle(
-          text: data.dominios[index],
-        ),
-        radarBackgroundColor: Brand.surface,
-        tickBorderData: const BorderSide(color: Brand.border, width: 1),
-        gridBorderData: const BorderSide(color: Brand.border, width: 1),
-        borderData: FlBorderData(show: false),
-      ),
-      duration: const Duration(milliseconds: 300),
+    return CustomRadarChart(
+      labels: data.dominios,
+      values: values,
+      fillColor: _radarBlue,
+      borderColor: _radarBlue,
+      gridColor: Brand.border,
+      textColor: Brand.black,
     );
   }
 }
@@ -414,60 +442,83 @@ class _RadarChart extends StatelessWidget {
       return const Center(child: Text('Sem dados para radar'));
     }
 
-    final entries = data.pilars
-        .map((p) => RadarEntry(value: (data.scoreByPilar[p] ?? 0).toDouble()))
+    final values = data.pilars
+        .map((p) => (data.scoreByPilar[p] ?? 0).toDouble())
         .toList();
 
-    // Datasets invisíveis para forçar escala 0–100% (0, 25, 50, 75, 100).
-    // Max 125 + tickCount 5 gera ticks 0, 25, 50, 75, 100, 125; labels mostram 0–100.
-    final minEntries = List.generate(data.pilars.length, (_) => const RadarEntry(value: 0));
-    final maxEntries = List.generate(data.pilars.length, (_) => const RadarEntry(value: 125));
+    return CustomRadarChart(
+      labels: data.pilars,
+      values: values,
+      fillColor: _radarBlue,
+      borderColor: _radarBlue,
+      gridColor: Brand.border,
+      textColor: Brand.black,
+    );
+  }
+}
 
-    return RadarChart(
-      RadarChartData(
-        radarShape: RadarShape.polygon,
-        tickCount: 5,
-        titlePositionPercentageOffset: 0.15,
-        ticksTextStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: Brand.black,
-        ),
-        dataSets: [
-          RadarDataSet(
-            fillColor: Colors.transparent,
-            borderColor: Colors.transparent,
-            borderWidth: 0,
-            dataEntries: minEntries,
-          ),
-          RadarDataSet(
-            fillColor: Colors.transparent,
-            borderColor: Colors.transparent,
-            borderWidth: 0,
-            dataEntries: maxEntries,
-          ),
-          RadarDataSet(
-            fillColor: _radarBlue.withValues(alpha: 0.15),
-            borderColor: _radarBlue,
-            borderWidth: 2,
-            dataEntries: entries,
-            entryRadius: 4,
-          ),
-        ],
-        titleTextStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          color: Brand.black,
-        ),
-        getTitle: (index, angle) => RadarChartTitle(
-          text: data.pilars[index],
-        ),
-        radarBackgroundColor: Brand.surface,
-        tickBorderData: const BorderSide(color: Brand.border, width: 1),
-        gridBorderData: const BorderSide(color: Brand.border, width: 1),
-        borderData: FlBorderData(show: false),
+class _OverviewCard extends StatelessWidget {
+  final String overview;
+
+  const _OverviewCard({required this.overview});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: Brand.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Brand.border),
       ),
-      duration: const Duration(milliseconds: 300),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.insights_rounded, color: Brand.black, size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  'Análise dos Resultados',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Brand.black,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (overview.isEmpty || overview == 'Gerando análise dos resultados...')
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Gerando análise dos resultados...',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.black54,
+                          fontStyle: FontStyle.italic,
+                        ),
+                  ),
+                ],
+              )
+            else
+              Text(
+                overview,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.black87,
+                      height: 1.6,
+                    ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/xano_api.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
+import 'assessment_intro_screen.dart';
 import 'phases_screen.dart';
 import 'signup_screen.dart';
 
@@ -55,9 +56,15 @@ class _LoginScreenState extends State<LoginScreen> {
       final assessmentId = (assessment['id'] as num).toInt();
       await storage.setAssessmentId(assessmentId);
 
+      // Verifica se usuário já viu a introdução
+      final introSeen = await storage.getIntroSeen();
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const PhasesScreen()),
+        MaterialPageRoute(
+          builder: (_) =>
+              introSeen ? const PhasesScreen() : const AssessmentIntroScreen(),
+        ),
       );
     } catch (e) {
       if (!mounted) return;

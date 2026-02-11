@@ -10,6 +10,7 @@ class AppStorage {
   static const _kLastResultsGeneratedAt = 'lastResultsGeneratedAt';
   static const _kLastQuestionIndexPrefix = 'lastQuestionIndex_';
   static const _kLastViewedPhase = 'lastViewedPhase';
+  static const _kIntroSeen = 'introSeen';
 
   Future<String?> getAuthToken() async {
     final sp = await SharedPreferences.getInstance();
@@ -93,6 +94,20 @@ class AppStorage {
   /// Retorna índice salvo síncronamente (web) ou null.
   int? getLastQuestionIndexSync(String phase) => getLastIndexSync(phase);
 
+  Future<bool> getIntroSeen() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getBool(_kIntroSeen) ?? false;
+  }
+
+  Future<void> setIntroSeen(bool seen) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setBool(_kIntroSeen, seen);
+  }
+
+  Future<void> clear() async {
+    await clearAll();
+  }
+
   Future<void> clearAll() async {
     clearPositionSync();
     final sp = await SharedPreferences.getInstance();
@@ -102,6 +117,7 @@ class AppStorage {
     await sp.remove(_kUserName);
     await sp.remove(_kLastResultsGeneratedAt);
     await sp.remove(_kLastViewedPhase);
+    await sp.remove(_kIntroSeen);
     final keys = sp.getKeys().where((k) => k.startsWith(_kLastQuestionIndexPrefix));
     for (final k in keys) {
       await sp.remove(k);

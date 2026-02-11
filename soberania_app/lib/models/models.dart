@@ -41,23 +41,43 @@ class Question {
 
 /// Opções do enum score (devem bater com o Xano)
 const scoreOptions = [
-  '100% Alinhado',
-  '75% Alinhado',
-  '50% Alinhado',
-  '25% Alinhado',
-  '0% Alinhado',
+  '100% ALINHADO - Cobertura em Toda a Organização',
+  '75% ALINHADO - Cobertura Parcial – Avançado',
+  '50% ALINHADO - Cobertura Parcial – Intermediário',
+  '25% ALINHADO - Cobertura Parcial – Inicial',
+  '0% ALINHADO - Sem Cobertura',
   'Desconhecido',
 ];
 
 /// Converte o texto do score em valor percentual (0-100).
 int scoreTextToPercent(String? score) {
   if (score == null || score.isEmpty) return 0;
-  if (score.contains('100%')) return 100;
-  if (score.contains('75%')) return 75;
-  if (score.contains('50%')) return 50;
-  if (score.contains('25%')) return 25;
-  if (score.contains('0%')) return 0;
+  final s = score.toUpperCase();
+  if (s.contains('100%')) return 100;
+  if (s.contains('75%')) return 75;
+  if (s.contains('50%')) return 50;
+  if (s.contains('25%')) return 25;
+  if (s.contains('0%')) return 0;
   return 0; // Desconhecido
+}
+
+/// Normaliza o score antigo para o novo formato
+String normalizeScore(String? score) {
+  if (score == null || score.isEmpty) return scoreOptions.last;
+  final s = score.trim();
+  
+  // Se já está no novo formato, retorna
+  if (scoreOptions.contains(s)) return s;
+  
+  // Converte formato antigo para novo
+  if (s.contains('100%')) return scoreOptions[0];
+  if (s.contains('75%')) return scoreOptions[1];
+  if (s.contains('50%')) return scoreOptions[2];
+  if (s.contains('25%')) return scoreOptions[3];
+  if (s.contains('0%')) return scoreOptions[4];
+  if (s.toLowerCase().contains('desconhecido')) return scoreOptions[5];
+  
+  return scoreOptions.last; // Desconhecido como fallback
 }
 
 class SavedAnswer {

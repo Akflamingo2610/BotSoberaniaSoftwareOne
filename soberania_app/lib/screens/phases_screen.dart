@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
+import 'assessment_intro_screen.dart';
 import 'login_screen.dart';
 import 'questions_screen.dart';
 import 'results_screen.dart';
@@ -206,6 +207,29 @@ class _PhasesScreenState extends State<PhasesScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const AssessmentIntroScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.info_outline, size: 18),
+                            label: const Text('Ver introdução ao Assessment'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Brand.black,
+                              side: const BorderSide(color: Brand.border),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                           ...phases.map(
                             (p) => Padding(
                               padding: const EdgeInsets.only(bottom: 10),

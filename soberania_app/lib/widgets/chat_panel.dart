@@ -548,24 +548,6 @@ class _ChatBubble extends StatelessWidget {
                       fontSize: 13,
                     ),
                   ),
-                  if (message.sources != null &&
-                      message.sources!.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: message.sources!
-                          .map(
-                            (s) => Chip(
-                              label: Text(s.title, style: const TextStyle(fontSize: 10)),
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              padding: EdgeInsets.zero,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ],
                 ],
               ),
             ),

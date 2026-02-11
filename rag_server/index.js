@@ -184,9 +184,11 @@ function searchDocs(query, limit = 8, preferAws = false) {
 }
 
 /** Prompt base do especialista – respostas precisas e acessíveis, SEM alucinações */
-const SYSTEM_PROMPT = `Você é um ESPECIALISTA AWS em segurança, soberania digital e compliance/continuidade. Responda SEMPRE como consultor AWS de forma clara e acessível.
+const SYSTEM_PROMPT = `Você é um ESPECIALISTA em segurança, soberania digital e compliance/continuidade. Responda SEMPRE como consultor de forma clara e acessível.
 
 IDIOMA OBRIGATÓRIO: Responda SEMPRE em português. NUNCA responda em inglês. Os documentos podem estar em inglês – TRADUZA todo o conteúdo relevante para português. O usuário espera resposta em português.
+
+IMPORTANTE: Quando analisar resultados de assessments, NUNCA mencione nomes de empresas específicas (como "Amazon", "AWS", etc.). Refira-se sempre como "a organização", "a empresa avaliada" ou "a empresa".
 
 REGRA CRÍTICA – RELEVÂNCIA DOS TRECHOS:
 - Use APENAS trechos que respondam DIRETAMENTE à pergunta. Se um trecho contém a mesma palavra mas em contexto COMPLETAMENTE DIFERENTE (ex: "fornecedores" em lei sobre crianças/adolescentes vs "onboarding de fornecedores" em processo corporativo), IGNORE esse trecho.
@@ -231,7 +233,7 @@ async function askGroq(prompt, sources) {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 800,
+        max_tokens: 1200,
         temperature: 0.3,
       }),
     });
@@ -239,10 +241,6 @@ async function askGroq(prompt, sources) {
     const data = await res.json();
     let answer = (data.choices?.[0]?.message?.content || '').trim();
     if (!answer) throw new Error('Resposta vazia da Groq');
-    if (sources && sources.length > 0) {
-      answer += `\n\n*Fontes consultadas: ${sources.map(s => s.title).join(', ')}*`;
-    }
-    answer += '\n\n*Nota: Esta é uma busca por relevância. Para interpretação jurídica, consulte um profissional.*';
     return answer;
   } catch (err) {
     console.error('Erro Groq:', err.message);
@@ -266,10 +264,6 @@ async function askOllama(prompt, sources) {
     const data = await res.json();
     let answer = (data.response || '').trim();
     if (!answer) throw new Error('Resposta vazia do Ollama');
-    if (sources && sources.length > 0) {
-      answer += `\n\n*Fontes consultadas: ${sources.map(s => s.title).join(', ')}*`;
-    }
-    answer += '\n\n*Nota: Esta é uma busca por relevância. Para interpretação jurídica, consulte um profissional.*';
     return answer;
   } catch (err) {
     console.error('Erro Ollama:', err.message);
@@ -380,8 +374,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
 
   const writeChunk = (t) => res.write(JSON.stringify({ t }) + '\n');
   const writeDone = () => {
-    if (sources.length > 0) writeChunk(`\n\n*Fontes: ${sources.map(s => s.title).join(', ')}*`);
-    res.write(JSON.stringify({ t: '\n\n*Nota: Para interpretação jurídica, consulte um profissional.*', done: true, sources }) + '\n');
+    res.write(JSON.stringify({ t: '', done: true, sources }) + '\n');
     res.end();
   };
 
@@ -552,8 +545,7 @@ app.post('/ask/stream', async (req, res) => {
 
   const writeChunk = (t) => res.write(JSON.stringify({ t }) + '\n');
   const writeDone = () => {
-    if (sources.length > 0) writeChunk(`\n\n*Fontes: ${sources.map(s => s.title).join(', ')}*`);
-    res.write(JSON.stringify({ t: '\n\n*Nota: Para interpretação jurídica, consulte um profissional.*', done: true, sources }) + '\n');
+    res.write(JSON.stringify({ t: '', done: true, sources }) + '\n');
     res.end();
   };
 
