@@ -12,7 +12,10 @@ class ChatPanel extends StatefulWidget {
   /// Quando informado, não faz auto-explicação; o usuário pergunta livremente.
   final String? resultsContext;
 
-  const ChatPanel({super.key, this.questionContext, this.resultsContext});
+  /// Mensagem de boas-vindas exibida ao carregar (ex: tela de introdução).
+  final String? welcomeMessage;
+
+  const ChatPanel({super.key, this.questionContext, this.resultsContext, this.welcomeMessage});
 
   @override
   State<ChatPanel> createState() => _ChatPanelState();
@@ -40,7 +43,14 @@ class _ChatPanelState extends State<ChatPanel> {
   void initState() {
     super.initState();
     _checkHealth();
-    if (widget.resultsContext == null &&
+    if (widget.welcomeMessage != null && widget.welcomeMessage!.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _messages.add(_ChatMessage(role: 'bot', text: widget.welcomeMessage!.trim()));
+        });
+      });
+    } else if (widget.resultsContext == null &&
         widget.questionContext != null &&
         widget.questionContext!.trim().length > 10) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _requestAutoExplanation());
@@ -299,7 +309,9 @@ class _ChatPanelState extends State<ChatPanel> {
                 ],
               ),
             ),
-          if (_effectiveContext != null && _effectiveContext!.isNotEmpty)
+          if (_effectiveContext != null &&
+              _effectiveContext!.isNotEmpty &&
+              widget.resultsContext == null)
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.all(12),

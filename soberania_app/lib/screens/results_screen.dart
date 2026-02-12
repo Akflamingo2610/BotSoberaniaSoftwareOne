@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import '../api/rag_api.dart';
 import '../api/xano_api.dart';
 import '../models/models.dart';
 import '../storage/app_storage.dart';
@@ -33,6 +34,7 @@ class ResultsScreen extends StatefulWidget {
 
 class _ResultsScreenState extends State<ResultsScreen> {
   final _api = XanoApi();
+  final _rag = RagApi();
   final _storage = AppStorage();
 
   bool _loading = true;
@@ -40,6 +42,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
   ResultsData? _data;
   String? _userName;
   String? _userEmail;
+  String? _botOverview;
+  bool _overviewLoading = false;
 
   static const _phaseOrder = ['Quick_Wins', 'Foundational', 'Efficient', 'Optimized'];
 
@@ -124,6 +128,37 @@ class _ResultsScreenState extends State<ResultsScreen> {
       _error = e.toString();
     } finally {
       if (mounted) setState(() => _loading = false);
+      if (mounted && _data != null && _error == null) _loadBotOverview();
+    }
+  }
+
+  Future<void> _loadBotOverview() async {
+    if (_data == null) return;
+    setState(() {
+      _botOverview = null;
+      _overviewLoading = true;
+    });
+    try {
+      final ctx = _buildResultsContext();
+      if (ctx.isEmpty) {
+        setState(() => _overviewLoading = false);
+        return;
+      }
+      final resp = await _rag.ask(
+        'Faça um overview executivo dos resultados deste assessment de soberania digital. '
+        'Dê uma leitura em 2-3 parágrafos, destacando pontos fortes e áreas de melhoria.',
+        questionContext: ctx,
+      );
+      if (mounted && resp.answer.trim().isNotEmpty) {
+        setState(() {
+          _botOverview = resp.answer.trim();
+          _overviewLoading = false;
+        });
+      } else if (mounted) {
+        setState(() => _overviewLoading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _overviewLoading = false);
     }
   }
 
@@ -196,6 +231,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               const SizedBox(height: 8),
+                              _BotOverviewCard(
+                                overview: _botOverview,
+                                loading: _overviewLoading,
+                              ),
+                              const SizedBox(height: 24),
                               _ChartCard(
                                 title: 'Visão Geral (Radar)',
                                 height: 400,
@@ -256,6 +296,66 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           );
                         },
                       ),
+      ),
+    );
+  }
+}
+
+class _BotOverviewCard extends StatelessWidget {
+  final String? overview;
+  final bool loading;
+
+  const _BotOverviewCard({this.overview, this.loading = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: Brand.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Brand.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.smart_toy, color: Brand.black, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: loading
+                  ? Row(
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Brand.black,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'O Bot está analisando os resultados...',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Brand.black,
+                              ),
+                        ),
+                      ],
+                    )
+                  : overview != null && overview!.isNotEmpty
+                      ? SelectableText(
+                          overview!,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                height: 1.5,
+                                color: Brand.black,
+                              ),
+                        )
+                      : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }

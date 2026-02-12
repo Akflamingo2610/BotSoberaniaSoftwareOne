@@ -143,7 +143,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
         context,
         title: 'Pilares da Soberania Digital',
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.home_rounded),
           onPressed: () {
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const AssessmentIntroScreen()),
@@ -171,7 +171,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  'Escolha uma fase para responder',
+                                  'Escolha um Pilar para responder',
                                   style: Theme.of(context).textTheme.titleLarge
                                       ?.copyWith(
                                         fontWeight: FontWeight.w800,
@@ -185,29 +185,6 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                 label: const Text('Sair'),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const AssessmentIntroScreen(),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.info_outline, size: 18),
-                            label: const Text('Ver introdução ao Assessment'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Brand.black,
-                              side: const BorderSide(color: Brand.border),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                                horizontal: 16,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
                           ),
                           const SizedBox(height: 16),
                           ...phases.map(

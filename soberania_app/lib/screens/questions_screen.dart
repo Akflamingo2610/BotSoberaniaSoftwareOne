@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/xano_api.dart';
-import '../models/models.dart' show Question, SavedAnswer, scoreOptions, normalizeScore;
+import '../models/models.dart' show Question, SavedAnswer, scoreOptions, normalizeScore, scoreToApiValue;
 import '../storage/app_storage.dart';
 import '../storage/position_persistence.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
 import '../widgets/criteria_panel.dart';
+import 'assessment_intro_screen.dart';
 
 class QuestionsScreen extends StatefulWidget {
   final String phase;
@@ -203,7 +204,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         authToken: token,
         assessmentId: assessmentId,
         questionId: q.id,
-        score: score,
+        score: scoreToApiValue(score),
       );
 
       // Atualiza cache local como "salvo" e remove do pendente
@@ -283,11 +284,27 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       appBar: soberaniaAppBar(
         context,
         title: widget.phaseLabel,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _goBackToPillars,
-          tooltip: 'Voltar para pilares',
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: _goBackToPillars,
+              tooltip: 'Voltar para pilares',
+            ),
+            IconButton(
+              icon: const Icon(Icons.home_rounded),
+              onPressed: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AssessmentIntroScreen()),
+                  (_) => false,
+                );
+              },
+              tooltip: 'Ir para introdução',
+            ),
+          ],
         ),
+        leadingWidth: 96,
       ),
       body: SafeArea(
         child: _loading

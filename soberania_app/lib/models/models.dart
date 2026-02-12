@@ -61,6 +61,29 @@ int scoreTextToPercent(String? score) {
   return 0; // Desconhecido
 }
 
+/// Valores aceitos pela API/Xano (enum da coluna score)
+const apiScoreValues = [
+  '100% Alinhado',
+  '75% Alinhado',
+  '50% Alinhado',
+  '25% Alinhado',
+  '0% Alinhado',
+  'Desconhecido',
+];
+
+/// Converte o valor exibido no dropdown para o valor aceito pela API
+String scoreToApiValue(String? displayScore) {
+  if (displayScore == null || displayScore.isEmpty) return apiScoreValues.last;
+  final s = displayScore.trim();
+  if (s.contains('100%')) return apiScoreValues[0];
+  if (s.contains('75%')) return apiScoreValues[1];
+  if (s.contains('50%')) return apiScoreValues[2];
+  if (s.contains('25%')) return apiScoreValues[3];
+  if (s.contains('0%')) return apiScoreValues[4];
+  if (s.toLowerCase().contains('desconhecido')) return apiScoreValues[5];
+  return apiScoreValues.last;
+}
+
 /// Normaliza o score antigo para o novo formato
 String normalizeScore(String? score) {
   if (score == null || score.isEmpty) return scoreOptions.last;
