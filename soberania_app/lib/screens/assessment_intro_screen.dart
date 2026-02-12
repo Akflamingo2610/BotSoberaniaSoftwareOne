@@ -13,9 +13,9 @@ class AssessmentIntroScreen extends StatelessWidget {
     // Salva flag de que já viu a introdução
     await AppStorage().setIntroSeen(true);
     if (!context.mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const PhasesScreen()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const PhasesScreen()));
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -73,10 +73,7 @@ class _ContentColumn extends StatelessWidget {
   final VoidCallback onContinue;
   final VoidCallback onLogout;
 
-  const _ContentColumn({
-    required this.onContinue,
-    required this.onLogout,
-  });
+  const _ContentColumn({required this.onContinue, required this.onLogout});
 
   @override
   Widget build(BuildContext context) {
@@ -97,28 +94,26 @@ class _ContentColumn extends StatelessWidget {
                       children: [
                         Text(
                           'Antes de começar',
-                          style:
-                              Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: Brand.black,
-                                  ),
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: Brand.black,
+                              ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Entenda o que este assessment avalia e o que você recebe ao final.',
-                          style:
-                              Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: Colors.black87,
-                                  ),
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: Colors.black87),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Tempo estimado: 5–10 min',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.black54,
-                                    fontStyle: FontStyle.italic,
-                                  ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Colors.black54,
+                                fontStyle: FontStyle.italic,
+                              ),
                         ),
                       ],
                     ),
@@ -154,7 +149,8 @@ class _ContentColumn extends StatelessWidget {
                     children: [
                       Text(
                         '📋 O que é',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w800,
                               color: Brand.black,
                             ),
@@ -163,9 +159,9 @@ class _ContentColumn extends StatelessWidget {
                       Text(
                         'O Assessment de Maturidade em Soberania Digital da SoftwareOne avalia de forma estruturada o nível de controle, conformidade, resiliência e independência digital da organização. A avaliação considera aspectos técnicos, operacionais, organizacionais e regulatórios, fornecendo uma visão clara do estado atual, das lacunas existentes e das prioridades de evolução. O assessment é baseado em critérios objetivos, mensuráveis e auditáveis, permitindo classificar a maturidade e apoiar a definição de um roadmap pragmático e alinhado às exigências do negócio e da regulação.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.black87,
-                              height: 1.6,
-                            ),
+                          color: Colors.black87,
+                          height: 1.6,
+                        ),
                       ),
                     ],
                   ),
@@ -188,18 +184,19 @@ class _ContentColumn extends StatelessWidget {
                     children: [
                       Text(
                         '🏢 Sobre a SoftwareOne',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w800,
                               color: Brand.black,
                             ),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'A SoftwareOne é uma empresa global de soluções em tecnologia, com sede na Suíça e operação no Brasil, apoiando organizações em sua jornada de modernização e transformação digital. Atuamos como parceiros estratégicos de nossos clientes, combinando profundo conhecimento técnico, experiência em ambientes de nuvem, dados e segurança, e entendimento prático das exigências regulatórias locais e globais. Como AWS Premier Tier Services Partner, a SoftwareOne integra o mais alto nível de parceria da AWS, reconhecido por excelência técnica comprovada, histórico consistente de entregas bem-sucedidas e equipes altamente certificadas. Esse nível de parceria atesta a capacidade da SoftwareOne de projetar, implementar e operar ambientes complexos e críticos na nuvem, seguindo padrões rigorosos de qualidade, segurança e governança.',
+                        'A SoftwareOne é uma empresa global de soluções em tecnologia, com sede na Suíça e operação no Brasil, apoiando organizações em sua jornada de modernização e transformação digital. Atuamos como parceiros estratégicos de nossos clientes, combinando profundo conhecimento técnico, experiência em ambientes de nuvem, dados e segurança, e entendimento prático das exigências regulatórias locais e globais. Como AWS Premier Partner, a SoftwareOne integra o mais alto nível de parceria da AWS, reconhecido por excelência técnica comprovada, histórico consistente de entregas bem-sucedidas e equipes altamente certificadas. Esse nível de parceria atesta a capacidade da SoftwareOne de projetar, implementar e operar ambientes complexos e críticos na nuvem, seguindo padrões rigorosos de qualidade, segurança e governança.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.black87,
-                              height: 1.6,
-                            ),
+                          color: Colors.black87,
+                          height: 1.6,
+                        ),
                       ),
                     ],
                   ),
@@ -222,7 +219,8 @@ class _ContentColumn extends StatelessWidget {
                     children: [
                       Text(
                         '🤝 Parceria SoftwareOne e AWS em Soberania Digital',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w800,
                               color: Brand.black,
                             ),
@@ -231,9 +229,9 @@ class _ContentColumn extends StatelessWidget {
                       Text(
                         'A SoftwareOne é parceira estratégica da AWS para o tema de Soberania Digital, sendo a única empresa no Brasil e uma das poucas no mundo com essa competência reconhecida. Essa parceria une profundo conhecimento técnico em ambientes de nuvem com expertise nas exigências regulatórias locais e globais, permitindo apoiar organizações na construção de estratégias de soberania digital alinhadas às demandas de negócio, aos requisitos legais e aos desafios operacionais de ambientes digitais modernos e distribuídos.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.black87,
-                              height: 1.6,
-                            ),
+                          color: Colors.black87,
+                          height: 1.6,
+                        ),
                       ),
                     ],
                   ),
@@ -256,7 +254,8 @@ class _ContentColumn extends StatelessWidget {
                     children: [
                       Text(
                         '⚙️ Soberania Digital',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w800,
                               color: Brand.black,
                             ),
@@ -265,9 +264,9 @@ class _ContentColumn extends StatelessWidget {
                       Text(
                         'Soberania Digital é a capacidade de uma organização manter controle, autoridade e visibilidade sobre seus dados, infraestrutura e operações digitais, assegurando conformidade regulatória, segurança, resiliência operacional, transparência e independência tecnológica. Em ambientes de nuvem, a soberania digital possibilita atender a requisitos regulatórios e geopolíticos crescentes sem comprometer agilidade, inovação ou escala, criando uma base sustentável para inovação segura e crescimento contínuo.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.black87,
-                              height: 1.6,
-                            ),
+                          color: Colors.black87,
+                          height: 1.6,
+                        ),
                       ),
                     ],
                   ),
@@ -285,25 +284,29 @@ class _ContentColumn extends StatelessWidget {
                   side: const BorderSide(color: Brand.border),
                 ),
                 child: ExpansionTile(
-                  tilePadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  tilePadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   title: Text(
                     '⚠️ Principais desafios enfrentados',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: Brand.black,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      color: Brand.black,
+                    ),
                   ),
                   children: const [
-                    _BulletList(items: [
-                      'Conformidade simultânea com múltiplas legislações e regulações nacionais e internacionais',
-                      'Garantia de residência, movimentação e controle de dados em ambientes distribuídos',
-                      'Restrição e governança de acessos operacionais, incluindo operadores internos e terceiros',
-                      'Falta de visibilidade contínua e evidências auditáveis de conformidade',
-                      'Necessidade de resiliência e continuidade operacional frente a incidentes, falhas sistêmicas ou eventos geopolíticos',
-                      'Escassez de competências especializadas para projetar, operar e evoluir ambientes soberanos',
-                    ]),
+                    _BulletList(
+                      items: [
+                        'Conformidade simultânea com múltiplas legislações e regulações nacionais e internacionais',
+                        'Garantia de residência, movimentação e controle de dados em ambientes distribuídos',
+                        'Restrição e governança de acessos operacionais, incluindo operadores internos e terceiros',
+                        'Falta de visibilidade contínua e evidências auditáveis de conformidade',
+                        'Necessidade de resiliência e continuidade operacional frente a incidentes, falhas sistêmicas ou eventos geopolíticos',
+                        'Escassez de competências especializadas para projetar, operar e evoluir ambientes soberanos',
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -319,25 +322,29 @@ class _ContentColumn extends StatelessWidget {
                   side: const BorderSide(color: Brand.border),
                 ),
                 child: ExpansionTile(
-                  tilePadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  tilePadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   title: Text(
                     '✅ Principais benefícios',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: Brand.black,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      color: Brand.black,
+                    ),
                   ),
                   children: const [
-                    _BulletList(items: [
-                      'Redução de riscos regulatórios, operacionais e reputacionais',
-                      'Maior transparência e auditabilidade dos ambientes digitais',
-                      'Controle efetivo sobre dados, infraestrutura e operações críticas',
-                      'Continuidade e resiliência dos negócios, mesmo em cenários extremos',
-                      'Aumento da confiança de clientes, parceiros e órgãos reguladores',
-                      'Base sólida para inovação segura, incluindo dados sensíveis e cargas de trabalho críticas',
-                    ]),
+                    _BulletList(
+                      items: [
+                        'Redução de riscos regulatórios, operacionais e reputacionais',
+                        'Maior transparência e auditabilidade dos ambientes digitais',
+                        'Controle efetivo sobre dados, infraestrutura e operações críticas',
+                        'Continuidade e resiliência dos negócios, mesmo em cenários extremos',
+                        'Aumento da confiança de clientes, parceiros e órgãos reguladores',
+                        'Base sólida para inovação segura, incluindo dados sensíveis e cargas de trabalho críticas',
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -389,9 +396,9 @@ class _BulletList extends StatelessWidget {
                 child: Text(
                   item,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.black87,
-                        height: 1.5,
-                      ),
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
                 ),
               ),
             ],

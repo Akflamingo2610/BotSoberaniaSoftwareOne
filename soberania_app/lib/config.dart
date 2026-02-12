@@ -10,4 +10,5 @@ const String xanoBaseUrl = 'https://x8ki-letl-twmt.n7.xano.io/api:oidAxaHw';
 /// Para testar local: use 'http://localhost:4000' (com RAG rodando em npm start).
 /// Produção: Railway
 
-const String ragBaseUrl = 'https://botsoberaniasoftwareone-production.up.railway.app';
+const String ragBaseUrl =
+    'https://botsoberaniasoftwareone-production.up.railway.app';

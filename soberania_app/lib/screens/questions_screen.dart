@@ -264,7 +264,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     }
   }
 
-  Future<void> _savePositionAndGoHome() async {
+  /// Volta para a tela de pilares (salva posição e faz pop).
+  Future<void> _goBackToPillars() async {
     await _storage.setLastQuestionIndex(widget.phase, _index);
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -283,9 +284,9 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         context,
         title: widget.phaseLabel,
         leading: IconButton(
-          icon: const Icon(Icons.home_rounded),
-          onPressed: _savePositionAndGoHome,
-          tooltip: 'Voltar às fases',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _goBackToPillars,
+          tooltip: 'Voltar para pilares',
         ),
       ),
       body: SafeArea(

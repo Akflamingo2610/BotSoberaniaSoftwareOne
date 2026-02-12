@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../api/xano_api.dart';
-import '../api/rag_api.dart';
 import '../models/models.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
+import '../widgets/chat_panel.dart';
 import '../widgets/custom_radar_chart.dart';
+import 'assessment_intro_screen.dart';
 
 /// Dados agregados para os gráficos.
 class ResultsData {
@@ -33,14 +34,12 @@ class ResultsScreen extends StatefulWidget {
 class _ResultsScreenState extends State<ResultsScreen> {
   final _api = XanoApi();
   final _storage = AppStorage();
-  final _rag = RagApi();
 
   bool _loading = true;
   String? _error;
   ResultsData? _data;
   String? _userName;
   String? _userEmail;
-  String _overview = '';
 
   static const _phaseOrder = ['Quick_Wins', 'Foundational', 'Efficient', 'Optimized'];
 
@@ -121,10 +120,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
         scoreByDominio: scoreByDominio,
         dominios: dominios,
       );
-      // Timestamp de geração é salvo em QuestionsScreen ao completar questões
-      
-      // Gerar overview automático dos resultados
-      _generateOverview();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -132,63 +127,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-  Future<void> _generateOverview() async {
-    if (_data == null) return;
-
-    setState(() => _overview = 'Gerando análise dos resultados...');
-
-    try {
-      // Construir contexto dos resultados
-      final pilarScores = _data!.pilars
-          .map((p) => '$p: ${_data!.scoreByPilar[p]?.toInt() ?? 0}%')
-          .join(', ');
-      
-      final dominioScores = _data!.dominios
-          .map((d) => '$d: ${_data!.scoreByDominio[d]?.toInt() ?? 0}%')
-          .join(', ');
-
-      final query = '''Você é um consultor especialista em Soberania Digital. Analise os resultados deste assessment de maturidade e forneça um overview executivo COMPLETO.
-
-RESULTADOS POR PILAR:
-$pilarScores
-
-RESULTADOS POR DOMÍNIO:
-$dominioScores
-
-IMPORTANTE:
-- NÃO mencione "Amazon", "AWS" ou nomes de empresas específicas
-- Refira-se sempre como "a organização" ou "a empresa avaliada"
-- Complete TODA a análise, não pare no meio
-- Seja conciso mas completo
-
-Forneça uma análise estruturada em 4 seções curtas (2-3 frases cada):
-
-**Visão Geral do Nível de Maturidade**
-[Descreva o nível atual baseado nos scores]
-
-**Principais Pontos Fortes**
-[Liste 2-3 áreas com melhor desempenho]
-
-**Principais Áreas de Melhoria e Riscos**
-[Identifique 2-3 pontos críticos]
-
-**Recomendações Prioritárias**
-[Liste 3 ações concretas e práticas]
-
-Use linguagem clara, objetiva e acessível. COMPLETE todas as 4 seções.''';
-
-      final response = await _rag.ask(query);
-      
-      if (mounted) {
-        // Remover ** do markdown
-        final cleanAnswer = response.answer.replaceAll('**', '');
-        setState(() => _overview = cleanAnswer);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _overview = 'Não foi possível gerar a análise automática dos resultados.');
-      }
-    }
+  String _buildResultsContext() {
+    if (_data == null) return '';
+    final pilarScores = _data!.pilars
+        .map((p) => '$p: ${_data!.scoreByPilar[p]?.toInt() ?? 0}%')
+        .join(', ');
+    final dominioScores = _data!.dominios
+        .map((d) => '$d: ${_data!.scoreByDominio[d]?.toInt() ?? 0}%')
+        .join(', ');
+    return 'RESULTADOS POR PILAR: $pilarScores. RESULTADOS POR DOMÍNIO: $dominioScores.';
   }
 
   @override
@@ -213,11 +160,27 @@ Use linguagem clara, objetiva e acessível. COMPLETE todas as 4 seções.''';
         context,
         title: 'Resultados',
         subtitle: subtitle,
-        leading: IconButton(
-          icon: const Icon(Icons.home_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-          tooltip: 'Voltar às fases',
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
+              tooltip: 'Voltar para pilares',
+            ),
+            IconButton(
+              icon: const Icon(Icons.home_rounded),
+              onPressed: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AssessmentIntroScreen()),
+                  (_) => false,
+                );
+              },
+              tooltip: 'Ir para introdução',
+            ),
+          ],
         ),
+        leadingWidth: 96,
       ),
       body: SafeArea(
         child: _loading
@@ -226,36 +189,72 @@ Use linguagem clara, objetiva e acessível. COMPLETE todas as 4 seções.''';
                 ? _ErrorView(error: _error!, onRetry: _load)
                 : _data == null
                     ? const Center(child: Text('Nenhum dado disponível.'))
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SizedBox(height: 8),
-                            // Card de Overview Automático
-                            _OverviewCard(overview: _overview),
-                            const SizedBox(height: 24),
-                            _ChartCard(
-                              title: 'Visão Geral (Radar)',
-                              height: 400,
-                              child: _RadarChart(data: _data!),
-                            ),
-                            const SizedBox(height: 24),
-                            _ChartCard(
-                              title: 'Score por Pilar',
-                              child: _PilarBarChart(data: _data!),
-                            ),
-                            if (_data!.dominios.isNotEmpty) ...[
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final showPanel = constraints.maxWidth > 1100;
+                          final chartsColumn = Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SizedBox(height: 8),
+                              _ChartCard(
+                                title: 'Visão Geral (Radar)',
+                                height: 400,
+                                child: _RadarChart(data: _data!),
+                              ),
                               const SizedBox(height: 24),
                               _ChartCard(
-                                title: 'Score por Domínio',
-                                height: 400,
-                                child: _DominioRadarChart(data: _data!),
+                                title: 'Score por Pilar',
+                                child: _PilarBarChart(data: _data!),
                               ),
+                              if (_data!.dominios.isNotEmpty) ...[
+                                const SizedBox(height: 24),
+                                _ChartCard(
+                                  title: 'Score por Domínio',
+                                  height: 400,
+                                  child: _DominioRadarChart(data: _data!),
+                                ),
+                              ],
+                              if (!showPanel) ...[
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  height: 400,
+                                  child: Card(
+                                    elevation: 0,
+                                    color: Brand.white,
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      side: const BorderSide(color: Brand.border),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: ChatPanel(resultsContext: _buildResultsContext()),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 32),
                             ],
-                            const SizedBox(height: 32),
-                          ],
-                        ),
+                          );
+                          if (showPanel) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.all(16),
+                                    child: chartsColumn,
+                                  ),
+                                ),
+                                ChatPanel(resultsContext: _buildResultsContext()),
+                              ],
+                            );
+                          }
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: chartsColumn,
+                          );
+                        },
                       ),
       ),
     );
@@ -453,72 +452,6 @@ class _RadarChart extends StatelessWidget {
       borderColor: _radarBlue,
       gridColor: Brand.border,
       textColor: Brand.black,
-    );
-  }
-}
-
-class _OverviewCard extends StatelessWidget {
-  final String overview;
-
-  const _OverviewCard({required this.overview});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Brand.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Brand.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.insights_rounded, color: Brand.black, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  'Análise dos Resultados',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: Brand.black,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (overview.isEmpty || overview == 'Gerando análise dos resultados...')
-              Row(
-                children: [
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Gerando análise dos resultados...',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.black54,
-                          fontStyle: FontStyle.italic,
-                        ),
-                  ),
-                ],
-              )
-            else
-              Text(
-                overview,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.black87,
-                      height: 1.6,
-                    ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 }

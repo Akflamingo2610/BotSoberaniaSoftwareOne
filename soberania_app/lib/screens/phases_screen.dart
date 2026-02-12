@@ -108,47 +108,14 @@ class _PhasesScreenState extends State<PhasesScreen> {
     } finally {
       if (mounted) {
         setState(() => _loadingResults = false);
-        _tryResumeLastPhase();
       }
     }
   }
-
-  bool _hasAutoNavigated = false;
 
   @override
   void initState() {
     super.initState();
     _checkIfAllAnswered();
-  }
-
-  void _tryResumeLastPhase() {
-    if (_hasAutoNavigated) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _hasAutoNavigated) return;
-      final lastPhase = await AppStorage().getLastViewedPhase();
-      if (lastPhase == null) return;
-      PhaseOption? match;
-      for (final p in phases) {
-        if (p.value == lastPhase) {
-          match = p;
-          break;
-        }
-      }
-      if (match == null || !mounted) return;
-      _hasAutoNavigated = true;
-      final phase = match;
-      Navigator.of(context)
-          .push(
-            MaterialPageRoute(
-              builder: (_) => QuestionsScreen(
-                phase: phase.value,
-                phaseLabel: phase.label,
-                byPilar: true,
-              ),
-            ),
-          )
-          .then((_) => _checkIfAllAnswered());
-    });
   }
 
   static String _formatTimestamp(DateTime dt) {
@@ -172,7 +139,20 @@ class _PhasesScreenState extends State<PhasesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Brand.surface,
-      appBar: soberaniaAppBar(context, title: 'Pilares da Soberania Digital'),
+      appBar: soberaniaAppBar(
+        context,
+        title: 'Pilares da Soberania Digital',
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const AssessmentIntroScreen()),
+              (_) => false,
+            );
+          },
+          tooltip: 'Ir para introdução',
+        ),
+      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

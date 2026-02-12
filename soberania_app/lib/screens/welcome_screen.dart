@@ -1,15 +1,54 @@
 import 'package:flutter/material.dart';
 
+import '../storage/app_storage.dart';
 import '../ui/brand.dart';
+import 'assessment_intro_screen.dart';
 import 'login_screen.dart';
+import 'phases_screen.dart';
 import 'signup_screen.dart';
 
 /// Primeira tela do app: boas-vindas + Entrar ou Cadastre-se.
-class WelcomeScreen extends StatelessWidget {
+/// Se o usuário já estiver logado, vai direto para a introdução ou pilares.
+class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
 
   @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  bool _checkingAuth = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoggedIn();
+  }
+
+  Future<void> _checkLoggedIn() async {
+    final token = await AppStorage().getAuthToken();
+    if (!mounted) return;
+    setState(() => _checkingAuth = false);
+    if (token != null && token.isNotEmpty) {
+      final introSeen = await AppStorage().getIntroSeen();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) =>
+              introSeen ? const PhasesScreen() : const AssessmentIntroScreen(),
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_checkingAuth) {
+      return const Scaffold(
+        backgroundColor: Brand.surface,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       backgroundColor: Brand.surface,
       body: SafeArea(

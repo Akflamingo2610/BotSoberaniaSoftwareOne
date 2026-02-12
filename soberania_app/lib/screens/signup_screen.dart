@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../api/xano_api.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
+import 'assessment_intro_screen.dart';
 import 'login_screen.dart';
-import 'phases_screen.dart';
 
 /// Tela de cadastro (primeira vez) conectada ao endpoint signup_company do Xano.
 class SignupScreen extends StatefulWidget {
@@ -68,9 +68,12 @@ class _SignupScreenState extends State<SignupScreen> {
       final assessmentId = (assessment['id'] as num).toInt();
       await storage.setAssessmentId(assessmentId);
 
+      // Conta nova sempre vai para a introdução do Assessment
+      await storage.setIntroSeen(false);
+
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const PhasesScreen()),
+        MaterialPageRoute(builder: (_) => const AssessmentIntroScreen()),
         (route) => false,
       );
     } catch (e) {

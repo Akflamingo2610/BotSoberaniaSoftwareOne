@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import '../api/rag_api.dart';
 import '../ui/brand.dart';
 
-/// Painel lateral do chat (estilo Copilot) - sempre visível ao lado das questões.
+/// Painel lateral do chat (estilo Copilot) - ao lado das questões ou dos resultados.
 class ChatPanel extends StatefulWidget {
+  /// Contexto da pergunta atual (para explicar questões do assessment).
   final String? questionContext;
 
-  const ChatPanel({super.key, this.questionContext});
+  /// Contexto dos resultados (para perguntar sobre scores, compliance, etc).
+  /// Quando informado, não faz auto-explicação; o usuário pergunta livremente.
+  final String? resultsContext;
+
+  const ChatPanel({super.key, this.questionContext, this.resultsContext});
 
   @override
   State<ChatPanel> createState() => _ChatPanelState();
@@ -26,11 +31,17 @@ class _ChatPanelState extends State<ChatPanel> {
 
   bool _autoExplainRequested = false;
 
+  String? get _effectiveContext =>
+      (widget.resultsContext?.trim().isNotEmpty == true)
+          ? widget.resultsContext!.trim()
+          : widget.questionContext?.trim();
+
   @override
   void initState() {
     super.initState();
     _checkHealth();
-    if (widget.questionContext != null &&
+    if (widget.resultsContext == null &&
+        widget.questionContext != null &&
         widget.questionContext!.trim().length > 10) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _requestAutoExplanation());
     }
@@ -39,10 +50,11 @@ class _ChatPanelState extends State<ChatPanel> {
   @override
   void didUpdateWidget(covariant ChatPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.resultsContext != null) return;
     if (oldWidget.questionContext != widget.questionContext) {
       if (widget.questionContext != null &&
           widget.questionContext!.trim().length > 10) {
-        _autoExplainRequested = false; // Reset antes de chamar (setState é assíncrono)
+        _autoExplainRequested = false;
         setState(() => _messages.clear());
         _requestAutoExplanation();
       } else {
@@ -160,7 +172,7 @@ class _ChatPanelState extends State<ChatPanel> {
     try {
       await for (final chunk in _rag.askStream(
         text,
-        questionContext: widget.questionContext,
+        questionContext: _effectiveContext,
       )) {
         if (!mounted) return;
         if (chunk.text != null && chunk.text!.isNotEmpty) {
@@ -177,7 +189,7 @@ class _ChatPanelState extends State<ChatPanel> {
 
       if (replyText.isEmpty) {
         try {
-          final resp = await _rag.ask(text, questionContext: widget.questionContext);
+          final resp = await _rag.ask(text, questionContext: _effectiveContext);
           replyText = resp.answer.trim();
           if (resp.sources.isNotEmpty) sources = resp.sources;
         } catch (_) {
@@ -287,8 +299,7 @@ class _ChatPanelState extends State<ChatPanel> {
                 ],
               ),
             ),
-          if (widget.questionContext != null &&
-              widget.questionContext!.trim().isNotEmpty)
+          if (_effectiveContext != null && _effectiveContext!.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.all(12),
@@ -302,7 +313,7 @@ class _ChatPanelState extends State<ChatPanel> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Pergunta atual:',
+                    widget.resultsContext != null ? 'Resultados:' : 'Pergunta atual:',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: Brand.black,
@@ -310,7 +321,7 @@ class _ChatPanelState extends State<ChatPanel> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _truncate(widget.questionContext!, 120),
+                    _truncate(_effectiveContext!, 120),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Colors.black87,
                         ),
@@ -326,7 +337,9 @@ class _ChatPanelState extends State<ChatPanel> {
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        'Pergunte sobre AWS, soberania digital\nou leis brasileiras',
+                        widget.resultsContext != null
+                            ? 'Pergunte sobre os resultados\nEx: o que significa 45% de Compliance?\nComo podemos melhorar?'
+                            : 'Pergunte sobre AWS, soberania digital\nou leis brasileiras',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.black54,
