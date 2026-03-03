@@ -66,7 +66,7 @@ class _RadarChartPainter extends CustomPainter {
     final levels = [0.0, 25.0, 50.0, 75.0, 100.0];
     final levelRadii = levels.map((level) => radius * (level / 100)).toList();
 
-    // 1. Desenhar grades (hexágonos/triângulos concêntricos)
+    // 1. Desenhar grades (polígonos concêntricos)
     final gridPaint = Paint()
       ..color = gridColor
       ..style = PaintingStyle.stroke
@@ -89,7 +89,7 @@ class _RadarChartPainter extends CustomPainter {
       canvas.drawPath(path, gridPaint);
     }
 
-    // 2. Desenhar linhas dos eixos
+    // 2. Eixos
     final axisPaint = Paint()
       ..color = gridColor
       ..style = PaintingStyle.stroke
@@ -102,27 +102,23 @@ class _RadarChartPainter extends CustomPainter {
       canvas.drawLine(center, Offset(x, y), axisPaint);
     }
 
-    // 3. Desenhar números dos níveis (CENTRALIZADOS dentro das faixas)
+    // 3. Níveis numéricos
     final textPainter = TextPainter(
       textAlign: TextAlign.center,
       textDirection: TextDirection.ltr,
     );
 
-    // Posicionar números no primeiro eixo (topo), centralizados entre as linhas
     for (int i = 0; i < levels.length; i++) {
       final level = levels[i];
-      
-      // Calcular posição CENTRAL da faixa
+
       double tickRadius;
       if (i == 0) {
-        // Zero: no centro exato
         tickRadius = 0;
       } else {
-        // Outros: no meio entre a linha anterior e a atual
         tickRadius = (levelRadii[i - 1] + levelRadii[i]) / 2;
       }
 
-      final angle = startAngle; // Topo
+      final angle = startAngle;
       final x = center.dx + tickRadius * math.cos(angle);
       final y = center.dy + tickRadius * math.sin(angle);
 
@@ -136,7 +132,6 @@ class _RadarChartPainter extends CustomPainter {
       );
       textPainter.layout();
 
-      // Ajustar para ficar acima do ponto
       final textOffset = Offset(
         x - textPainter.width / 2,
         y - textPainter.height - 4,
@@ -145,7 +140,7 @@ class _RadarChartPainter extends CustomPainter {
       textPainter.paint(canvas, textOffset);
     }
 
-    // 4. Desenhar labels dos eixos (Compliance, Control, etc.)
+    // 4. Labels dos eixos
     for (int i = 0; i < n; i++) {
       final angle = startAngle + angleStep * i;
       final labelDistance = radius + 30;
@@ -170,7 +165,7 @@ class _RadarChartPainter extends CustomPainter {
       textPainter.paint(canvas, textOffset);
     }
 
-    // 5. Desenhar dados (polígono azul)
+    // 5. Polígono de dados
     final dataPath = Path();
     final dataPaint = Paint()
       ..color = fillColor.withOpacity(0.15)
@@ -192,14 +187,13 @@ class _RadarChartPainter extends CustomPainter {
     dataPath.close();
     canvas.drawPath(dataPath, dataPaint);
 
-    // 6. Desenhar borda do polígono de dados
     final borderPaint = Paint()
       ..color = borderColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
     canvas.drawPath(dataPath, borderPaint);
 
-    // 7. Desenhar pontos nos vértices dos dados
+    // 6. Pontos nos vértices
     final pointPaint = Paint()
       ..color = borderColor
       ..style = PaintingStyle.fill;
@@ -217,3 +211,5 @@ class _RadarChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+
+

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/xano_api.dart';
 import '../models/models.dart';
 import '../storage/app_storage.dart';
+import '../l10n/app_localizations.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
 import 'assessment_intro_screen.dart';
@@ -141,7 +142,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
       backgroundColor: Brand.surface,
       appBar: soberaniaAppBar(
         context,
-        title: 'Pilares da Soberania Digital',
+        title: AppLocalizations.of(context).t('phases_title'),
         leading: IconButton(
           icon: const Icon(Icons.home_rounded),
           onPressed: () {
@@ -150,7 +151,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
               (_) => false,
             );
           },
-          tooltip: 'Ir para introdução',
+          tooltip: AppLocalizations.of(context).t('go_to_intro'),
         ),
       ),
       body: SafeArea(
@@ -171,7 +172,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  'Escolha um Pilar para responder',
+                                  AppLocalizations.of(context).t('phases_choose'),
                                   style: Theme.of(context).textTheme.titleLarge
                                       ?.copyWith(
                                         fontWeight: FontWeight.w800,
@@ -182,7 +183,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
                               TextButton.icon(
                                 onPressed: () => _logout(context),
                                 icon: const Icon(Icons.logout),
-                                label: const Text('Sair'),
+                                label: Text(AppLocalizations.of(context).t('btn_logout')),
                               ),
                             ],
                           ),

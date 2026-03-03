@@ -238,6 +238,28 @@ class XanoApi {
     throw ApiException(res.statusCode, body);
   }
 
+  Future<void> saveAnswersBulk({
+    required String authToken,
+    required int assessmentId,
+    required List<Map<String, dynamic>> answers,
+  }) async {
+    if (answers.isEmpty) return;
+    final res = await _client.post(
+      _uri('/assessment/save'),
+      headers: _headers(authToken: authToken),
+      body: jsonEncode({
+        'assessment_id': assessmentId,
+        'answers': answers,
+      }),
+    );
+    final body = _tryJson(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      _clearProgressCache();
+      return;
+    }
+    throw ApiException(res.statusCode, body);
+  }
+
   dynamic _tryJson(String raw) {
     try {
       return jsonDecode(raw);

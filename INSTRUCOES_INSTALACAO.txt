@@ -1,0 +1,122 @@
+=====================================
+INSTRUÇÕES DE INSTALAÇÃO - BOT SOBERANIA
+=====================================
+
+Este arquivo resume o que seu colega precisa instalar/configurar para rodar
+o projeto completo (Flutter + servidor RAG em Node.js).
+
+--------------------------------------------------
+1) PRÉ-REQUISITOS GERAIS
+--------------------------------------------------
+
+- Git (opcional, apenas se for clonar o repositório)
+- Editor de código (VS Code / Cursor / IntelliJ / etc.)
+
+--------------------------------------------------
+2) FRONTEND FLUTTER (soberania_app)
+--------------------------------------------------
+
+Pasta do projeto:
+- C:\Users\NATH\Downloads\Bot_Soberania\soberania_app
+
+2.1) Instalar Flutter/Dart
+- Instalar Flutter SDK (versão compatível com Dart 3.9.2 ou superior).
+- Adicionar o binário do Flutter ao PATH do sistema.
+- Conferir se está ok:
+  - flutter --version
+
+2.2) Dependências do pubspec.yaml
+
+No diretório soberania_app, rodar:
+- flutter pub get
+
+Principais bibliotecas usadas:
+- flutter_localizations (SDK Flutter)
+- cupertino_icons: ^1.0.8
+- http: ^1.2.0
+- shared_preferences: ^2.0.15
+- fl_chart: ^0.69.0
+- web: ^1.0.0
+- flutter_test (dev)
+- flutter_lints (dev)
+
+2.3) Rodar o app Flutter
+
+No diretório soberania_app:
+- flutter run
+  ou para web:
+- flutter run -d chrome
+
+Observação:
+- Configurar em lib/config.dart as URLs de backend (Xano/AWS) e do RAG:
+  - ragBaseUrl apontando para o servidor Node.js (ex.: http://localhost:4000).
+
+--------------------------------------------------
+3) BACKEND RAG SERVER (Node.js)
+--------------------------------------------------
+
+Pasta do projeto:
+- C:\Users\NATH\Downloads\Bot_Soberania\rag_server
+
+3.1) Instalar Node.js
+- Instalar Node.js LTS (>= 18.x recomendado).
+- Conferir se está ok:
+  - node -v
+  - npm -v
+
+3.2) Instalar dependências NPM
+
+No diretório rag_server, rodar:
+- npm install
+
+Bibliotecas usadas (package.json):
+- express: ^4.18.2   (servidor HTTP)
+- cors: ^2.8.5       (CORS)
+- minisearch: ^7.1.0 (índice de texto para RAG)
+- pdf-parse: ^1.1.1  (leitura de PDFs)
+
+3.3) Variáveis de ambiente importantes
+
+- PORT           -> porta HTTP (padrão 4000 se não setar)
+- DOCS_DIR       -> pasta com os PDFs para indexação (padrão ./docs)
+- GROQ_API_KEY   -> chave da API da Groq (se for usar modelo da Groq)
+- GROQ_MODEL     -> nome do modelo Groq (ex.: llama-3.3-70b-versatile)
+- OLLAMA_URL     -> URL do Ollama local (ex.: http://localhost:11434)
+- OLLAMA_MODEL   -> nome do modelo no Ollama (ex.: gemma3:1b)
+
+3.4) Subir o servidor RAG
+
+No diretório rag_server:
+- npm start
+
+Depois de rodar, o RAG deve responder em:
+- http://localhost:4000/health
+- http://localhost:4000/ask
+
+--------------------------------------------------
+4) INTEGRAÇÃO FLUTTER + RAG
+--------------------------------------------------
+
+- No Flutter, o arquivo lib/config.dart deve ter o ragBaseUrl apontando
+  para o servidor Node.js:
+  - ex.: const String ragBaseUrl = 'http://localhost:4000';
+
+- Com o RAG rodando e o app Flutter aberto, o painel SoberanIA consegue:
+  - Explicar perguntas do questionário (explicação automática).
+  - Responder dúvidas abertas do usuário.
+
+--------------------------------------------------
+5) RESUMO RÁPIDO PARA O COLEGA
+--------------------------------------------------
+
+1) Instalar Flutter (SDK) e configurar PATH.
+2) Ir em C:\Users\NATH\Downloads\Bot_Soberania\soberania_app e rodar:
+   - flutter pub get
+   - flutter run (ou flutter run -d chrome)
+3) Instalar Node.js (>=18).
+4) Ir em C:\Users\NATH\Downloads\Bot_Soberania\rag_server e rodar:
+   - npm install
+   - npm start
+5) Garantir que lib/config.dart no Flutter aponta para:
+   - ragBaseUrl = 'http://localhost:4000';
+

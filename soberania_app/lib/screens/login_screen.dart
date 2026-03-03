@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/xano_api.dart';
 import '../storage/app_storage.dart';
+import '../l10n/app_localizations.dart';
 import '../ui/brand.dart';
 import 'assessment_intro_screen.dart';
 import 'phases_screen.dart';
@@ -80,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Brand.surface,
-      appBar: soberaniaAppBar(context, title: 'Acesso'),
+      appBar: soberaniaAppBar(context, title: AppLocalizations.of(context).t('login_title')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -103,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          'Entrar',
+                          AppLocalizations.of(context).t('btn_login'),
                           style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(
                                 fontWeight: FontWeight.w800,
@@ -112,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Use seu e-mail e senha para entrar.',
+                          AppLocalizations.of(context).t('login_subtitle'),
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: Colors.black54),
                         ),
@@ -120,14 +121,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextFormField(
                           controller: _email,
                           keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
-                            labelText: 'E-mail',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText:
+                                AppLocalizations.of(context).t('login_email_label'),
+                            border: const OutlineInputBorder(),
                           ),
                           validator: (v) {
                             final t = (v ?? '').trim();
-                            if (t.isEmpty) return 'Informe seu e-mail';
-                            if (!t.contains('@')) return 'E-mail inválido';
+                            if (t.isEmpty) {
+                              return AppLocalizations.of(context)
+                                  .t('login_email_required');
+                            }
+                            if (!t.contains('@')) {
+                              return AppLocalizations.of(context)
+                                  .t('login_email_invalid');
+                            }
                             return null;
                           },
                         ),
@@ -135,12 +143,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextFormField(
                           controller: _password,
                           obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Senha',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: AppLocalizations.of(context)
+                                .t('login_password_label'),
+                            border: const OutlineInputBorder(),
                           ),
                           validator: (v) {
-                            if ((v ?? '').isEmpty) return 'Informe sua senha';
+                            if ((v ?? '').isEmpty) {
+                              return AppLocalizations.of(context)
+                                  .t('login_password_required');
+                            }
                             return null;
                           },
                         ),
@@ -163,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const Text('Entrar'),
+                              : Text(AppLocalizations.of(context).t('btn_login')),
                         ),
                         const SizedBox(height: 12),
                         OutlinedButton(
@@ -183,13 +195,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             );
                           },
-                          child: const Text(
-                            'Não tem uma conta ainda? Cadastre-se',
+                          child: Text(
+                            AppLocalizations.of(context).t('no_account'),
                           ),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Dica: configure a URL do Xano em lib/config.dart',
+                          AppLocalizations.of(context)
+                              .t('login_tip_config_xano'),
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: Colors.black45),

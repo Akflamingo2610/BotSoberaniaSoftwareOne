@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
 import 'assessment_intro_screen.dart';
@@ -51,6 +52,19 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
     return Scaffold(
       backgroundColor: Brand.surface,
+      appBar: AppBar(
+        backgroundColor: Brand.white,
+        elevation: 0,
+        title: Text(
+          AppLocalizations.of(context).t('app_title'),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: Brand.black,
+              ),
+        ),
+        iconTheme: const IconThemeData(color: Brand.black),
+        actions: [LanguageButton()],
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -73,7 +87,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                   const SizedBox(height: 48),
                   Text(
-                    'Bem-vindo à aplicação de soberania digital da Software One com a AWS',
+                    AppLocalizations.of(context).t('welcome_title'),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
@@ -100,7 +114,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           ),
                         );
                       },
-                      child: const Text('Entrar'),
+                      child: Text(AppLocalizations.of(context).t('btn_login')),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -123,7 +137,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           ),
                         );
                       },
-                      child: const Text('Cadastre-se'),
+                      child: Text(AppLocalizations.of(context).t('btn_signup')),
                     ),
                   ),
                   const SizedBox(height: 48),

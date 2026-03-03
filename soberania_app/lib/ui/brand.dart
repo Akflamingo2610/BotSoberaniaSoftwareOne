@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+import '../l10n/locale_scope.dart';
+
 /// Paleta minimalista baseada na marca (preto/branco).
 class Brand {
   static const Color black = Color(0xFF0B0B0B);
@@ -107,7 +110,7 @@ PreferredSizeWidget soberaniaAppBar(
     title: Row(
       children: [
         Text(
-          'Soberania Digital',
+          AppLocalizations.of(context).t('app_title'),
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: Brand.black,
@@ -164,6 +167,31 @@ PreferredSizeWidget soberaniaAppBar(
         const AwsMark(size: 36),
       ],
     ),
+    actions: const [
+      LanguageButton(),
+    ],
     iconTheme: const IconThemeData(color: Brand.black),
   );
+}
+
+/// Botão de idioma (PT/EN/ES) para o app bar; pode ser usado em qualquer tela.
+class LanguageButton extends StatelessWidget {
+  const LanguageButton({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final scope = LocaleScope.of(context);
+    if (scope == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+
+    return PopupMenuButton<String>(
+      tooltip: 'Idioma / Language',
+      icon: const Icon(Icons.language, color: Brand.black),
+      onSelected: (code) => scope.setLocale(code),
+      itemBuilder: (_) => [
+        PopupMenuItem(value: 'pt', child: Text(l10n.t('lang_pt'))),
+        PopupMenuItem(value: 'en', child: Text(l10n.t('lang_en'))),
+        PopupMenuItem(value: 'es', child: Text(l10n.t('lang_es'))),
+      ],
+    );
+  }
 }

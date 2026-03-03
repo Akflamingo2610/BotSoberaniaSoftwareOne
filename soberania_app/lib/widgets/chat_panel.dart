@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/rag_api.dart';
+import '../l10n/locale_scope.dart';
 import '../ui/brand.dart';
 
 /// Painel lateral do chat (estilo Copilot) - ao lado das questões ou dos resultados.
@@ -15,7 +16,17 @@ class ChatPanel extends StatefulWidget {
   /// Mensagem de boas-vindas exibida ao carregar (ex: tela de introdução).
   final String? welcomeMessage;
 
-  const ChatPanel({super.key, this.questionContext, this.resultsContext, this.welcomeMessage});
+  /// Lista de itens de explicação em lote (para blocos de perguntas):
+  /// cada item deve conter: { "id": int, "questionContext": String }.
+  final List<Map<String, dynamic>>? blockExplainItems;
+
+  const ChatPanel({
+    super.key,
+    this.questionContext,
+    this.resultsContext,
+    this.welcomeMessage,
+    this.blockExplainItems,
+  });
 
   @override
   State<ChatPanel> createState() => _ChatPanelState();
@@ -33,11 +44,21 @@ class _ChatPanelState extends State<ChatPanel> {
   List<RagSource> _streamingSources = [];
 
   bool _autoExplainRequested = false;
+  bool _batchExplainRequested = false;
 
   String? get _effectiveContext =>
       (widget.resultsContext?.trim().isNotEmpty == true)
           ? widget.resultsContext!.trim()
           : widget.questionContext?.trim();
+
+  String get _languageCode {
+    final scope = LocaleScope.of(context);
+    final code = scope?.locale.languageCode.toLowerCase() ?? 'pt';
+    if (code.startsWith('pt')) return 'pt';
+    if (code.startsWith('en')) return 'en';
+    if (code.startsWith('es')) return 'es';
+    return 'pt';
+  }
 
   @override
   void initState() {
@@ -51,6 +72,10 @@ class _ChatPanelState extends State<ChatPanel> {
         });
       });
     } else if (widget.resultsContext == null &&
+        widget.blockExplainItems != null &&
+        widget.blockExplainItems!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _requestBatchExplanations());
+    } else if (widget.resultsContext == null &&
         widget.questionContext != null &&
         widget.questionContext!.trim().length > 10) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _requestAutoExplanation());
@@ -61,9 +86,23 @@ class _ChatPanelState extends State<ChatPanel> {
   void didUpdateWidget(covariant ChatPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.resultsContext != null) return;
+
+    // Atualização do bloco de explicações
+    if (oldWidget.blockExplainItems != widget.blockExplainItems &&
+        widget.blockExplainItems != null &&
+        widget.blockExplainItems!.isNotEmpty) {
+      _batchExplainRequested = false;
+      setState(() => _messages.clear());
+      _requestBatchExplanations();
+      return;
+    }
+
+    // Atualização da pergunta única (modo antigo)
     if (oldWidget.questionContext != widget.questionContext) {
       if (widget.questionContext != null &&
-          widget.questionContext!.trim().length > 10) {
+          widget.questionContext!.trim().length > 10 &&
+          (widget.blockExplainItems == null ||
+              widget.blockExplainItems!.isEmpty)) {
         _autoExplainRequested = false;
         setState(() => _messages.clear());
         _requestAutoExplanation();
@@ -98,7 +137,10 @@ class _ChatPanelState extends State<ChatPanel> {
     _scrollToBottom();
 
     try {
-      await for (final chunk in _rag.explainQuestionStream(q)) {
+      await for (final chunk in _rag.explainQuestionStream(
+        q,
+        languageCode: _languageCode,
+      )) {
         if (!mounted) return;
         if (chunk.text != null && chunk.text!.isNotEmpty) {
           setState(() => _streamingText += chunk.text!);
@@ -166,6 +208,68 @@ class _ChatPanelState extends State<ChatPanel> {
     }
   }
 
+  Future<void> _requestBatchExplanations() async {
+    final items = widget.blockExplainItems ?? const [];
+    if (items.isEmpty || _loading || _batchExplainRequested) return;
+
+    _batchExplainRequested = true;
+    setState(() {
+      _loading = true;
+      _streamingText = '';
+      _streamingSources = [];
+      _messages.clear();
+    });
+    _scrollToBottom();
+
+    try {
+      final explanations =
+          await _rag.explainBatch(items, languageCode: _languageCode);
+      if (!mounted) return;
+
+      if (explanations.isEmpty) {
+        _messages.add(
+          _ChatMessage(
+            role: 'bot',
+            text:
+                'Não foi possível gerar as explicações automáticas para este bloco. Faça perguntas no campo abaixo sobre as questões.',
+          ),
+        );
+      } else {
+        for (final e in explanations) {
+          _messages.add(
+            _ChatMessage(
+              role: 'bot',
+              text: e.text,
+            ),
+          );
+        }
+      }
+    } on RagException catch (e) {
+      if (!mounted) return;
+      _messages.add(_ChatMessage(role: 'bot', text: 'Erro: ${e.message}'));
+      _batchExplainRequested = false;
+    } catch (e) {
+      if (!mounted) return;
+      _messages.add(
+        _ChatMessage(
+          role: 'bot',
+          text:
+              'Não foi possível obter as explicações automáticas. Verifique sua conexão ou se o RAG está online.',
+        ),
+      );
+      _batchExplainRequested = false;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _streamingText = '';
+          _streamingSources = [];
+        });
+        _scrollToBottom();
+      }
+    }
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _loading) return;
@@ -183,6 +287,7 @@ class _ChatPanelState extends State<ChatPanel> {
       await for (final chunk in _rag.askStream(
         text,
         questionContext: _effectiveContext,
+        languageCode: _languageCode,
       )) {
         if (!mounted) return;
         if (chunk.text != null && chunk.text!.isNotEmpty) {
@@ -199,7 +304,11 @@ class _ChatPanelState extends State<ChatPanel> {
 
       if (replyText.isEmpty) {
         try {
-          final resp = await _rag.ask(text, questionContext: _effectiveContext);
+          final resp = await _rag.ask(
+            text,
+            questionContext: _effectiveContext,
+            languageCode: _languageCode,
+          );
           replyText = resp.answer.trim();
           if (resp.sources.isNotEmpty) sources = resp.sources;
         } catch (_) {
@@ -282,7 +391,7 @@ class _ChatPanelState extends State<ChatPanel> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Bot de Soberania',
+                    'SoberanIA',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: Brand.black,

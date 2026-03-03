@@ -5,6 +5,7 @@ import '../api/rag_api.dart';
 import '../api/xano_api.dart';
 import '../models/models.dart';
 import '../storage/app_storage.dart';
+import '../l10n/app_localizations.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
 import '../widgets/custom_radar_chart.dart';
@@ -186,14 +187,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
       final parts = <String>[];
       if (_userName != null && _userName!.isNotEmpty) parts.add(_userName!);
       if (_userEmail != null && _userEmail!.isNotEmpty) parts.add(_userEmail!);
-      subtitle = 'Fornecidos por ${parts.join(' e ')}';
+      subtitle = '${AppLocalizations.of(context).t('results_provided_by')} ${parts.join(' e ')}';
     }
 
     return Scaffold(
       backgroundColor: Brand.surface,
       appBar: soberaniaAppBar(
         context,
-        title: 'Resultados',
+        title: AppLocalizations.of(context).t('results_title'),
         subtitle: subtitle,
         leading: Row(
           mainAxisSize: MainAxisSize.min,
@@ -201,7 +202,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
             IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () => Navigator.of(context).pop(),
-              tooltip: 'Voltar para pilares',
+              tooltip: AppLocalizations.of(context).t('back_to_pillars'),
             ),
             IconButton(
               icon: const Icon(Icons.home_rounded),
@@ -211,7 +212,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   (_) => false,
                 );
               },
-              tooltip: 'Ir para introdução',
+              tooltip: AppLocalizations.of(context).t('go_to_intro'),
             ),
           ],
         ),
@@ -234,12 +235,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
                               _BotOverviewCard(
                                 overview: _botOverview,
                                 loading: _overviewLoading,
-                              ),
-                              const SizedBox(height: 24),
-                              _ChartCard(
-                                title: 'Visão Geral (Radar)',
-                                height: 400,
-                                child: _RadarChart(data: _data!),
                               ),
                               const SizedBox(height: 24),
                               _ChartCard(
@@ -421,10 +416,6 @@ class _DominioRadarChart extends StatelessWidget {
     return CustomRadarChart(
       labels: data.dominios,
       values: values,
-      fillColor: _radarBlue,
-      borderColor: _radarBlue,
-      gridColor: Brand.border,
-      textColor: Brand.black,
     );
   }
 }
@@ -523,35 +514,6 @@ class _PilarBarChart extends StatelessWidget {
         barGroups: items,
       ),
       duration: const Duration(milliseconds: 300),
-    );
-  }
-}
-
-/// Azul similar ao Excel para o radar.
-const _radarBlue = Color(0xFF1E88E5);
-
-class _RadarChart extends StatelessWidget {
-  final ResultsData data;
-
-  const _RadarChart({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    if (data.pilars.isEmpty) {
-      return const Center(child: Text('Sem dados para radar'));
-    }
-
-    final values = data.pilars
-        .map((p) => (data.scoreByPilar[p] ?? 0).toDouble())
-        .toList();
-
-    return CustomRadarChart(
-      labels: data.pilars,
-      values: values,
-      fillColor: _radarBlue,
-      borderColor: _radarBlue,
-      gridColor: Brand.border,
-      textColor: Brand.black,
     );
   }
 }

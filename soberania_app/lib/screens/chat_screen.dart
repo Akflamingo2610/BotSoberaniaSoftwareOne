@@ -190,7 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Icon(Icons.smart_toy, color: Brand.black, size: 24),
             const SizedBox(width: 8),
             Text(
-              'Bot de Soberania',
+              'SoberanIA',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: Brand.black,

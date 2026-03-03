@@ -1,0 +1,75 @@
+﻿order_index;Question_code;Phase;Pilares;Perguntas; Leis Geral (Brasil)
+1;1.1.1;Quick_Wins;Compliance;Foram designados contatos oficiais para responder a incidentes de segurança?;LGPD Art. 41
+2;1.1.2;Quick_Wins;Control;Você utiliza políticas de controle para restringir a provisão de recursos apenas à região brasileira?;"CF Art. 5º; MCI Art. 11; LGPD"
+3;1.2.1;Quick_Wins;Compliance;Você avalia continuamente a postura de segurança e conformidade da sua nuvem?;Res. BCB 498/2025
+4;1.3.1;Quick_Wins;Control;Todos os usuários possuem autenticação de múltiplos fatores (MFA) habilitada?;LGPD
+5;1.3.2;Quick_Wins;Control;"A conta ""Root"" está protegida e seu uso é monitorado e restrito?";GSI/PR Normas
+6;1.3.3;Quick_Wins;Control;Existe federação de identidade com provedores locais para evitar credenciais estáticas?;LGPD
+7;1.3.4;Quick_Wins;Control;Acessos e permissões não utilizados são removidos periodicamente?;LGPD
+8;1.4.1;Quick_Wins;Control;Há detecção automática de ameaças comuns (como exfiltração de dados)?;LGPD
+9;1.4.2;Quick_Wins;Compliance;O registro de todas as chamadas de API é mantido de forma imutável para auditoria?;MCI Art. 10
+10;1.4.4;Quick_Wins;Compliance;Existem alertas configurados para desvios de custos que possam indicar anomalias?;LRF (Brasil)
+11;1.6.1;Quick_Wins;Control;Portas administrativas (SSH/RDP) estão fechadas para a rede pública?;GSI/PR Normas
+12;1.7.1;Quick_Wins;Control;O acesso público aos buckets de dados está bloqueado globalmente?;"CF Art. 5º; LGPD"
+13;1.7.2;Quick_Wins;Compliance;A postura de segurança dos dados sensíveis é analisada continuamente?;LGPD Art. 5º
+14;1.8.1;Quick_Wins;Compliance;Vulnerabilidades críticas encontradas são corrigidas em prazos regulatórios?;GSI/PR Normas
+15;1.9.1;Quick_Wins;Continuity;Você utiliza proteção de borda contra ataques comuns à disponibilidade?;MCI Art. 3º
+16;1.10.1;Quick_Wins;Continuity;A resiliência operacional do ambiente foi avaliada contra metas de recuperação?;ISO 22301
+17;2.1.1;Foundational;Compliance;Os requisitos regulatórios de soberania (LGPD/BCB) estão mapeados e documentados?;LGPD Art. 33
+18;2.1.2;Foundational;Compliance;Há um plano de treinamento em segurança focado em soberania para o time?;GSI/PR
+19;2.2.1;Foundational;Compliance;O inventário de ativos e mudanças de configuração é monitorado em tempo real?;ISO 27001
+20;2.3.1;Foundational;Control;Você aplica guardrails organizacionais mandatórios via Landing Zone em todas as contas?;CF Art. 5º
+21;2.3.2;Foundational;Control;São utilizadas credenciais temporárias para eliminar chaves estáticas?;LGPD
+22;2.3.3;Foundational;Control;As instâncias EC2 utilizam a versão mais segura do serviço de metadados (IMDSv2)?;GSI/PR
+23;2.4.1;Foundational;Control;Há detecção avançada de ameaças em logs de rede e DNS?;LGPD
+24;2.5.1;Foundational;Compliance;As vulnerabilidades de infraestrutura (OS) são escaneadas automaticamente?;Res. BCB 498/2025
+25;2.5.2;Foundational;Compliance;Vulnerabilidades em bibliotecas de aplicações são detectadas no pipeline?;GSI/PR
+26;2.6.1;Foundational;Control;O acesso à rede é limitado ao estritamente necessário (Zero Trust inicial)?;Res. BCB 498/2025
+27;2.6.2;Foundational;Control;Você utiliza hardware que elimina o mecanismo de acesso técnico do provedor?;Lei 4595/1964
+28;2.6.3;Foundational;Control;Os ambientes de rede estão devidamente segmentados (VPCs distintas)?;Res. BCB 498/2025
+29;2.6.4;Foundational;Control;Cargas de trabalho são segregadas em contas distintas por sensibilidade?;LGPD
+30;2.7.1;Foundational;Control;Os dados em repouso são criptografados com chaves gerenciadas por você (CMK)?;LGPD Art. 46
+31;2.7.2;Foundational;Continuity;Os backups são protegidos contra exclusão e mantidos em região soberana?;ISO 22301
+32;2.7.3;Foundational;Compliance;Há um processo automatizado para descobrir dados sensíveis ou PII de menores?;LGPD Art. 5º
+33;2.8.1;Foundational;Compliance;Práticas de segurança são integradas desde o início do desenvolvimento?;GSI/PR
+34;2.8.2;Foundational;Control;Existe garantia de que não há segredos (senhas/chaves) expostos no código?;Res. BCB 498/2025
+35;2.9.1;Foundational;Continuity;Existem playbooks de resposta a incidentes de segurança validados?;LGPD Art. 48
+36;2.10.1;Foundational;Continuity;Você utiliza múltiplas zonas de disponibilidade para garantir alta disponibilidade?;ISO 27031
+37;3.1.1;Efficient;Continuity;Você utiliza arquiteturas resilientes baseadas em Princípios de Design Soberano?;ISO 27031
+38;3.1.2;Efficient;Continuity;Você utiliza infraestrutura como código para garantir portabilidade regional?;MCI Art. 3º
+39;3.1.3;Efficient;Compliance;"Existe uma estratégia de ""tagging"" para identificar dados por jurisdição?";LRF (Brasil)
+40;3.2.1;Efficient;Compliance;Você gera relatórios de conformidade automatizados para órgãos reguladores?;LGPD
+41;3.3.1;Efficient;Control;São realizadas revisões periódicas para garantir o privilégio mínimo de acesso?;LGPD
+42;3.3.2;Efficient;Control;Existe proteção de identidades para clientes/alunos (CIAM) sob lei local?;"LGPD; MCI"
+43;3.4.1;Efficient;Control;Há detecção de ameaças customizada integrada a um SIEM ou Data Lake?;LGPD
+44;3.5.1;Efficient;Compliance;"Existe um programa de ""Security Champions"" focado em soberania?";GSI/PR
+45;3.5.2;Efficient;Compliance;A segurança e conformidade são automatizadas no pipeline (DevSecOps)?;GSI/PR
+46;3.6.1;Efficient;Control;"Você utiliza um pipeline de imagens ""Golden"" devidamente endurecidas?";Res. BCB 498/2025
+47;3.6.2;Efficient;Control;Há proteção ativa de runtime e anti-malware nas instâncias (EDR)?;GSI/PR
+48;3.6.3;Efficient;Control;Existe controle granular sobre o tráfego de saída (Egress Control)?;LGPD
+49;3.7.1;Efficient;Control;A criptografia em trânsito é obrigatória e padronizada com certificados?;LGPD
+50;3.8.1;Efficient;Control;Você realiza modelagem de ameaças (Threat Modeling) para novas arquiteturas?;LGPD (Design)
+51;3.8.2;Efficient;Continuity;O WAF utiliza regras customizadas baseadas na localização geográfica?;MCI Art. 3º
+52;3.8.3;Efficient;Continuity;Existe mitigação de ataques DDoS avançados na camada de aplicação (L7)?;MCI Art. 3º
+53;3.9.1;Efficient;Continuity;São realizados exercícios de simulação (TableTop) para crises geopolíticas?;LGPD Art. 50
+54;3.9.2;Efficient;Compliance;Respostas a incidentes críticos são automatizadas via playbooks?;LGPD Art. 48
+55;3.9.3;Efficient;Compliance;Existe análise profunda de causa raiz (Root Cause) após incidentes?;LGPD
+56;3.10.1;Efficient;Continuity;O plano de Disaster Recovery (DRP) foi validado para sobrevivência regional?;ISO 22301
+57;4.1.1;Optimized;Compliance;Existe uma matriz RACI clara compartilhada para tarefas de soberania?;LGPD
+58;4.1.2;Optimized;Compliance;A coleta de evidências de auditoria é totalmente automatizada e contínua?;LGPD
+59;4.3.1;Optimized;Control;Você implementou perímetros de dados para restringir acesso a identidades locais?;LGPD
+60;4.3.2;Optimized;Control;O gerenciamento de identidades (IAM) é feito via pipeline automatizado?;Res. BCB 498/2025
+61;4.3.3;Optimized;Control;O acesso administrativo elevado é concedido apenas Just-in-Time (JIT)?;LGPD
+62;4.4.1;Optimized;Control;Existe integração com feeds de inteligência de ameaças setoriais/geopolíticas?;GSI/PR
+63;4.4.2;Optimized;Compliance;Os logs de fluxo de rede (VPC Flow Logs) são analisados automaticamente?;LGPD
+64;4.5.1;Optimized;Compliance;Existe uma equipe dedicada para gestão estratégica de vulnerabilidades?;GSI/PR
+65;4.6.1;Optimized;Control;O acesso é baseado em Zero Trust, independente da rede de origem?;LGPD
+66;4.6.2;Optimized;Control;Você utiliza serviços abstratos (Serverless) para reduzir dependência técnica?;MCI Princípios
+67;4.7.1;Optimized;Control;Existem controles de soberania específicos para dados usados em GenAI?;LGPD
+68;4.8.2;Optimized;Compliance;São realizados exercícios de Red Team para testar a soberania e defesas?;GSI/PR
+69;4.9.1;Optimized;Compliance;Existe uma equipe de Blue Team para defesa ativa e resposta contínua?;GSI/PR
+70;4.9.2;Optimized;Compliance;A segurança é orquestrada e integrada automaticamente aos tickets de TI?;Res. BCB 498/2025
+71;4.9.3;Optimized;Control;Desvios de configuração soberana são corrigidos automaticamente?;LGPD
+72;4.9.4;Optimized;Control;Você utiliza External Key Store (XKS) para manter chaves fora da nuvem?;LGPD
+73;4.10.1;Optimized;Continuity;A orquestração da recuperação de desastres é totalmente automatizada?;ISO 22301
+74;4.10.2;Optimized;Continuity;A resiliência é testada via engenharia do caos para validar a sobrevivência?;ISO 27031

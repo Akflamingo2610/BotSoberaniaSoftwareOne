@@ -11,6 +11,7 @@ class AppStorage {
   static const _kLastQuestionIndexPrefix = 'lastQuestionIndex_';
   static const _kLastViewedPhase = 'lastViewedPhase';
   static const _kIntroSeen = 'introSeen';
+  static const _kLocale = 'locale';
 
   Future<String?> getAuthToken() async {
     final sp = await SharedPreferences.getInstance();
@@ -104,6 +105,16 @@ class AppStorage {
     await sp.setBool(_kIntroSeen, seen);
   }
 
+  Future<String> getLocale() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kLocale) ?? 'pt';
+  }
+
+  Future<void> setLocale(String localeCode) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kLocale, localeCode);
+  }
+
   Future<void> clear() async {
     await clearAll();
   }
@@ -118,6 +129,7 @@ class AppStorage {
     await sp.remove(_kLastResultsGeneratedAt);
     await sp.remove(_kLastViewedPhase);
     await sp.remove(_kIntroSeen);
+    await sp.remove(_kLocale);
     final keys = sp.getKeys().where((k) => k.startsWith(_kLastQuestionIndexPrefix));
     for (final k in keys) {
       await sp.remove(k);

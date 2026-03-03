@@ -183,17 +183,40 @@ function searchDocs(query, limit = 8, preferAws = false) {
   return searchIndex.search(q, { combineWith: 'OR' }).slice(0, limit);
 }
 
-/** Prompt base do especialista – respostas precisas e acessíveis, SEM alucinações */
-const SYSTEM_PROMPT = `Você é um ESPECIALISTA em segurança, soberania digital e compliance/continuidade. Responda SEMPRE como consultor de forma clara e acessível.
+const SUPPORTED_LANGUAGES = ['pt', 'en', 'es'];
 
-IDIOMA OBRIGATÓRIO: Responda SEMPRE em português. NUNCA responda em inglês. Os documentos podem estar em inglês – TRADUZA todo o conteúdo relevante para português. O usuário espera resposta em português.
+function normalizeLanguage(lang) {
+  if (!lang || typeof lang !== 'string') return 'pt';
+  const code = lang.trim().toLowerCase();
+  if (SUPPORTED_LANGUAGES.includes(code)) return code;
+  if (code.startsWith('pt')) return 'pt';
+  if (code.startsWith('en')) return 'en';
+  if (code.startsWith('es')) return 'es';
+  return 'pt';
+}
+
+function buildSystemPrompt(language) {
+  const lang = normalizeLanguage(language);
+
+  let langBlock = '';
+  if (lang === 'pt') {
+    langBlock = `IDIOMA OBRIGATÓRIO: Responda SEMPRE em português do Brasil. Os documentos podem estar em inglês ou espanhol – TRADUZA todo o conteúdo relevante para português. O usuário espera resposta em português.`;
+  } else if (lang === 'en') {
+    langBlock = `REQUIRED LANGUAGE: Always answer in English. The documents may be in Portuguese or Spanish – TRANSLATE all relevant content into English. The user expects the answer in English.`;
+  } else {
+    langBlock = `IDIOMA OBLIGATORIO: Responde SIEMPRE en español. Los documentos pueden estar en portugués o inglés – TRADUCE todo el contenido relevante al español. La persona usuaria espera la respuesta en español.`;
+  }
+
+  return `Você é um ESPECIALISTA em segurança, soberania digital e compliance/continuidade. Responda SEMPRE como consultor de forma clara e acessível.
+
+${langBlock}
 
 IMPORTANTE: Quando analisar resultados de assessments, NUNCA mencione nomes de empresas específicas (como "Amazon", "AWS", etc.). Refira-se sempre como "a organização", "a empresa avaliada" ou "a empresa".
 
 REGRA CRÍTICA – RELEVÂNCIA DOS TRECHOS:
 - Use APENAS trechos que respondam DIRETAMENTE à pergunta. Se um trecho contém a mesma palavra mas em contexto COMPLETAMENTE DIFERENTE (ex: "fornecedores" em lei sobre crianças/adolescentes vs "onboarding de fornecedores" em processo corporativo), IGNORE esse trecho.
-- NUNCA cite ou use leis/fontes irrelevantes só porque contêm uma palavra em comum. Palavras como "fornecedores", " controle", "dados" aparecem em vários contextos – use só o que REALMENTE responde à dúvida.
-- Se NENHUM trecho for relevante, responda com conhecimento geral e comece: "Com base em conhecimento geral:". NÃO invente citações nem force uso de documentos irrelevantes.
+- NUNCA cite ou use leis/fontes irrelevantes só porque contêm uma palavra em comum. Palavras como "fornecedores", "controle", "dados" aparecem em vários contextos – use só o que REALMENTE responde à dúvida.
+- Se NENHUM trecho for relevante, responda com conhecimento geral e deixe explícito que está usando apenas conhecimento geral. NÃO invente citações nem force uso de documentos irrelevantes.
 
 ESCOPO POR TEMA:
 - AWS, soberania digital, pilares AWS, dados na nuvem → use EXCLUSIVAMENTE docs AWS (digital-sovereignty-lens, aws-overview, wellarchitected-security). NÃO misture com ECA ou LGPD.
@@ -202,22 +225,63 @@ ESCOPO POR TEMA:
 
 USER-FRIENDLY: Explique termos técnicos ao usá-los. Use linguagem natural.
 
-PRECISÃO: Sintetize com suas palavras em português. NÃO copie trechos literais em inglês. NÃO repita o mesmo texto genérico para perguntas diferentes – adapte a resposta a cada pergunta específica.`;
+PRECISÃO: Sintetize com suas palavras no idioma solicitado. NÃO copie trechos literais em outro idioma. NÃO repita o mesmo texto genérico para perguntas diferentes – adapte a resposta a cada pergunta específica.`;
+}
 
-function buildPrompt(query, context, questionContext, isAutoExplain = false) {
+function buildPrompt(query, context, questionContext, language, isAutoExplain = false) {
+  const lang = normalizeLanguage(language);
+  const SYSTEM_PROMPT = buildSystemPrompt(lang);
   const hasContext = context && context.trim().length > 30;
   const hasQuestion = questionContext && questionContext.trim().length > 10;
-  let userPart = `Pergunta do usuário: ${query}`;
+  let userPart;
+
+  if (lang === 'en') {
+    userPart = `User question: ${query}`;
+  } else if (lang === 'es') {
+    userPart = `Pregunta de la persona usuaria: ${query}`;
+  } else {
+    userPart = `Pergunta do usuário: ${query}`;
+  }
+
   if (hasQuestion) {
     if (isAutoExplain) {
-      userPart = `Explique esta pergunta do assessment em português, de forma específica para ELA (não repita texto genérico):\n\n"${questionContext.trim()}"\n\nFaça em 2-4 parágrafos curtos: (1) o que esta pergunta avalia no contexto de soberania digital; (2) defina os termos técnicos em linguagem simples; (3) por que isso importa. Use os trechos APENAS se forem relevantes PARA ESTA PERGUNTA; caso contrário, explique com conhecimento geral. Responda SEMPRE em português.`;
+      if (lang === 'en') {
+        userPart = `Explain this assessment question in clear English, specifically for THIS question (do not repeat generic text):\n\n"${questionContext.trim()}"\n\nWrite 2–4 short paragraphs: (1) what this question evaluates in the context of digital sovereignty and cloud security; (2) define the technical terms in simple language; (3) why this matters in practice. Use the document snippets ONLY if they are relevant to THIS QUESTION; otherwise, explain using general knowledge. Always answer in English.`;
+      } else if (lang === 'es') {
+        userPart = `Explica esta pregunta del assessment en español, de forma específica para ESTA pregunta (no repitas texto genérico):\n\n"${questionContext.trim()}"\n\nHaz 2–4 párrafos cortos: (1) qué evalúa esta pregunta en el contexto de soberanía digital y seguridad en la nube; (2) define los términos técnicos en lenguaje sencillo; (3) por qué esto importa en la práctica. Usa los fragmentos de documentos SOLO si son relevantes PARA ESTA PREGUNTA; de lo contrario, explica con conocimiento general. Responde SIEMPRE en español.`;
+      } else {
+        userPart = `Explique esta pergunta do assessment em português, de forma específica para ELA (não repita texto genérico):\n\n"${questionContext.trim()}"\n\nFaça em 2-4 parágrafos curtos: (1) o que esta pergunta avalia no contexto de soberania digital; (2) defina os termos técnicos em linguagem simples; (3) por que isso importa. Use os trechos APENAS se forem relevantes PARA ESTA PERGUNTA; caso contrário, explique com conhecimento geral. Responda SEMPRE em português.`;
+      }
     } else {
-      userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda em português, de forma acessível e específica para a dúvida. Se os trechos não forem relevantes, use conhecimento geral. Não cite fontes irrelevantes.`;
+      if (lang === 'en') {
+        userPart = `The user is answering this assessment question:\n\n"${questionContext.trim()}"\n\nUser's doubt: ${query}\n\nAnswer in English, in a clear and specific way for this doubt. If the snippets are not relevant, answer using general knowledge. Do not cite irrelevant sources.`;
+      } else if (lang === 'es') {
+        userPart = `La persona usuaria está respondiendo a esta pregunta del assessment:\n\n"${questionContext.trim()}"\n\nDuda de la persona usuaria: ${query}\n\nResponde en español, de forma clara y específica para esta duda. Si los fragmentos no son relevantes, responde con conocimiento general. No cites fuentes irrelevantes.`;
+      } else {
+        userPart = `O usuário está respondendo a esta pergunta do assessment:\n\n"${questionContext.trim()}"\n\nDúvida dele: ${query}\n\nResponda em português, de forma acessível e específica para a dúvida. Se os trechos não forem relevantes, use conhecimento geral. Não cite fontes irrelevantes.`;
+      }
     }
   }
-  const docInstruction = hasContext
-    ? `Trechos dos documentos (podem estar em inglês – use só os relevantes e TRADUZA para português na sua resposta):\n\n${context}\n\n${userPart}`
-    : `${userPart}\n\nNão há trechos relevantes. Responda em português com conhecimento geral, de forma clara e acessível.`;
+
+  let docInstruction;
+  if (hasContext) {
+    if (lang === 'en') {
+      docInstruction = `Document excerpts (they may be in Portuguese or Spanish – use only the relevant ones and TRANSLATE them into English in your answer):\n\n${context}\n\n${userPart}`;
+    } else if (lang === 'es') {
+      docInstruction = `Fragmentos de documentos (pueden estar en portugués o inglés – usa solo los relevantes y TRADÚCELOS al español en tu respuesta):\n\n${context}\n\n${userPart}`;
+    } else {
+      docInstruction = `Trechos dos documentos (podem estar em inglês ou espanhol – use só os relevantes e TRADUZA para português na sua resposta):\n\n${context}\n\n${userPart}`;
+    }
+  } else {
+    if (lang === 'en') {
+      docInstruction = `${userPart}\n\nThere are no relevant snippets. Answer in English using general knowledge, clearly and accessibly.`;
+    } else if (lang === 'es') {
+      docInstruction = `${userPart}\n\nNo hay fragmentos relevantes. Responde en español con conocimiento general, de forma clara y accesible.`;
+    } else {
+      docInstruction = `${userPart}\n\nNão há trechos relevantes. Responda em português com conhecimento geral, de forma clara e acessível.`;
+    }
+  }
+
   return `${SYSTEM_PROMPT}\n\n${docInstruction}`;
 }
 
@@ -271,8 +335,17 @@ async function askOllama(prompt, sources) {
   }
 }
 
-async function askLLM(query, context, sources, questionContext) {
-  const prompt = buildPrompt(query, context, questionContext);
+async function askLLM(query, context, sources, questionContext, language) {
+  const prompt = buildPrompt(query, context, questionContext, language);
+  if (GROQ_API_KEY) {
+    const answer = await askGroq(prompt, sources);
+    if (answer) return answer;
+  }
+  return askOllama(prompt, sources);
+}
+
+async function askLLMExplain(questionContext, context, sources, language) {
+  const prompt = buildPrompt('', context, questionContext, language, true);
   if (GROQ_API_KEY) {
     const answer = await askGroq(prompt, sources);
     if (answer) return answer;
@@ -289,7 +362,7 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/ask', async (req, res) => {
-  const { query, questionContext } = req.body || {};
+  const { query, questionContext, language } = req.body || {};
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Envie { "query": "sua pergunta" }' });
   }
@@ -305,6 +378,7 @@ app.post('/ask', async (req, res) => {
   }
 
   const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
+  const lang = normalizeLanguage(language);
   const preferAws = isAssessmentContext(q, qCtx);
   const hits = searchDocs(q, 8, preferAws);
   const sources = hits.map(h => {
@@ -321,7 +395,7 @@ app.post('/ask', async (req, res) => {
     .filter(Boolean)
     .join('\n\n---\n\n');
 
-  let answer = await askLLM(q, context, sources, qCtx || undefined);
+  let answer = await askLLM(q, context, sources, qCtx || undefined, lang);
   if (!answer) {
     const llmHint = GROQ_API_KEY ? 'Verifique GROQ_API_KEY.' : `Ollama não está rodando (ollama run ${OLLAMA_MODEL}).`;
     if (context && context.trim().length > 50) {
@@ -336,9 +410,66 @@ app.post('/ask', async (req, res) => {
   res.json({ answer, sources });
 });
 
+// Explicações em lote para várias perguntas do assessment (batch)
+app.post('/ask/explain-batch', async (req, res) => {
+  const { questions, language } = req.body || {};
+
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({
+      error: 'Envie { "questions": [ { "id": number, "questionContext": "texto" } ], "language": "pt|en|es" }',
+    });
+  }
+  if (!searchIndex || docs.length === 0) {
+    return res.status(503).json({
+      error: 'Índice não carregado. Verifique se a pasta docs existe e contém PDFs.',
+    });
+  }
+
+  const lang = normalizeLanguage(language);
+  const items = [];
+
+  for (const q of questions) {
+    const id = typeof q?.id === 'number' ? q.id : null;
+    const qCtx = (typeof q?.questionContext === 'string')
+      ? q.questionContext.trim()
+      : '';
+    if (!id || !qCtx || qCtx.length < 10) continue;
+
+    const hits = searchDocs(qCtx, 8, false);
+    const sources = hits.map(h => {
+      const doc = docs.find(d => d.id === h.id) || h;
+      return { title: doc.title || h.title, file: doc.file || h.file };
+    });
+    const context = hits
+      .map(h => {
+        const doc = docs.find(d => d.id === h.id) || h;
+        const text = (doc.text || h.text || '').trim().slice(0, 700);
+        const title = doc.title || h.title || 'Documento';
+        return text ? `[Fonte: ${title}]\n\n${text}` : null;
+      })
+      .filter(Boolean)
+      .join('\n\n---\n\n');
+
+    try {
+      const answer = await askLLMExplain(qCtx, context, sources, lang);
+      if (answer && answer.trim()) {
+        items.push({
+          id,
+          text: answer.trim(),
+          sources,
+        });
+      }
+    } catch (err) {
+      console.error('Erro em explain-batch para id', id, '-', err.message);
+    }
+  }
+
+  return res.json({ items });
+});
+
 /** Explicação automática da pergunta do assessment – sem precisar digitar nada */
 app.post('/ask/explain-question/stream', async (req, res) => {
-  const { questionContext } = req.body || {};
+  const { questionContext, language } = req.body || {};
   const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
   if (!qCtx || qCtx.length < 10) {
     return res.status(400).json({ error: 'Envie { "questionContext": "texto da pergunta" }' });
@@ -365,7 +496,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
     .filter(Boolean)
     .join('\n\n---\n\n');
 
-  const prompt = buildPrompt('', context, qCtx, true);
+  const prompt = buildPrompt('', context, qCtx, language, true);
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Cache-Control', 'no-cache');
@@ -505,7 +636,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
 
 // Resposta em streaming: o usuário vê o texto aparecer em tempo real (latência percebida muito menor)
 app.post('/ask/stream', async (req, res) => {
-  const { query, questionContext } = req.body || {};
+  const { query, questionContext, language } = req.body || {};
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ error: 'Envie { "query": "sua pergunta" }' });
   }
@@ -520,6 +651,7 @@ app.post('/ask/stream', async (req, res) => {
   }
 
   const qCtxStream = (typeof questionContext === 'string') ? questionContext.trim() : '';
+  const langStream = normalizeLanguage(language);
   const preferAwsStream = isAssessmentContext(qStream, qCtxStream);
   const hits = searchDocs(qStream, 6, preferAwsStream);
   const sources = hits.map(h => {
@@ -536,7 +668,7 @@ app.post('/ask/stream', async (req, res) => {
     .filter(Boolean)
     .join('\n\n---\n\n');
 
-  const prompt = buildPrompt(qStream, context, qCtxStream || undefined, false);
+  const prompt = buildPrompt(qStream, context, qCtxStream || undefined, langStream, false);
 
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Cache-Control', 'no-cache');

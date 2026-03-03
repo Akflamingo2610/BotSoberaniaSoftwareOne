@@ -41,15 +41,18 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
   final Map<int, SavedAnswer> _answersByQuestionId = {};
   final Map<int, String> _pendingAnswersByQuestionId = {}; // respostas locais ainda não salvas
 
-  int _index = 0;
-  String? _selectedScore;
+  static const int _blockSize = 9;
+  int _blockStartIndex = 0; // índice da primeira pergunta do bloco atual
   bool _saving = false;
   Timer? _persistTimer;
   bool _showCriteria = false;
+  Question? _selectedQuestion;
 
   void _persistPosition() {
-    if (_questions.isNotEmpty && _index >= 0 && _index < _questions.length) {
-      _storage.setLastQuestionIndex(widget.phase, _index);
+    if (_questions.isNotEmpty &&
+        _blockStartIndex >= 0 &&
+        _blockStartIndex < _questions.length) {
+      _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
     }
   }
 
@@ -141,12 +144,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
 
       // Restaura posição salva se existir (mesmo questão já respondida).
       final savedIndex = await _storage.getLastQuestionIndex(widget.phase);
-      if (savedIndex != null &&
-          savedIndex >= 0 &&
-          savedIndex < questions.length) {
-        _index = savedIndex;
+      if (savedIndex != null && savedIndex >= 0 && savedIndex < questions.length) {
+        _blockStartIndex = (savedIndex ~/ _blockSize) * _blockSize;
       } else {
-        _index = startIndex;
+        _blockStartIndex = (startIndex ~/ _blockSize) * _blockSize;
       }
 
       _authToken = token;
@@ -155,8 +156,6 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       _answersByQuestionId
         ..clear()
         ..addAll(map);
-
-      _hydrateControllers();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -164,14 +163,11 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     }
   }
 
-  void _hydrateControllers() {
-    if (_questions.isEmpty) return;
-    final q = _questions[_index];
-    final saved = _answersByQuestionId[q.id];
-    final pending = _pendingAnswersByQuestionId[q.id];
-    // Normaliza o score para o novo formato
-    final rawScore = saved?.score ?? pending;
-    _selectedScore = rawScore != null ? normalizeScore(rawScore) : null;
+  List<Question> get _currentBlockQuestions {
+    if (_questions.isEmpty) return const [];
+    final start = _blockStartIndex.clamp(0, _questions.length);
+    final end = (start + _blockSize).clamp(0, _questions.length);
+    return _questions.sublist(start, end);
   }
 
   String _buildQuestionContext(Question q) {
@@ -184,51 +180,79 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     ].join('\n\n');
   }
 
-  Future<void> _saveAndNext() async {
+  Future<void> _saveCurrentBlock() async {
     final token = _authToken;
     final assessmentId = _assessmentId;
     if (token == null || assessmentId == null) return;
-    if (_questions.isEmpty) return;
-    final score = _selectedScore;
-    if (score == null || score.isEmpty) {
+    final blockQuestions = _currentBlockQuestions;
+    if (blockQuestions.isEmpty) return;
+
+    // Monta payload das 9 perguntas; exige que todas tenham score selecionado
+    final answersPayload = <Map<String, dynamic>>[];
+    final missing = <String>[];
+    for (final q in blockQuestions) {
+      final saved = _answersByQuestionId[q.id];
+      final pending = _pendingAnswersByQuestionId[q.id];
+      final rawScore = pending ?? saved?.score;
+      final normalized = rawScore != null ? normalizeScore(rawScore) : null;
+      if (normalized == null || normalized.isEmpty) {
+        missing.add(q.recommendation);
+        continue;
+      }
+      answersPayload.add({
+        'question_id': q.id,
+        'score': scoreToApiValue(normalized),
+        'justification': '',
+        'evidence': '',
+      });
+    }
+
+    if (missing.isNotEmpty || answersPayload.length != blockQuestions.length) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione uma opção antes de salvar')),
+        const SnackBar(
+          content: Text('Responda todas as perguntas deste bloco antes de continuar.'),
+        ),
       );
       return;
     }
 
     setState(() => _saving = true);
     try {
-      final q = _questions[_index];
-      await _api.saveAnswer(
+      await _api.saveAnswersBulk(
         authToken: token,
         assessmentId: assessmentId,
-        questionId: q.id,
-        score: scoreToApiValue(score),
+        answers: answersPayload,
       );
 
-      // Atualiza cache local como "salvo" e remove do pendente
-      _pendingAnswersByQuestionId.remove(q.id);
-      _answersByQuestionId[q.id] = SavedAnswer(
-        id: -1,
-        questionId: q.id,
-        score: score,
-      );
+      // Atualiza cache local como "salvo" e remove pendentes deste bloco
+      for (final q in blockQuestions) {
+        final normalized = normalizeScore(
+          _pendingAnswersByQuestionId[q.id] ?? _answersByQuestionId[q.id]?.score,
+        );
+        _pendingAnswersByQuestionId.remove(q.id);
+        _answersByQuestionId[q.id] = SavedAnswer(
+          id: -1,
+          questionId: q.id,
+          score: normalized,
+        );
+      }
 
       if (!mounted) return;
-      if (_index < _questions.length - 1) {
-        setState(() => _index++);
-        _hydrateControllers();
-        await _storage.setLastQuestionIndex(widget.phase, _index);
+      final nextStart = _blockStartIndex + _blockSize;
+      if (nextStart < _questions.length) {
+        setState(() => _blockStartIndex = nextStart);
+        await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
       } else {
-        await _storage.setLastQuestionIndex(widget.phase, _index);
-        if (!mounted) return;
+        await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Todas as questões dessa sessão foram respondidas. Você pode alterar suas respostas se desejar.')),
+          const SnackBar(
+            content: Text(
+              'Todas as questões dessa sessão foram respondidas. Você pode alterar suas respostas se desejar.',
+            ),
+          ),
         );
         setState(() {}); // atualiza UI
       }
-      // Resultado só é gerado/atualizado ao voltar para a tela Home (menos requisições)
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -239,35 +263,9 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     }
   }
 
-  void _goToPrevious() {
-    if (_index > 0) {
-      if (_selectedScore != null) {
-        _pendingAnswersByQuestionId[_questions[_index].id] = _selectedScore!;
-      }
-      setState(() {
-        _index--;
-        _hydrateControllers();
-      });
-      _storage.setLastQuestionIndex(widget.phase, _index);
-    }
-  }
-
-  void _goToNext() {
-    if (_index < _questions.length - 1) {
-      if (_selectedScore != null) {
-        _pendingAnswersByQuestionId[_questions[_index].id] = _selectedScore!;
-      }
-      setState(() {
-        _index++;
-        _hydrateControllers();
-      });
-      _storage.setLastQuestionIndex(widget.phase, _index);
-    }
-  }
-
   /// Volta para a tela de pilares (salva posição e faz pop).
   Future<void> _goBackToPillars() async {
-    await _storage.setLastQuestionIndex(widget.phase, _index);
+    await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -276,6 +274,26 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
   bool get _allAnsweredInPhase =>
       _questions.isNotEmpty &&
       _questions.every((q) => _answersByQuestionId.containsKey(q.id));
+
+  void _goToPreviousBlock() {
+    if (_blockStartIndex <= 0) return;
+    final newStart = (_blockStartIndex - _blockSize).clamp(0, _questions.length - 1);
+    setState(() {
+      _blockStartIndex = newStart;
+      _selectedQuestion = null;
+    });
+    _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
+  }
+
+  void _goToNextBlock() {
+    final nextStart = _blockStartIndex + _blockSize;
+    if (nextStart >= _questions.length) return;
+    setState(() {
+      _blockStartIndex = nextStart;
+      _selectedQuestion = null;
+    });
+    _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -331,34 +349,76 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                         child: Column(
                           children: [
                             _ProgressBar(
-                              currentIndex: _index,
+                              currentIndex: _blockStartIndex,
                               answered: _questions
                                   .where((q) => _answersByQuestionId.containsKey(q.id))
                                   .length,
                               total: _questions.length,
                               phaseLabel: widget.phaseLabel,
                               allAnswered: _allAnsweredInPhase,
+                              onPreviousBlock:
+                                  _blockStartIndex > 0 ? _goToPreviousBlock : null,
+                              onNextBlock: _blockStartIndex + _blockSize < _questions.length
+                                  ? _goToNextBlock
+                                  : null,
+                              onSaveBlock: _saveCurrentBlock,
+                              saving: _saving,
                             ),
                             Expanded(
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 720),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                child: _QuestionCard(
-                                  question: _questions[_index],
-                                  index: _index,
-                                  total: _questions.length,
-                                  selectedScore: _selectedScore,
-                                  onScoreChanged: (v) =>
-                                      setState(() => _selectedScore = v),
-                                  saving: _saving,
-                                  onSaveNext: _saveAndNext,
-                                  onPrevious: _index > 0 ? _goToPrevious : null,
-                                  onNext: _index < _questions.length - 1 ? _goToNext : null,
-                                  hideCodeAndPilar: widget.byPilar,
-                                ),
-                                  ),
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: _currentBlockQuestions.map((q) {
+                                    final saved = _answersByQuestionId[q.id];
+                                    final pending =
+                                        _pendingAnswersByQuestionId[q.id];
+                                    final rawScore = pending ?? saved?.score;
+                                    final selectedScore = rawScore != null
+                                        ? normalizeScore(rawScore)
+                                        : null;
+                                    final globalIndex =
+                                        _questions.indexOf(q);
+
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 16),
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedQuestion = q;
+                                          });
+                                        },
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 900,
+                                          ),
+                                          child: _QuestionCard(
+                                            question: q,
+                                            index: globalIndex,
+                                            total: _questions.length,
+                                            selectedScore: selectedScore,
+                                            onScoreChanged: (v) {
+                                              setState(() {
+                                                if (v == null || v.isEmpty) {
+                                                  _pendingAnswersByQuestionId
+                                                      .remove(q.id);
+                                                } else {
+                                                  _pendingAnswersByQuestionId[q.id] =
+                                                      v;
+                                                }
+                                              });
+                                            },
+                                            saving: _saving,
+                                            onSaveNext: _saveCurrentBlock,
+                                            onPrevious: null,
+                                            onNext: null,
+                                            hideCodeAndPilar: widget.byPilar,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
                                 ),
                               ),
                             ),
@@ -367,7 +427,9 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                   ),
                           if (showPanel)
                             ChatPanel(
-                              questionContext: _buildQuestionContext(_questions[_index]),
+                              questionContext: _selectedQuestion == null
+                                  ? null
+                                  : _buildQuestionContext(_selectedQuestion!),
                             ),
                         ],
                       ),
@@ -439,6 +501,10 @@ class _ProgressBar extends StatelessWidget {
   final int total;
   final String phaseLabel;
   final bool allAnswered;
+  final VoidCallback? onPreviousBlock;
+  final VoidCallback? onNextBlock;
+  final VoidCallback? onSaveBlock;
+  final bool saving;
 
   const _ProgressBar({
     required this.currentIndex,
@@ -446,6 +512,10 @@ class _ProgressBar extends StatelessWidget {
     required this.total,
     required this.phaseLabel,
     this.allAnswered = false,
+    this.onPreviousBlock,
+    this.onNextBlock,
+    this.onSaveBlock,
+    this.saving = false,
   });
 
   @override
@@ -500,6 +570,71 @@ class _ProgressBar extends StatelessWidget {
               ),
             ],
           ),
+          if (onPreviousBlock != null || onNextBlock != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (onPreviousBlock != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Brand.black,
+                        side: const BorderSide(color: Brand.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: onPreviousBlock,
+                      icon: const Icon(Icons.arrow_back, size: 18),
+                      label: const Text('Anterior'),
+                    ),
+                  ),
+                if (onNextBlock != null)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Brand.black,
+                      side: const BorderSide(color: Brand.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: onNextBlock,
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    label: const Text('Próxima'),
+                  ),
+              ],
+            ),
+            if (onSaveBlock != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: 260,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Brand.black,
+                      foregroundColor: Brand.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: saving ? null : onSaveBlock,
+                    icon: saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save),
+                    label: Text(saving ? 'Salvando...' : 'Salvar e continuar'),
+                  ),
+                ),
+              ),
+            ],
+          ],
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
@@ -620,64 +755,6 @@ class _QuestionCard extends StatelessWidget {
                       ))
                   .toList(),
               onChanged: onScoreChanged,
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                if (onPrevious != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Brand.black,
-                        side: const BorderSide(color: Brand.border),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: saving ? null : onPrevious,
-                      icon: const Icon(Icons.arrow_back, size: 18),
-                      label: const Text('Anterior'),
-                    ),
-                  ),
-                if (onNext != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Brand.black,
-                        side: const BorderSide(color: Brand.border),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: saving ? null : onNext,
-                      icon: const Icon(Icons.arrow_forward, size: 18),
-                      label: const Text('Próxima'),
-                    ),
-                  ),
-                Expanded(
-                  child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: Brand.black,
-                foregroundColor: Brand.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-                  onPressed: saving ? null : onSaveNext,
-                  icon: saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(saving ? 'Salvando...' : 'Salvar e continuar'),
-                ),
-                ),
-              ],
             ),
           ],
         ),

@@ -9,11 +9,18 @@ class RagApi {
   final String baseUrl;
   RagApi({String? baseUrl}) : baseUrl = (baseUrl ?? ragBaseUrl).trim();
 
-  Future<RagResponse> ask(String query, {String? questionContext}) async {
+  Future<RagResponse> ask(
+    String query, {
+    String? questionContext,
+    String? languageCode,
+  }) async {
     final uri = Uri.parse('$baseUrl/ask');
     final body = <String, dynamic>{'query': query};
     if (questionContext != null && questionContext.trim().isNotEmpty) {
       body['questionContext'] = questionContext.trim();
+    }
+    if (languageCode != null && languageCode.trim().isNotEmpty) {
+      body['language'] = languageCode.trim();
     }
     final res = await http.post(
       uri,
@@ -47,11 +54,15 @@ class RagApi {
   Stream<RagStreamChunk> askStream(
     String query, {
     String? questionContext,
+    String? languageCode,
   }) async* {
     final uri = Uri.parse('$baseUrl/ask/stream');
     final body = <String, dynamic>{'query': query};
     if (questionContext != null && questionContext.trim().isNotEmpty) {
       body['questionContext'] = questionContext.trim();
+    }
+    if (languageCode != null && languageCode.trim().isNotEmpty) {
+      body['language'] = languageCode.trim();
     }
     final request = http.Request('POST', uri)
       ..headers['Content-Type'] = 'application/json'
@@ -132,9 +143,15 @@ class RagApi {
   }
 
   /// Explicação automática da pergunta do assessment (resposta proativa)
-  Stream<RagStreamChunk> explainQuestionStream(String questionContext) async* {
+  Stream<RagStreamChunk> explainQuestionStream(
+    String questionContext, {
+    String? languageCode,
+  }) async* {
     final uri = Uri.parse('$baseUrl/ask/explain-question/stream');
     final body = <String, dynamic>{'questionContext': questionContext.trim()};
+    if (languageCode != null && languageCode.trim().isNotEmpty) {
+      body['language'] = languageCode.trim();
+    }
 
     final request = http.Request('POST', uri)
       ..headers['Content-Type'] = 'application/json'
@@ -204,6 +221,38 @@ class RagApi {
       client.close();
     }
   }
+  Future<List<RagExplanation>> explainBatch(
+    List<Map<String, dynamic>> questions, {
+    String? languageCode,
+  }) async {
+    if (questions.isEmpty) return const [];
+    final uri = Uri.parse('$baseUrl/ask/explain-batch');
+    final body = <String, dynamic>{'questions': questions};
+    if (languageCode != null && languageCode.trim().isNotEmpty) {
+      body['language'] = languageCode.trim();
+    }
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      final items = json['items'] as List<dynamic>? ?? const [];
+      return items
+          .whereType<Map>()
+          .map((e) => RagExplanation.fromJson(e.cast<String, dynamic>()))
+          .toList();
+    }
+    String msg = 'Erro ${res.statusCode}';
+    try {
+      final err = jsonDecode(res.body);
+      if (err is Map && err['error'] != null) {
+        msg = err['error'].toString();
+      }
+    } catch (_) {}
+    throw RagException(msg);
+  }
 }
 
 class RagResponse {
@@ -219,6 +268,20 @@ class RagStreamChunk {
   final bool done;
 
   RagStreamChunk({this.text, this.sources = const [], this.done = false});
+}
+
+class RagExplanation {
+  final int id;
+  final String text;
+
+  RagExplanation({required this.id, required this.text});
+
+  factory RagExplanation.fromJson(Map<String, dynamic> json) {
+    return RagExplanation(
+      id: (json['id'] as num).toInt(),
+      text: (json['text'] ?? '').toString(),
+    );
+  }
 }
 
 class RagSource {
