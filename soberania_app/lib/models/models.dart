@@ -39,26 +39,26 @@ class Question {
   }
 }
 
-/// Opções do enum score (devem bater com o Xano)
+/// Opções exibidas nas bolinhas (radio) – apenas o rótulo
 const scoreOptions = [
-  '100% ALINHADO - Cobertura em Toda a Organização',
-  '75% ALINHADO - Cobertura Parcial – Avançado',
-  '50% ALINHADO - Cobertura Parcial – Intermediário',
-  '25% ALINHADO - Cobertura Parcial – Inicial',
-  '0% ALINHADO - Sem Cobertura',
+  'Totalmente alinhado',
+  'Bem alinhado',
+  'Parcialmente alinhado',
+  'Pouco alinhado',
+  'Não alinhado',
   'Desconhecido',
 ];
 
 /// Converte o texto do score em valor percentual (0-100).
 int scoreTextToPercent(String? score) {
   if (score == null || score.isEmpty) return 0;
-  final s = score.toUpperCase();
-  if (s.contains('100%')) return 100;
-  if (s.contains('75%')) return 75;
-  if (s.contains('50%')) return 50;
-  if (s.contains('25%')) return 25;
-  if (s.contains('0%')) return 0;
-  return 0; // Desconhecido
+  final s = score.trim().toLowerCase();
+  if (s.contains('totalmente alinhado') || s.contains('100%')) return 100;
+  if (s.contains('bem alinhado') || s.contains('75%')) return 75;
+  if (s.contains('parcialmente alinhado') || s.contains('50%')) return 50;
+  if (s.contains('pouco alinhado') || s.contains('25%')) return 25;
+  if (s.contains('não alinhado') || s.contains('nao alinhado') || s.contains('0%')) return 0;
+  return 0;
 }
 
 /// Valores aceitos pela API/Xano (enum da coluna score)
@@ -71,36 +71,32 @@ const apiScoreValues = [
   'Desconhecido',
 ];
 
-/// Converte o valor exibido no dropdown para o valor aceito pela API
+/// Converte o valor exibido (radio) para o valor aceito pela API
 String scoreToApiValue(String? displayScore) {
   if (displayScore == null || displayScore.isEmpty) return apiScoreValues.last;
-  final s = displayScore.trim();
-  if (s.contains('100%')) return apiScoreValues[0];
-  if (s.contains('75%')) return apiScoreValues[1];
-  if (s.contains('50%')) return apiScoreValues[2];
-  if (s.contains('25%')) return apiScoreValues[3];
-  if (s.contains('0%')) return apiScoreValues[4];
-  if (s.toLowerCase().contains('desconhecido')) return apiScoreValues[5];
+  final s = displayScore.trim().toLowerCase();
+  if (s.contains('totalmente alinhado') || s.contains('100%')) return apiScoreValues[0];
+  if (s.contains('bem alinhado') || s.contains('75%')) return apiScoreValues[1];
+  if (s.contains('parcialmente alinhado') || s.contains('50%')) return apiScoreValues[2];
+  if (s.contains('pouco alinhado') || s.contains('25%')) return apiScoreValues[3];
+  if (s.contains('não alinhado') || s.contains('nao alinhado') || s.contains('0%')) return apiScoreValues[4];
+  if (s.contains('desconhecido')) return apiScoreValues[5];
   return apiScoreValues.last;
 }
 
-/// Normaliza o score antigo para o novo formato
+/// Normaliza o score (antigo ou API) para o texto exibido nas opções
 String normalizeScore(String? score) {
-  if (score == null || score.isEmpty) return scoreOptions.last;
+  if (score == null || score.isEmpty) return scoreOptions[5]; // Desconhecido
   final s = score.trim();
-  
-  // Se já está no novo formato, retorna
   if (scoreOptions.contains(s)) return s;
-  
-  // Converte formato antigo para novo
-  if (s.contains('100%')) return scoreOptions[0];
-  if (s.contains('75%')) return scoreOptions[1];
-  if (s.contains('50%')) return scoreOptions[2];
-  if (s.contains('25%')) return scoreOptions[3];
-  if (s.contains('0%')) return scoreOptions[4];
-  if (s.toLowerCase().contains('desconhecido')) return scoreOptions[5];
-  
-  return scoreOptions.last; // Desconhecido como fallback
+  final lower = s.toLowerCase();
+  if (lower.contains('totalmente') || s.contains('100%')) return scoreOptions[0];
+  if (lower.contains('bem alinhado') || s.contains('75%')) return scoreOptions[1];
+  if (lower.contains('parcialmente') || s.contains('50%')) return scoreOptions[2];
+  if (lower.contains('pouco alinhado') || s.contains('25%')) return scoreOptions[3];
+  if (lower.contains('não alinhado') || lower.contains('nao alinhado') || s.contains('0%')) return scoreOptions[4];
+  if (lower.contains('desconhecido')) return scoreOptions[5];
+  return scoreOptions[5];
 }
 
 class SavedAnswer {

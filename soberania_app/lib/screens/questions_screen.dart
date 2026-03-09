@@ -346,6 +346,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                               onClose: () => setState(() => _showCriteria = false),
                             ),
                           Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: _showCriteria ? 0 : 40),
                         child: Column(
                           children: [
                             _ProgressBar(
@@ -383,38 +385,36 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                     return Padding(
                                       padding:
                                           const EdgeInsets.only(bottom: 16),
-                                      child: GestureDetector(
-                                        onTap: () {
-                                          setState(() {
-                                            _selectedQuestion = q;
-                                          });
-                                        },
-                                        child: ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            maxWidth: 900,
-                                          ),
-                                          child: _QuestionCard(
-                                            question: q,
-                                            index: globalIndex,
-                                            total: _questions.length,
-                                            selectedScore: selectedScore,
-                                            onScoreChanged: (v) {
-                                              setState(() {
-                                                if (v == null || v.isEmpty) {
-                                                  _pendingAnswersByQuestionId
-                                                      .remove(q.id);
-                                                } else {
-                                                  _pendingAnswersByQuestionId[q.id] =
-                                                      v;
-                                                }
-                                              });
-                                            },
-                                            saving: _saving,
-                                            onSaveNext: _saveCurrentBlock,
-                                            onPrevious: null,
-                                            onNext: null,
-                                            hideCodeAndPilar: widget.byPilar,
-                                          ),
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 900,
+                                        ),
+                                        child: _QuestionCard(
+                                          question: q,
+                                          index: globalIndex,
+                                          total: _questions.length,
+                                          selectedScore: selectedScore,
+                                          onScoreChanged: (v) {
+                                            setState(() {
+                                              if (v == null || v.isEmpty) {
+                                                _pendingAnswersByQuestionId
+                                                    .remove(q.id);
+                                              } else {
+                                                _pendingAnswersByQuestionId[q.id] =
+                                                    v;
+                                              }
+                                            });
+                                          },
+                                          onSaibaMais: () {
+                                            setState(() {
+                                              _selectedQuestion = q;
+                                            });
+                                          },
+                                          saving: _saving,
+                                          onSaveNext: _saveCurrentBlock,
+                                          onPrevious: null,
+                                          onNext: null,
+                                          hideCodeAndPilar: widget.byPilar,
                                         ),
                                       ),
                                     );
@@ -425,11 +425,14 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                       ],
                     ),
                   ),
+                        ),
                           if (showPanel)
                             ChatPanel(
                               questionContext: _selectedQuestion == null
                                   ? null
                                   : _buildQuestionContext(_selectedQuestion!),
+                              welcomeMessage:
+                                  'Alguma dúvida sobre a pergunta? Clique em "Saiba mais" na questão e eu te ajudo a responder.',
                             ),
                         ],
                       ),
@@ -657,6 +660,7 @@ class _QuestionCard extends StatelessWidget {
   final int total;
   final String? selectedScore;
   final ValueChanged<String?> onScoreChanged;
+  final VoidCallback? onSaibaMais;
   final bool saving;
   final VoidCallback onSaveNext;
   final VoidCallback? onPrevious;
@@ -669,6 +673,7 @@ class _QuestionCard extends StatelessWidget {
     required this.total,
     required this.selectedScore,
     required this.onScoreChanged,
+    this.onSaibaMais,
     required this.saving,
     required this.onSaveNext,
     this.onPrevious,
@@ -736,26 +741,47 @@ class _QuestionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: selectedScore,
-              decoration: const InputDecoration(
-                labelText: 'Alinhamento',
-                border: OutlineInputBorder(),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Alinhamento',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: Brand.black.withOpacity(0.9),
+                    ),
               ),
-              hint: const Text('Selecione o nível de alinhamento'),
-              isExpanded: true,
-              items: scoreOptions
-                  .map((v) => DropdownMenuItem(
-                        value: v,
-                        child: Text(
-                          v,
-                          style: const TextStyle(fontSize: 13),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ))
-                  .toList(),
-              onChanged: onScoreChanged,
             ),
+            const SizedBox(height: 8),
+            Column(
+              children: scoreOptions.take(5).map((option) {
+                return RadioListTile<String>(
+                  value: option,
+                  groupValue: selectedScore,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    option,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  activeColor: Brand.black,
+                  onChanged: onScoreChanged,
+                );
+              }).toList(),
+            ),
+            if (onSaibaMais != null) ...[
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onSaibaMais,
+                  icon: const Icon(Icons.lightbulb_outline, size: 18, color: Brand.black),
+                  label: const Text('Saiba mais'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Brand.black,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

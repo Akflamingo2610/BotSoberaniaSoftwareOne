@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -8,6 +9,7 @@ const MiniSearch = require('minisearch');
 const PORT = process.env.PORT || 4000;
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:1b';
+const USE_OLLAMA = process.env.USE_OLLAMA === '1';
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; // 70b gera respostas mais naturais; use llama-3.1-8b-instant para mais rápido
 const DOCS_DIR = process.env.DOCS_DIR
@@ -141,7 +143,7 @@ function isAssessmentContext(query, questionContext) {
 }
 
 /** Busca em 2 etapas: para perguntas AWS, NUNCA retorna docs de leis (ECA, LGPD, etc.) */
-function searchDocs(query, limit = 8, preferAws = false) {
+function searchDocs(query, limit = 6, preferAws = false) {
   const q = query.trim();
   const awsQuery = isAwsQuery(q) || preferAws;
 
@@ -177,10 +179,15 @@ function searchDocs(query, limit = 8, preferAws = false) {
       }
     }
 
-    return awsHits.slice(0, limit);
+    return awsHits
+      .filter(h => typeof h.score !== 'number' || h.score >= 0.05)
+      .slice(0, limit);
   }
 
-  return searchIndex.search(q, { combineWith: 'OR' }).slice(0, limit);
+  return searchIndex
+    .search(q, { combineWith: 'OR' })
+    .filter(h => typeof h.score !== 'number' || h.score >= 0.05)
+    .slice(0, limit);
 }
 
 const SUPPORTED_LANGUAGES = ['pt', 'en', 'es'];
@@ -225,12 +232,27 @@ ESCOPO POR TEMA:
 
 USER-FRIENDLY: Explique termos técnicos ao usá-los. Use linguagem natural.
 
+SÍNTESE OBRIGATÓRIA:
+- SEMPRE responda em 2–5 parágrafos curtos, focados na pergunta.
+- Use SEMPRE as SUAS palavras. NÃO copie e cole grandes blocos de texto dos documentos.
+- Se precisar citar algo importante, resuma em 1–2 frases em vez de reproduzir o parágrafo inteiro.
+- Priorize explicar o que isso significa para a empresa na prática e quais ações ela pode tomar.
+
 PRECISÃO: Sintetize com suas palavras no idioma solicitado. NÃO copie trechos literais em outro idioma. NÃO repita o mesmo texto genérico para perguntas diferentes – adapte a resposta a cada pergunta específica.`;
 }
 
 function buildPrompt(query, context, questionContext, language, isAutoExplain = false) {
   const lang = normalizeLanguage(language);
-  const SYSTEM_PROMPT = buildSystemPrompt(lang);
+  let systemPrompt = buildSystemPrompt(lang);
+  if (isAutoExplain) {
+    const compactHint = lang === 'en'
+      ? '\n\nFOR "SAIBA MAIS" EXPLANATIONS: Answer in 1–2 short paragraphs or 2–4 sentences only. Be concise and direct.'
+      : lang === 'es'
+        ? '\n\nPARA EXPLICACIONES "SAIBA MAIS": Responde en 1–2 párrafos breves o 2–4 frases solamente. Sé conciso y directo.'
+        : '\n\nPARA EXPLICAÇÕES "SAIBA MAIS": Responda em 1–2 parágrafos curtos ou no máximo 2–4 frases. Seja conciso e direto.';
+    systemPrompt += compactHint;
+  }
+  const SYSTEM_PROMPT = systemPrompt;
   const hasContext = context && context.trim().length > 30;
   const hasQuestion = questionContext && questionContext.trim().length > 10;
   let userPart;
@@ -245,12 +267,17 @@ function buildPrompt(query, context, questionContext, language, isAutoExplain = 
 
   if (hasQuestion) {
     if (isAutoExplain) {
+      const shortRule = lang === 'en'
+        ? ' Keep the answer SHORT: 1–2 short paragraphs or 2–4 sentences at most. Be direct and to the point.'
+        : lang === 'es'
+          ? ' Mantén la respuesta CORTA: 1–2 párrafos breves o 2–4 frases como máximo. Ve al grano.'
+          : ' Mantenha a resposta CURTA: 1–2 parágrafos curtos ou no máximo 2–4 frases. Seja direto ao ponto.';
       if (lang === 'en') {
-        userPart = `Explain this assessment question in clear English, specifically for THIS question (do not repeat generic text):\n\n"${questionContext.trim()}"\n\nWrite 2–4 short paragraphs: (1) what this question evaluates in the context of digital sovereignty and cloud security; (2) define the technical terms in simple language; (3) why this matters in practice. Use the document snippets ONLY if they are relevant to THIS QUESTION; otherwise, explain using general knowledge. Always answer in English.`;
+        userPart = `Explain this assessment question in clear English, specifically for THIS question:\n\n"${questionContext.trim()}"\n\nIn 1–2 short paragraphs (or 2–4 sentences): (1) what this question evaluates in the context of digital sovereignty; (2) key terms in simple language; (3) why it matters in practice. Use document snippets ONLY if relevant. Be concise and direct.${shortRule}`;
       } else if (lang === 'es') {
-        userPart = `Explica esta pregunta del assessment en español, de forma específica para ESTA pregunta (no repitas texto genérico):\n\n"${questionContext.trim()}"\n\nHaz 2–4 párrafos cortos: (1) qué evalúa esta pregunta en el contexto de soberanía digital y seguridad en la nube; (2) define los términos técnicos en lenguaje sencillo; (3) por qué esto importa en la práctica. Usa los fragmentos de documentos SOLO si son relevantes PARA ESTA PREGUNTA; de lo contrario, explica con conocimiento general. Responde SIEMPRE en español.`;
+        userPart = `Explica esta pregunta del assessment en español, específica para ESTA pregunta:\n\n"${questionContext.trim()}"\n\nEn 1–2 párrafos cortos (o 2–4 frases): (1) qué evalúa esta pregunta en soberanía digital; (2) términos clave en lenguaje sencillo; (3) por qué importa en la práctica. Usa fragmentos solo si son relevantes. Sé conciso y directo.${shortRule}`;
       } else {
-        userPart = `Explique esta pergunta do assessment em português, de forma específica para ELA (não repita texto genérico):\n\n"${questionContext.trim()}"\n\nFaça em 2-4 parágrafos curtos: (1) o que esta pergunta avalia no contexto de soberania digital; (2) defina os termos técnicos em linguagem simples; (3) por que isso importa. Use os trechos APENAS se forem relevantes PARA ESTA PERGUNTA; caso contrário, explique com conhecimento geral. Responda SEMPRE em português.`;
+        userPart = `Explique esta pergunta do assessment em português, específica para ESTA pergunta:\n\n"${questionContext.trim()}"\n\nEm 1–2 parágrafos curtos (ou no máximo 2–4 frases): (1) o que esta pergunta avalia no contexto de soberania digital; (2) termos importantes em linguagem simples; (3) por que isso importa na prática. Use os trechos só se forem relevantes. Seja conciso e direto.${shortRule}`;
       }
     } else {
       if (lang === 'en') {
@@ -341,7 +368,10 @@ async function askLLM(query, context, sources, questionContext, language) {
     const answer = await askGroq(prompt, sources);
     if (answer) return answer;
   }
-  return askOllama(prompt, sources);
+  if (USE_OLLAMA) {
+    return askOllama(prompt, sources);
+  }
+  return null;
 }
 
 async function askLLMExplain(questionContext, context, sources, language) {
@@ -350,7 +380,10 @@ async function askLLMExplain(questionContext, context, sources, language) {
     const answer = await askGroq(prompt, sources);
     if (answer) return answer;
   }
-  return askOllama(prompt, sources);
+  if (USE_OLLAMA) {
+    return askOllama(prompt, sources);
+  }
+  return null;
 }
 
 const app = express();
@@ -380,7 +413,7 @@ app.post('/ask', async (req, res) => {
   const qCtx = (typeof questionContext === 'string') ? questionContext.trim() : '';
   const lang = normalizeLanguage(language);
   const preferAws = isAssessmentContext(q, qCtx);
-  const hits = searchDocs(q, 8, preferAws);
+  const hits = searchDocs(q, 4, preferAws);
   const sources = hits.map(h => {
     const doc = docs.find(d => d.id === h.id) || h;
     return { title: doc.title || h.title, file: doc.file || h.file };
@@ -388,7 +421,7 @@ app.post('/ask', async (req, res) => {
   const context = hits
     .map(h => {
       const doc = docs.find(d => d.id === h.id) || h;
-      const text = (doc.text || h.text || '').trim();
+      const text = (doc.text || h.text || '').trim().slice(0, 450);
       const title = doc.title || h.title || 'Documento';
       return text ? `[Fonte: ${title}]\n\n${text}` : null;
     })
@@ -397,14 +430,10 @@ app.post('/ask', async (req, res) => {
 
   let answer = await askLLM(q, context, sources, qCtx || undefined, lang);
   if (!answer) {
-    const llmHint = GROQ_API_KEY ? 'Verifique GROQ_API_KEY.' : `Ollama não está rodando (ollama run ${OLLAMA_MODEL}).`;
-    if (context && context.trim().length > 50) {
-      answer = `Com base nos documentos:\n\n${context}\n\n*Nota: ${llmHint}*`;
-    } else if (sources.length > 0) {
-      answer = `Encontrei referência a: ${sources.map(s => s.title).join(', ')}.\n\n*Nota: ${llmHint}*`;
-    } else {
-      answer = 'Não encontrei trechos relevantes. Tente reformular a pergunta ou usar termos das leis (ex: LGPD, Marco Civil, dados pessoais).';
-    }
+    const llmHint = GROQ_API_KEY
+      ? 'Não foi possível gerar a resposta com o modelo configurado (Groq). Verifique a variável de ambiente GROQ_API_KEY e a conectividade de rede.'
+      : 'Nenhum modelo de IA está configurado (GROQ_API_KEY ausente).';
+    answer = `Não consegui falar com o modelo de IA agora.\n\n${llmHint}`;
   }
 
   res.json({ answer, sources });
@@ -435,7 +464,7 @@ app.post('/ask/explain-batch', async (req, res) => {
       : '';
     if (!id || !qCtx || qCtx.length < 10) continue;
 
-    const hits = searchDocs(qCtx, 8, false);
+    const hits = searchDocs(qCtx, 4, false);
     const sources = hits.map(h => {
       const doc = docs.find(d => d.id === h.id) || h;
       return { title: doc.title || h.title, file: doc.file || h.file };
@@ -443,7 +472,7 @@ app.post('/ask/explain-batch', async (req, res) => {
     const context = hits
       .map(h => {
         const doc = docs.find(d => d.id === h.id) || h;
-        const text = (doc.text || h.text || '').trim().slice(0, 700);
+        const text = (doc.text || h.text || '').trim().slice(0, 450);
         const title = doc.title || h.title || 'Documento';
         return text ? `[Fonte: ${title}]\n\n${text}` : null;
       })
@@ -481,7 +510,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
   }
 
   // Busca normal (sem preferAws) para obter contexto variado por pergunta
-  const hits = searchDocs(qCtx, 8, false);
+  const hits = searchDocs(qCtx, 4, false);
   const sources = hits.map(h => {
     const doc = docs.find(d => d.id === h.id) || h;
     return { title: doc.title || h.title, file: doc.file || h.file };
@@ -489,7 +518,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
   const context = hits
     .map(h => {
       const doc = docs.find(d => d.id === h.id) || h;
-      const text = (doc.text || h.text || '').trim().slice(0, 700);
+      const text = (doc.text || h.text || '').trim().slice(0, 450);
       const title = doc.title || h.title || 'Documento';
       return text ? `[Fonte: ${title}]\n\n${text}` : null;
     })
@@ -520,7 +549,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 900,
+        max_tokens: 420,
         temperature: 0.3,
         stream: false,
       }),
@@ -541,7 +570,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
         body: JSON.stringify({
           model: GROQ_MODEL,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 900,
+          max_tokens: 420,
           temperature: 0.3,
           stream: true,
         }),
@@ -583,6 +612,17 @@ app.post('/ask/explain-question/stream', async (req, res) => {
       }
     }
 
+    if (!USE_OLLAMA) {
+      res.write(JSON.stringify({
+        t: '',
+        done: true,
+        err: GROQ_API_KEY
+          ? 'Falha ao usar Groq e Ollama está desativado (USE_OLLAMA != 1).'
+          : 'Nenhum LLM configurado (defina GROQ_API_KEY ou ative o Ollama com USE_OLLAMA=1).',
+      }) + '\n');
+      return res.end();
+    }
+
     const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -590,7 +630,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
         model: OLLAMA_MODEL,
         prompt,
         stream: true,
-        options: { num_predict: 600, num_ctx: 4096, temperature: 0.4 },
+        options: { num_predict: 420, num_ctx: 4096, temperature: 0.4 },
       }),
     });
     if (ollamaRes.ok && ollamaRes.body) {
@@ -628,7 +668,7 @@ app.post('/ask/explain-question/stream', async (req, res) => {
         writeDone();
         return;
       }
-    } catch (_) {}
+    } catch (_) { }
     res.write(JSON.stringify({ t: '', done: true, err: err.message }) + '\n');
   }
   res.end();
@@ -653,7 +693,7 @@ app.post('/ask/stream', async (req, res) => {
   const qCtxStream = (typeof questionContext === 'string') ? questionContext.trim() : '';
   const langStream = normalizeLanguage(language);
   const preferAwsStream = isAssessmentContext(qStream, qCtxStream);
-  const hits = searchDocs(qStream, 6, preferAwsStream);
+  const hits = searchDocs(qStream, 4, preferAwsStream);
   const sources = hits.map(h => {
     const doc = docs.find(d => d.id === h.id) || h;
     return { title: doc.title || h.title, file: doc.file || h.file };
@@ -661,7 +701,7 @@ app.post('/ask/stream', async (req, res) => {
   const context = hits
     .map(h => {
       const doc = docs.find(d => d.id === h.id) || h;
-      const text = (doc.text || h.text || '').trim().slice(0, 600);
+      const text = (doc.text || h.text || '').trim().slice(0, 450);
       const title = doc.title || h.title || 'Documento';
       return text ? `[Fonte: ${title}]\n\n${text}` : null;
     })
@@ -722,6 +762,17 @@ app.post('/ask/stream', async (req, res) => {
         writeDone();
         return;
       }
+    }
+
+    if (!USE_OLLAMA) {
+      res.write(JSON.stringify({
+        t: '',
+        done: true,
+        err: GROQ_API_KEY
+          ? 'Falha ao usar Groq e Ollama está desativado (USE_OLLAMA != 1).'
+          : 'Nenhum LLM configurado (defina GROQ_API_KEY ou ative o Ollama com USE_OLLAMA=1).',
+      }) + '\n');
+      return res.end();
     }
 
     const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {

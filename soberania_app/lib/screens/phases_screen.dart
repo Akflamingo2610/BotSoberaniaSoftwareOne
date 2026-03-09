@@ -153,6 +153,14 @@ class _PhasesScreenState extends State<PhasesScreen> {
           },
           tooltip: AppLocalizations.of(context).t('go_to_intro'),
         ),
+        trailing: TextButton.icon(
+          onPressed: () => _logout(context),
+          icon: const Icon(Icons.logout, size: 18, color: Brand.black),
+          label: Text(
+            AppLocalizations.of(context).t('btn_logout'),
+            style: const TextStyle(color: Brand.black),
+          ),
+        ),
       ),
       body: SafeArea(
         child: LayoutBuilder(
@@ -168,24 +176,13 @@ class _PhasesScreenState extends State<PhasesScreen> {
                       child: ListView(
                         padding: const EdgeInsets.all(16),
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  AppLocalizations.of(context).t('phases_choose'),
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        color: Brand.black,
-                                      ),
+                          Text(
+                            AppLocalizations.of(context).t('phases_choose'),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: Brand.black,
                                 ),
-                              ),
-                              TextButton.icon(
-                                onPressed: () => _logout(context),
-                                icon: const Icon(Icons.logout),
-                                label: Text(AppLocalizations.of(context).t('btn_logout')),
-                              ),
-                            ],
                           ),
                           const SizedBox(height: 16),
                           ...phases.map(

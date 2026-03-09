@@ -11,7 +11,7 @@ class Brand {
   static const Color border = Color(0xFFE6E6E6);
 }
 
-const String _awsLogoAsset = 'assets/images/aws-logo-logo-png-transparent.png';
+const String _awsLogoAsset = 'assets/images/Aws_logo_black.png';
 const String _softwareOneLogoAsset = 'assets/images/logo_da_software.png';
 
 /// Logo da AWS (à direita do header).
@@ -98,6 +98,8 @@ PreferredSizeWidget soberaniaAppBar(
   String? subtitle,
   Widget? leading,
   double? leadingWidth,
+  Widget? trailing,
+  bool showBack = true,
 }) {
   return AppBar(
     backgroundColor: Brand.white,
@@ -105,7 +107,7 @@ PreferredSizeWidget soberaniaAppBar(
     elevation: 0,
     leading: leading,
     leadingWidth: leadingWidth,
-    automaticallyImplyLeading: leading == null,
+    automaticallyImplyLeading: showBack && leading == null,
     titleSpacing: 16,
     title: Row(
       children: [
@@ -167,8 +169,9 @@ PreferredSizeWidget soberaniaAppBar(
         const AwsMark(size: 36),
       ],
     ),
-    actions: const [
-      LanguageButton(),
+    actions: [
+      if (trailing != null) trailing,
+      const LanguageButton(),
     ],
     iconTheme: const IconThemeData(color: Brand.black),
   );

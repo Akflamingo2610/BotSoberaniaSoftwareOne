@@ -14,7 +14,7 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _data = {
     'pt': {
       'app_title': 'Soberania Digital',
-      'welcome_title': 'Bem-vindo ao Assessment de Maturidade em soberania digital da Software One com a AWS',
+      'welcome_title': 'Bem-vindo ao Assessment de Maturidade em soberania digital da SoftwareOne com a AWS',
       'btn_login': 'Entrar',
       'btn_signup': 'Cadastre-se',
       'btn_logout': 'Sair',
@@ -100,7 +100,7 @@ class AppLocalizations {
       'signup_company_label': 'Nome da empresa',
       'signup_company_hint': 'Nome da sua empresa',
       'signup_company_required': 'Informe o nome da empresa',
-      'signup_role_label': 'Função na empresa',
+      'signup_role_label': 'Cargo na empresa',
       'signup_role_hint': 'Ex: Gerente, Analista',
       'signup_password_label': 'Senha',
       'signup_password_required': 'Informe uma senha',

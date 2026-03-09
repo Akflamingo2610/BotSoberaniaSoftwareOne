@@ -58,7 +58,7 @@ class CriteriaPanel extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               children: const [
                 _CriteriaCard(
-                  level: 'Nível 5 — 100% ALINHADO',
+                  level: 'Nível 5 - Totalmente alinhado',
                   subtitle: 'Cobertura em toda a organização',
                   points: 5,
                   items: [
@@ -73,8 +73,8 @@ class CriteriaPanel extends StatelessWidget {
                 ),
                 SizedBox(height: 12),
                 _CriteriaCard(
-                  level: 'Nível 4 — 75% ALINHADO',
-                  subtitle: 'Cobertura parcial — Avançado',
+                  level: 'Nível 4 - Bem alinhado',
+                  subtitle: 'Cobertura parcial - Avançado',
                   points: 4,
                   items: [
                     'Controles implementados em ~75% da organização',
@@ -88,8 +88,8 @@ class CriteriaPanel extends StatelessWidget {
                 ),
                 SizedBox(height: 12),
                 _CriteriaCard(
-                  level: 'Nível 3 — 50% ALINHADO',
-                  subtitle: 'Cobertura parcial — Intermediário',
+                  level: 'Nível 3 - Parcialmente alinhado',
+                  subtitle: 'Cobertura parcial - Intermediário',
                   points: 3,
                   items: [
                     'Controles implementados em ~50% da organização',
@@ -103,8 +103,8 @@ class CriteriaPanel extends StatelessWidget {
                 ),
                 SizedBox(height: 12),
                 _CriteriaCard(
-                  level: 'Nível 2 — 25% ALINHADO',
-                  subtitle: 'Cobertura parcial — Inicial',
+                  level: 'Nível 2 - Pouco alinhado',
+                  subtitle: 'Cobertura parcial - Inicial',
                   points: 2,
                   items: [
                     'Controles implementados em apenas ~25% da organização',
@@ -118,7 +118,7 @@ class CriteriaPanel extends StatelessWidget {
                 ),
                 SizedBox(height: 12),
                 _CriteriaCard(
-                  level: 'Nível 1 — 0% ALINHADO',
+                  level: 'Nível 1 - Não alinhado',
                   subtitle: 'Sem cobertura',
                   points: 1,
                   items: [

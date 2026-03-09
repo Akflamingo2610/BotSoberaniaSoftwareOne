@@ -20,7 +20,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _password = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
-
   @override
   void dispose() {
     _email.dispose();
@@ -199,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             AppLocalizations.of(context).t('no_account'),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                      const SizedBox(height: 10),
                         Text(
                           AppLocalizations.of(context)
                               .t('login_tip_config_xano'),

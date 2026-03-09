@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/xano_api.dart';
 import '../storage/app_storage.dart';
@@ -26,6 +27,10 @@ class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   bool _obscurePassword = true;
+  bool _marketingConsent = false;
+
+  static const String _privacyUrl =
+      'https://www.softwareone.com/en/privacy-statement';
 
   @override
   void dispose() {
@@ -323,6 +328,39 @@ class _SignupScreenState extends State<SignupScreen> {
                                         .t('btn_register'),
                                   ),
                           ),
+                          const SizedBox(height: 12),
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Checkbox(
+                                value: _marketingConsent,
+                                onChanged: (v) {
+                                  setState(() {
+                                    _marketingConsent = v ?? false;
+                                  });
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'A SoftwareOne pode usar meus dados para me manter informado sobre futuros eventos, bem como sobre produtos, serviços e ofertas.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: Colors.black87,
+                                        height: 1.5,
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          _PrivacyPolicyText(privacyUrl: _privacyUrl),
                           const SizedBox(height: 16),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -361,6 +399,66 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Texto com link "Privacy Policy" que abre em nova aba.
+/// Usa [MouseRegion] + [GestureDetector] para o link funcionar na web
+/// (TapGestureRecognizer em TextSpan costuma falhar no Flutter web).
+class _PrivacyPolicyText extends StatelessWidget {
+  final String privacyUrl;
+
+  const _PrivacyPolicyText({required this.privacyUrl});
+
+  Future<void> _openPrivacy(BuildContext context) async {
+    final uri = Uri.parse(privacyUrl);
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Link: $privacyUrl')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Abrir: $privacyUrl')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          'By submitting this form the entered data will be handed over to and stored by us for contact purposes. Your data will under no circumstances be disclosed to third parties. You can review additional information about your data and rights in our ',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.black54,
+              ),
+        ),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => _openPrivacy(context),
+            child: const Text(
+              'Privacy Policy',
+              style: TextStyle(
+                color: Brand.black,
+                decoration: TextDecoration.underline,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        const Text('.'),
+      ],
     );
   }
 }
