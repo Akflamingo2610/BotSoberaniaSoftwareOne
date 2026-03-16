@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
@@ -29,12 +30,13 @@ class AssessmentIntroScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Brand.surface,
       appBar: soberaniaAppBar(
         context,
-        title: 'Introdução',
-        subtitle: 'Entenda a metodologia do assessment antes de começar',
+        title: l10n.t('intro_page_title'),
+        subtitle: l10n.t('intro_page_subtitle'),
         showBack: false,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -54,9 +56,9 @@ class AssessmentIntroScreen extends StatelessWidget {
                   ),
                 ),
                 onPressed: () => _continue(context),
-                child: const Text(
-                  'INICIAR O ASSESSMENT',
-                  style: TextStyle(
+                child: Text(
+                  l10n.t('btn_start_assessment').toUpperCase(),
+                  style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.0,
                     fontSize: 12,
@@ -68,7 +70,10 @@ class AssessmentIntroScreen extends StatelessWidget {
             TextButton.icon(
               onPressed: () => _logout(context),
               icon: const Icon(Icons.logout, size: 18, color: Brand.black),
-              label: const Text('Sair', style: TextStyle(color: Brand.black)),
+              label: Text(
+                l10n.t('btn_logout'),
+                style: const TextStyle(color: Brand.black),
+              ),
             ),
           ],
         ),
@@ -90,348 +95,17 @@ class AssessmentIntroScreen extends StatelessWidget {
                   SizedBox(
                     width: 420,
                     child: ChatPanel(
-                      welcomeMessage:
-                          'Ficou com alguma dúvida em relação ao assessment ou sobre soberania digital? Fique à vontade para me perguntar!',
+                      welcomeMessage: l10n.t('intro_chat_welcome'),
                     ),
                   ),
                 ],
               );
             }
-            // Mobile/narrow: conteúdo em coluna única
             return _ContentColumn(
               onContinue: () => _continue(context),
               onLogout: () => _logout(context),
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _ContentColumn extends StatefulWidget {
-  final VoidCallback onContinue;
-  final VoidCallback onLogout;
-
-  const _ContentColumn({required this.onContinue, required this.onLogout});
-
-  @override
-  State<_ContentColumn> createState() => _ContentColumnState();
-}
-
-class _ContentColumnState extends State<_ContentColumn> {
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              RichText(
-                text: TextSpan(
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.black87,
-                    height: 1.6,
-                  ),
-                  children: const [
-                    TextSpan(
-                      text: 'Soberania Digital',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    TextSpan(
-                      text:
-                          ' é a capacidade de uma organização manter controle, autoridade e visibilidade sobre seus dados, infraestrutura e operações digitais, assegurando conformidade regulatória, segurança, resiliência operacional, transparência e independência tecnológica. Em ambientes de nuvem, a ',
-                    ),
-                    TextSpan(
-                      text: 'soberania digital',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    TextSpan(
-                      text:
-                          ' possibilita atender a requisitos regulatórios e geopolíticos crescentes sem comprometer agilidade, inovação ou escala, criando uma base sustentável para inovação segura e crescimento contínuo.',
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              RichText(
-                text: TextSpan(
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.black87,
-                        height: 1.6,
-                      ),
-                  children: const [
-                    TextSpan(
-                      text: 'Parceria SoftwareOne e AWS em Soberania Digital\n',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    TextSpan(
-                      text:
-                          'A SoftwareOne é parceira estratégica da AWS para o tema de Soberania Digital, sendo a ',
-                    ),
-                    TextSpan(
-                      text:
-                          'única empresa no Brasil e uma das poucas no mundo',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    TextSpan(
-                      text:
-                          ' com essa competência reconhecida. Essa parceria une um ',
-                    ),
-                    TextSpan(
-                      text:
-                          'profundo conhecimento técnico em ambientes de nuvem',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    TextSpan(
-                      text: ' com ',
-                    ),
-                    TextSpan(
-                      text:
-                          'expertise nas exigências regulatórias locais e globais',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    TextSpan(
-                      text:
-                          ', permitindo apoiar organizações na construção de estratégias de soberania digital alinhadas às demandas de negócio, aos requisitos legais e aos desafios operacionais de ambientes digitais modernos e distribuídos.',
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              Text(
-                'Framework dos 3 Cs: Nossa Metodologia de Avaliação',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: Brand.black,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.rule_folder_outlined, size: 40),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Compliance\n(Conformidade)',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: Brand.black,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        _bulletList(context, [
-                          'Adesão a padrões de cibersegurança e legislações (LGPD, normas setoriais).',
-                          'Transformar leis em requisitos mensuráveis.',
-                        ]),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.shield_outlined, size: 40),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Control\n(Controle)',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: Brand.black,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        _bulletList(context, [
-                          'Autoridade granular sobre a infraestrutura.',
-                          'Resiliência de dados, soberania de chaves e restrição de acesso.',
-                        ]),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.autorenew_outlined, size: 40),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Continuity\n(Continuidade)',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: Brand.black,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        _bulletList(context, [
-                          'Capacidade de sobrevivência e recuperação.',
-                          'Autossuficiência tecnológica e resiliência a eventos geopolíticos.',
-                        ]),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Card Sobre a SoftwareOne (mesmo estilo/opacidade do card de baixo)
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Brand.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Sobre a SoftwareOne',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: Brand.black,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    RichText(
-                      text: TextSpan(
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.black87,
-                          height: 1.6,
-                        ),
-                        children: const [
-                          TextSpan(text: 'A SoftwareOne é uma '),
-                          TextSpan(
-                            text: 'empresa global de soluções em tecnologia',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(text: ', com '),
-                          TextSpan(
-                            text: 'sede na Suíça e operação no Brasil',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(
-                            text:
-                                '. Atua na modernização digital de organizações, combinando parcerias estratégicas, ',
-                          ),
-                          TextSpan(
-                            text: 'profundo conhecimento técnico',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(
-                            text:
-                                ', experiência em nuvem, dados e segurança e ',
-                          ),
-                          TextSpan(
-                            text: 'entendimento prático',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(text: ' dos requisitos regulatórios. É '),
-                          TextSpan(
-                            text: 'AWS Premier Partner',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(text: ', reconhecida por '),
-                          TextSpan(
-                            text: 'excelência técnica comprovada',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(text: ', '),
-                          TextSpan(
-                            text:
-                                'histórico consistente de entregas bem-sucedidas e equipes altamente certificadas',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(
-                            text:
-                                '. Esse nível de parceria demonstra a capacidade da SoftwareOne de projetar, implementar e operar ambientes em nuvem complexos e críticos, atendendo a padrões rigorosos de qualidade, segurança e governança.',
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Brand.border),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: RichText(
-                        text: TextSpan(
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: Colors.black87, height: 1.6),
-                          children: const [
-                            TextSpan(
-                              text:
-                                  'O Assessment de Maturidade em Soberania Digital da SoftwareOne avalia de forma estruturada o nível de controle, conformidade, resiliência e independência digital da organização. A avaliação considera aspectos técnicos, operacionais, organizacionais e regulatórios, fornecendo uma visão clara do ',
-                            ),
-                            TextSpan(
-                              text: 'estado atual',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            TextSpan(text: ', das '),
-                            TextSpan(
-                              text: 'lacunas existentes',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            TextSpan(text: ' e das '),
-                            TextSpan(
-                              text: 'prioridades de evolução',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            TextSpan(
-                              text:
-                                  '. O assessment é baseado em critérios objetivos, mensuráveis e auditáveis, permitindo classificar a maturidade e apoiar a definição de um roadmap pragmático e alinhado às exigências do negócio e da regulação.',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 120,
-                        maxHeight: 80,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          'assets/images/dspartner-16e1f188313fa8b17c6e569eabcadd9d.png',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 40),
-              const SizedBox(height: 32),
-            ],
-          ),
         ),
       ),
     );
@@ -461,6 +135,336 @@ class _ContentColumnState extends State<_ContentColumn> {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+class _ContentColumn extends StatefulWidget {
+  final VoidCallback onContinue;
+  final VoidCallback onLogout;
+
+  const _ContentColumn({required this.onContinue, required this.onLogout});
+
+  @override
+  State<_ContentColumn> createState() => _ContentColumnState();
+}
+
+class _ContentColumnState extends State<_ContentColumn> {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final titleStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(
+      fontWeight: FontWeight.w900,
+      color: Brand.black,
+      letterSpacing: -0.3,
+    );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Brand.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Brand.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: AspectRatio(
+                        aspectRatio: 21 / 9,
+                        child: Image.asset(
+                          'assets/images/GettyImages-1286804873.jpg.jpeg',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF4FF),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        l10n.t('intro_page_title'),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: const Color(0xFF4169E1),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      l10n.t('intro_assessment_card_title'),
+                      style: titleStyle,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      l10n.t('intro_assessment_card_body'),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.black87,
+                        height: 1.6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              Text(l10n.t('intro_framework_title'), style: titleStyle),
+              const SizedBox(height: 16),
+              AssessmentIntroScreen._bulletList(context, [
+                l10n.t('intro_framework_bullet_1'),
+                l10n.t('intro_framework_bullet_2'),
+                l10n.t('intro_framework_bullet_3'),
+              ]),
+              const SizedBox(height: 20),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 820;
+                  final itemWidth = isNarrow
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - 32) / 3;
+                  return Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
+                    children: [
+                      SizedBox(
+                        width: itemWidth,
+                        child: _PillarCard(
+                          icon: Icons.rule_folder_outlined,
+                          title: l10n.t('intro_compliance_title'),
+                          imagePath:
+                              'assets/images/GettyImages-1207090508.jpg.jpeg',
+                          bullets: [
+                            l10n.t('intro_compliance_bullet_1'),
+                            l10n.t('intro_compliance_bullet_2'),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: itemWidth,
+                        child: _PillarCard(
+                          icon: Icons.shield_outlined,
+                          title: l10n.t('intro_control_title'),
+                          imagePath:
+                              'assets/images/GettyImages-1223115939.jpg.jpeg',
+                          bullets: [
+                            l10n.t('intro_control_bullet_1'),
+                            l10n.t('intro_control_bullet_2'),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: itemWidth,
+                        child: _PillarCard(
+                          icon: Icons.autorenew_outlined,
+                          title: l10n.t('intro_continuity_title'),
+                          imagePath:
+                              'assets/images/GettyImages-1254270100.jpg.jpeg',
+                          bullets: [
+                            l10n.t('intro_continuity_bullet_1'),
+                            l10n.t('intro_continuity_bullet_2'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 28),
+
+              _SectionCard(
+                title: l10n.t('intro_partnership_title'),
+                body: l10n.t('intro_partnership_body'),
+                imagePath: 'assets/images/GettyImages-1254770264.jpg.jpeg',
+              ),
+              const SizedBox(height: 16),
+              _SectionCard(
+                title: l10n.t('intro_about_card_title'),
+                body: l10n.t('intro_about_card_body'),
+                imagePath: 'assets/images/GettyImages-1293443512.jpg.jpeg',
+              ),
+              const SizedBox(height: 16),
+              _SectionCard(
+                title: l10n.t('intro_sov_title'),
+                body: l10n.t('intro_sov_body'),
+                imagePath: 'assets/images/GettyImages-1255349939.jpg.jpeg',
+              ),
+              const SizedBox(height: 20),
+
+              _SectionCard(
+                title: l10n.t('intro_assessment_card_title'),
+                body: l10n.t('intro_assessment_card_body'),
+                imagePath: 'assets/images/GettyImages-1316015053.jpg.jpeg',
+              ),
+              const SizedBox(height: 24),
+
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PillarCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final List<String> bullets;
+  final String? imagePath;
+
+  const _PillarCard({
+    required this.icon,
+    required this.title,
+    required this.bullets,
+    this.imagePath,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Brand.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Brand.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (imagePath != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.asset(imagePath!, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Icon(icon, size: 24, color: Brand.black),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: Brand.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          AssessmentIntroScreen._bulletList(context, bullets),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final String body;
+  final String? imagePath;
+
+  const _SectionCard({required this.title, required this.body, this.imagePath});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Brand.border),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final hasImage = imagePath != null;
+          final isWide = hasImage && constraints.maxWidth >= 840;
+          final textContent = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: Brand.black,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                body,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Colors.black87,
+                  height: 1.6,
+                ),
+              ),
+            ],
+          );
+
+          if (!hasImage) {
+            return Padding(
+              padding: const EdgeInsets.all(14),
+              child: textContent,
+            );
+          }
+
+          if (!isWide) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.asset(imagePath!, fit: BoxFit.cover),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Padding(padding: const EdgeInsets.all(14), child: textContent),
+              ],
+            );
+          }
+
+          final imageWidth = (constraints.maxWidth * 0.42).clamp(280.0, 360.0);
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: textContent,
+                ),
+              ),
+              const SizedBox(width: 14),
+              SizedBox(
+                width: imageWidth,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    height: 240,
+                    child: Image.asset(imagePath!, fit: BoxFit.cover),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

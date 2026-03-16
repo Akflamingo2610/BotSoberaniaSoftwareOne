@@ -48,6 +48,59 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   static const _phaseOrder = ['Quick_Wins', 'Foundational', 'Efficient', 'Optimized'];
 
+  String get _languageCode {
+    final code = Localizations.localeOf(context).languageCode.toLowerCase();
+    if (code.startsWith('en')) return 'en';
+    if (code.startsWith('es')) return 'es';
+    return 'pt';
+  }
+
+  String _localizedPilar(BuildContext context, String raw) {
+    final l10n = AppLocalizations.of(context);
+    switch (raw.trim().toLowerCase()) {
+      case 'compliance':
+        return l10n.t('phase_compliance_label');
+      case 'continuity':
+        return l10n.t('phase_continuity_label');
+      case 'control':
+        return l10n.t('phase_control_label');
+      default:
+        return raw;
+    }
+  }
+
+  String _localizedDominio(BuildContext context, String raw) {
+    final l10n = AppLocalizations.of(context);
+    switch (raw.trim().toLowerCase()) {
+      case 'continuidade e portabilidade':
+      case 'continuity and portability':
+      case 'continuidad y portabilidad':
+        return l10n.t('domain_continuity_portability');
+      case 'governança e conformidade':
+      case 'governance and compliance':
+      case 'gobernanza y cumplimiento':
+        return l10n.t('domain_governance_compliance');
+      case 'soberania operacional':
+      case 'operational sovereignty':
+      case 'soberanía operacional':
+        return l10n.t('domain_operational_sovereignty');
+      case 'soberania organizacional':
+      case 'organizational sovereignty':
+      case 'soberanía organizacional':
+        return l10n.t('domain_organizational_sovereignty');
+      case 'soberania de dados':
+      case 'data sovereignty':
+      case 'soberanía de datos':
+        return l10n.t('domain_data_sovereignty');
+      case 'soberania de infraestrutura':
+      case 'infrastructure sovereignty':
+      case 'soberanía de infraestructura':
+        return l10n.t('domain_infrastructure_sovereignty');
+      default:
+        return raw;
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -146,13 +199,28 @@ class _ResultsScreenState extends State<ResultsScreen> {
         return;
       }
       final resp = await _rag.ask(
-        'Faça um overview executivo dos resultados deste assessment de soberania digital. '
-        'Dê uma leitura em 2-3 parágrafos, destacando pontos fortes e áreas de melhoria.',
+        _languageCode == 'en'
+            ? 'Write ONE short paragraph in English summarizing the results of this digital sovereignty assessment. Use at most 4 sentences, highlighting the main strengths and improvement opportunities in an executive and objective tone.'
+            : _languageCode == 'es'
+                ? 'Escriba UN párrafo corto en español resumiendo los resultados de este assessment de soberanía digital. Use un máximo de 4 frases, destacando las principales fortalezas y oportunidades de mejora, de forma ejecutiva y objetiva.'
+                : 'Escreva UM parágrafo curto, em português, resumindo os resultados deste assessment de soberania digital. Use no máximo 4 frases, destacando principais pontos fortes e principais oportunidades de melhoria, de forma executiva e objetiva.',
         questionContext: ctx,
+        languageCode: _languageCode,
       );
       if (mounted && resp.answer.trim().isNotEmpty) {
+        // Garante no mínimo 1 parágrafo enxuto na UI: pega só o primeiro parágrafo
+        // e limita o tamanho máximo do texto.
+        var text = resp.answer.trim();
+        final paragraphs = text.split('\n\n');
+        if (paragraphs.isNotEmpty) {
+          text = paragraphs.first.trim();
+        }
+        const maxChars = 600;
+        if (text.length > maxChars) {
+          text = '${text.substring(0, maxChars).trim()}...';
+        }
         setState(() {
-          _botOverview = resp.answer.trim();
+          _botOverview = text;
           _overviewLoading = false;
         });
       } else if (mounted) {
@@ -165,13 +233,20 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   String _buildResultsContext() {
     if (_data == null) return '';
+    final l10n = AppLocalizations.of(context);
     final pilarScores = _data!.pilars
-        .map((p) => '$p: ${_data!.scoreByPilar[p]?.toInt() ?? 0}%')
+        .map((p) => '${_localizedPilar(context, p)}: ${_data!.scoreByPilar[p]?.toInt() ?? 0}%')
         .join(', ');
     final dominioScores = _data!.dominios
-        .map((d) => '$d: ${_data!.scoreByDominio[d]?.toInt() ?? 0}%')
+        .map((d) => '${_localizedDominio(context, d)}: ${_data!.scoreByDominio[d]?.toInt() ?? 0}%')
         .join(', ');
-    return 'RESULTADOS POR PILAR: $pilarScores. RESULTADOS POR DOMÍNIO: $dominioScores.';
+    if (_languageCode == 'en') {
+      return 'RESULTS BY PILLAR: $pilarScores. RESULTS BY DOMAIN: $dominioScores.';
+    }
+    if (_languageCode == 'es') {
+      return 'RESULTADOS POR PILAR: $pilarScores. RESULTADOS POR DOMINIO: $dominioScores.';
+    }
+    return '${l10n.t('results_score_by_pillar').toUpperCase()}: $pilarScores. ${l10n.t('results_score_by_domain').toUpperCase()}: $dominioScores.';
   }
 
   @override
@@ -182,19 +257,20 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     String? subtitle;
     if ((_userName != null && _userName!.isNotEmpty) || (_userEmail != null && _userEmail!.isNotEmpty)) {
       final parts = <String>[];
       if (_userName != null && _userName!.isNotEmpty) parts.add(_userName!);
       if (_userEmail != null && _userEmail!.isNotEmpty) parts.add(_userEmail!);
-      subtitle = '${AppLocalizations.of(context).t('results_provided_by')} ${parts.join(' e ')}';
+      subtitle = '${l10n.t('results_provided_by')} ${parts.join(', ')}';
     }
 
     return Scaffold(
       backgroundColor: Brand.surface,
       appBar: soberaniaAppBar(
         context,
-        title: AppLocalizations.of(context).t('results_title'),
+        title: l10n.t('results_title'),
         subtitle: subtitle,
         leading: Row(
           mainAxisSize: MainAxisSize.min,
@@ -202,7 +278,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
             IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () => Navigator.of(context).pop(),
-              tooltip: AppLocalizations.of(context).t('back_to_pillars'),
+              tooltip: l10n.t('back_to_pillars'),
             ),
             IconButton(
               icon: const Icon(Icons.home_rounded),
@@ -212,7 +288,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   (_) => false,
                 );
               },
-              tooltip: AppLocalizations.of(context).t('go_to_intro'),
+              tooltip: l10n.t('go_to_intro'),
             ),
           ],
         ),
@@ -224,7 +300,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
             : _error != null
                 ? _ErrorView(error: _error!, onRetry: _load)
                 : _data == null
-                    ? const Center(child: Text('Nenhum dado disponível.'))
+                    ? Center(child: Text(l10n.t('results_no_data')))
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final showPanel = constraints.maxWidth > 1100;
@@ -238,15 +314,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
                               ),
                               const SizedBox(height: 24),
                               _ChartCard(
-                                title: 'Score por Pilar',
-                                child: _PilarBarChart(data: _data!),
+                                title: l10n.t('results_score_by_pillar'),
+                                child: _PilarBarChart(
+                                  data: _data!,
+                                  labelBuilder: (p) => _localizedPilar(context, p),
+                                ),
                               ),
                               if (_data!.dominios.isNotEmpty) ...[
                                 const SizedBox(height: 24),
                                 _ChartCard(
-                                  title: 'Score por Domínio',
+                                  title: l10n.t('results_score_by_domain'),
                                   height: 400,
-                                  child: _DominioRadarChart(data: _data!),
+                                  child: _DominioRadarChart(
+                                    data: _data!,
+                                    labelBuilder: (d) => _localizedDominio(context, d),
+                                  ),
                                 ),
                               ],
                               if (!showPanel) ...[
@@ -304,6 +386,7 @@ class _BotOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Card(
       elevation: 0,
       color: Brand.white,
@@ -332,7 +415,7 @@ class _BotOverviewCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          'O Bot está analisando os resultados...',
+                          l10n.t('results_overview_loading'),
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: Brand.black,
                               ),
@@ -400,13 +483,14 @@ class _ChartCard extends StatelessWidget {
 /// Gráfico de teia (radar) para domínios.
 class _DominioRadarChart extends StatelessWidget {
   final ResultsData data;
+  final String Function(String) labelBuilder;
 
-  const _DominioRadarChart({required this.data});
+  const _DominioRadarChart({required this.data, required this.labelBuilder});
 
   @override
   Widget build(BuildContext context) {
     if (data.dominios.isEmpty) {
-      return const Center(child: Text('Sem dados para radar'));
+      return Center(child: Text(AppLocalizations.of(context).t('results_radar_empty')));
     }
 
     final values = data.dominios
@@ -414,33 +498,57 @@ class _DominioRadarChart extends StatelessWidget {
         .toList();
 
     return CustomRadarChart(
-      labels: data.dominios,
+      labels: data.dominios.map(labelBuilder).toList(),
       values: values,
+      // Usa paleta da marca: preenchimento suave em azul, borda em vermelho.
+      fillColor: Brand.accentBlue,
+      borderColor: Brand.accentRed,
+      gridColor: Brand.border,
+      textColor: Brand.black,
     );
   }
 }
 
 class _PilarBarChart extends StatelessWidget {
   final ResultsData data;
+  final String Function(String) labelBuilder;
 
-  const _PilarBarChart({required this.data});
+  const _PilarBarChart({required this.data, required this.labelBuilder});
 
   @override
   Widget build(BuildContext context) {
-    final items = data.pilars
-        .map((p) => BarChartGroupData(
-              x: data.pilars.indexOf(p),
-              barRods: [
-                BarChartRodData(
-                  toY: (data.scoreByPilar[p] ?? 0).toDouble(),
-                  color: Brand.black,
-                  width: 28,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                ),
-              ],
-              showingTooltipIndicators: [0],
-            ))
-        .toList();
+    final palette = <Color>[
+      Brand.accentRed,
+      Brand.accentBlue,
+      Brand.accentOrange,
+    ];
+
+    final items = <BarChartGroupData>[];
+    for (var i = 0; i < data.pilars.length; i++) {
+      final p = data.pilars[i];
+      final color = palette[i % palette.length];
+      items.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: (data.scoreByPilar[p] ?? 0).toDouble(),
+              width: 28,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  color.withOpacity(0.9),
+                  color.withOpacity(0.6),
+                ],
+              ),
+            ),
+          ],
+          showingTooltipIndicators: const [0],
+        ),
+      );
+    }
 
     return BarChart(
       BarChartData(
@@ -450,10 +558,13 @@ class _PilarBarChart extends StatelessWidget {
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => Brand.black,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final pilar = data.pilars[group.x];
+              final pilar = labelBuilder(data.pilars[group.x]);
               return BarTooltipItem(
                 '$pilar\n${rod.toY.toInt()}%',
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
               );
             },
           ),
@@ -468,7 +579,7 @@ class _PilarBarChart extends StatelessWidget {
                   return Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      data.pilars[value.toInt()],
+                      labelBuilder(data.pilars[value.toInt()]),
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -540,7 +651,7 @@ class _ErrorView extends StatelessWidget {
                 foregroundColor: Brand.white,
               ),
               onPressed: onRetry,
-              child: const Text('Tentar novamente'),
+              child: Text(AppLocalizations.of(context).t('results_retry')),
             ),
           ],
         ),

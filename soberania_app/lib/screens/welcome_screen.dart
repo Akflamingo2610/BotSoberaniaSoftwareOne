@@ -86,14 +86,47 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     ],
                   ),
                   const SizedBox(height: 48),
-                  Text(
-                    AppLocalizations.of(context).t('welcome_title'),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: Brand.black,
-                      height: 1.3,
-                    ),
+                  Column(
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        child: Text(
+                          AppLocalizations.of(context).t('welcome_line1'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Brand.black,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        child: Text(
+                          AppLocalizations.of(context).t('welcome_line2'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Brand.black,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        child: Text(
+                          AppLocalizations.of(context).t('welcome_line3'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Brand.black,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 48),
                   SizedBox(

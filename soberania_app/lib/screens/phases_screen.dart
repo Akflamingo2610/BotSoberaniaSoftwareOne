@@ -21,27 +21,34 @@ class PhasesScreen extends StatefulWidget {
 class _PhasesScreenState extends State<PhasesScreen> {
   DateTime? _lastResultsGeneratedAt;
 
-  /// 3 pilares: Compliance, Continuity, Control
-  static const phases = <PhaseOption>[
-    PhaseOption(
-      'Compliance',
-      'Compliance',
-      'Conformidade e requisitos regulatórios',
-    ),
-    PhaseOption(
-      'Continuity',
-      'Continuity',
-      'Continuidade de negócio e resiliência',
-    ),
-    PhaseOption('Control', 'Control', 'Controles e governança'),
-  ];
-
   final _api = XanoApi();
   bool _loadingResults = true;
   bool _allQuestionsAnswered = false;
 
+  List<PhaseOption> _localizedPhases(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return [
+      PhaseOption(
+        'Compliance',
+        l10n.t('phase_compliance_label'),
+        l10n.t('phase_compliance_subtitle'),
+      ),
+      PhaseOption(
+        'Continuity',
+        l10n.t('phase_continuity_label'),
+        l10n.t('phase_continuity_subtitle'),
+      ),
+      PhaseOption(
+        'Control',
+        l10n.t('phase_control_label'),
+        l10n.t('phase_control_subtitle'),
+      ),
+    ];
+  }
+
   Future<void> _checkIfAllAnswered() async {
     try {
+      final phases = _localizedPhases(context);
       final token = await AppStorage().getAuthToken();
       final assessmentId = await AppStorage().getAssessmentId();
       if (token == null || assessmentId == null) {
@@ -96,8 +103,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
         });
         if (allAnswered && wasNotAllAnswered) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Novo resultado gerado!'),
+            SnackBar(
+              content: Text(AppLocalizations.of(context).t('results_new_generated')),
               backgroundColor: Brand.black,
               behavior: SnackBarBehavior.floating,
             ),
@@ -138,11 +145,13 @@ class _PhasesScreenState extends State<PhasesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final phases = _localizedPhases(context);
     return Scaffold(
       backgroundColor: Brand.surface,
       appBar: soberaniaAppBar(
         context,
-        title: AppLocalizations.of(context).t('phases_title'),
+        title: l10n.t('phases_title'),
         leading: IconButton(
           icon: const Icon(Icons.home_rounded),
           onPressed: () {
@@ -151,13 +160,13 @@ class _PhasesScreenState extends State<PhasesScreen> {
               (_) => false,
             );
           },
-          tooltip: AppLocalizations.of(context).t('go_to_intro'),
+          tooltip: l10n.t('go_to_intro'),
         ),
         trailing: TextButton.icon(
           onPressed: () => _logout(context),
           icon: const Icon(Icons.logout, size: 18, color: Brand.black),
           label: Text(
-            AppLocalizations.of(context).t('btn_logout'),
+            l10n.t('btn_logout'),
             style: const TextStyle(color: Brand.black),
           ),
         ),
@@ -177,7 +186,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
                         padding: const EdgeInsets.all(16),
                         children: [
                           Text(
-                            AppLocalizations.of(context).t('phases_choose'),
+                            l10n.t('phases_choose'),
                             style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(
                                   fontWeight: FontWeight.w800,
@@ -244,8 +253,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                   color: Brand.white,
                                   size: 28,
                                 ),
-                                title: const Text(
-                                  'Resultados',
+                                title: Text(
+                                  l10n.t('results_title'),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w800,
                                     color: Brand.white,
@@ -254,8 +263,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                 ),
                                 subtitle: Text(
                                   _lastResultsGeneratedAt != null
-                                      ? 'Gerado em: ${_formatTimestamp(_lastResultsGeneratedAt!)}'
-                                      : 'Ver seus gráficos de pontuação',
+                                      ? '${l10n.t('results_generated_at')}: ${_formatTimestamp(_lastResultsGeneratedAt!)}'
+                                      : l10n.t('results_view_scores'),
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 13,
@@ -280,7 +289,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
                           ] else if (!_loadingResults) ...[
                             const SizedBox(height: 12),
                             Text(
-                              'Responda todas as questões de todas as fases para ver os resultados.',
+                              l10n.t('results_available_hint'),
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: Colors.black54,
@@ -288,12 +297,6 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                   ),
                             ),
                           ],
-                          const SizedBox(height: 8),
-                          Text(
-                            'Obs: os valores dos pilares (Compliance, Continuity, Control) devem corresponder ao campo "pilar" das questões no Xano.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Colors.black54),
-                          ),
                         ],
                       ),
                     ),

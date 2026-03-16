@@ -51,6 +51,115 @@ class _ChatPanelState extends State<ChatPanel> {
           ? widget.resultsContext!.trim()
           : widget.questionContext?.trim();
 
+  String _ui(String key) {
+    switch (_languageCode) {
+      case 'en':
+        switch (key) {
+          case 'auto_explain_failed':
+            return 'Automatic explanation could not be generated. Ask a question below about this prompt.';
+          case 'auto_explain_fetch_failed':
+            return 'Could not get the explanation. Check your connection or whether the RAG is online.';
+          case 'batch_explain_failed':
+            return 'Automatic explanations for this block could not be generated. Ask questions below about the prompts.';
+          case 'batch_fetch_failed':
+            return 'Could not fetch the automatic explanations. Check your connection or whether the RAG is online.';
+          case 'no_response':
+            return 'Could not get a response. Check your connection or try again.';
+          case 'server_connect_failed':
+            return 'Could not connect to the server. Check your connection or whether the RAG is online.';
+          case 'error_prefix':
+            return 'Error';
+          case 'rag_offline':
+            return 'RAG offline';
+          case 'results_context':
+            return 'Results:';
+          case 'question_context':
+            return 'Current prompt:';
+          case 'empty_results':
+            return 'Ask about the results\nEx: what does 45% Compliance mean?\nHow can we improve?';
+          case 'empty_general':
+            return 'Ask about AWS, digital sovereignty\nor local regulations';
+          case 'input_hint':
+            return 'Ask about AWS, digital sovereignty or laws...';
+          default:
+            return key;
+        }
+      case 'es':
+        switch (key) {
+          case 'auto_explain_failed':
+            return 'No fue posible generar la explicación automática. Haga una pregunta abajo sobre esta cuestión.';
+          case 'auto_explain_fetch_failed':
+            return 'No fue posible obtener la explicación. Verifique su conexión o si el RAG está en línea.';
+          case 'batch_explain_failed':
+            return 'No fue posible generar las explicaciones automáticas de este bloque. Haga preguntas abajo sobre las cuestiones.';
+          case 'batch_fetch_failed':
+            return 'No fue posible obtener las explicaciones automáticas. Verifique su conexión o si el RAG está en línea.';
+          case 'no_response':
+            return 'No fue posible obtener una respuesta. Verifique su conexión o inténtelo de nuevo.';
+          case 'server_connect_failed':
+            return 'No fue posible conectarse al servidor. Verifique su conexión o si el RAG está en línea.';
+          case 'error_prefix':
+            return 'Error';
+          case 'rag_offline':
+            return 'RAG sin conexión';
+          case 'results_context':
+            return 'Resultados:';
+          case 'question_context':
+            return 'Pregunta actual:';
+          case 'empty_results':
+            return 'Pregunte sobre los resultados\nEj.: ¿qué significa 45% de Compliance?\n¿Cómo podemos mejorar?';
+          case 'empty_general':
+            return 'Pregunte sobre AWS, soberanía digital\no leyes';
+          case 'input_hint':
+            return 'Pregunte sobre AWS, soberanía digital o leyes...';
+          default:
+            return key;
+        }
+      default:
+        switch (key) {
+          case 'auto_explain_failed':
+            return 'Não foi possível gerar a explicação automática. Faça uma pergunta no campo abaixo sobre a questão.';
+          case 'auto_explain_fetch_failed':
+            return 'Não foi possível obter a explicação. Verifique sua conexão ou se o RAG está online.';
+          case 'batch_explain_failed':
+            return 'Não foi possível gerar as explicações automáticas para este bloco. Faça perguntas no campo abaixo sobre as questões.';
+          case 'batch_fetch_failed':
+            return 'Não foi possível obter as explicações automáticas. Verifique sua conexão ou se o RAG está online.';
+          case 'no_response':
+            return 'Não foi possível obter resposta. Verifique sua conexão ou tente novamente.';
+          case 'server_connect_failed':
+            return 'Não foi possível conectar ao servidor. Verifique sua conexão ou se o RAG está online.';
+          case 'error_prefix':
+            return 'Erro';
+          case 'rag_offline':
+            return 'RAG offline';
+          case 'results_context':
+            return 'Resultados:';
+          case 'question_context':
+            return 'Pergunta atual:';
+          case 'empty_results':
+            return 'Pergunte sobre os resultados\nEx: o que significa 45% de Compliance?\nComo podemos melhorar?';
+          case 'empty_general':
+            return 'Pergunte sobre AWS, soberania digital\nou leis brasileiras';
+          case 'input_hint':
+            return 'Pergunte sobre AWS, soberania digital ou leis...';
+          default:
+            return key;
+        }
+    }
+  }
+
+  String _explainFallbackPrompt() {
+    switch (_languageCode) {
+      case 'en':
+        return 'Explain in simple language what this prompt evaluates, define the technical terms, and why this matters for digital sovereignty.';
+      case 'es':
+        return 'Explique en lenguaje simple qué evalúa esta pregunta, defina los términos técnicos y por qué esto importa para la soberanía digital.';
+      default:
+        return 'Explique em linguagem simples o que esta pergunta avalia, defina os termos técnicos e por que isso importa para soberania digital.';
+    }
+  }
+
   String get _languageCode {
     final scope = LocaleScope.of(context);
     final code = scope?.locale.languageCode.toLowerCase() ?? 'pt';
@@ -142,6 +251,9 @@ class _ChatPanelState extends State<ChatPanel> {
         languageCode: _languageCode,
       )) {
         if (!mounted) return;
+        if (!_connected) {
+          setState(() => _connected = true);
+        }
         if (chunk.text != null && chunk.text!.isNotEmpty) {
           setState(() => _streamingText += chunk.text!);
           _scrollToBottom();
@@ -157,7 +269,7 @@ class _ChatPanelState extends State<ChatPanel> {
         // Fallback: streaming veio vazio — tentar endpoint /ask (não-streaming)
         try {
           final resp = await _rag.ask(
-            'Explique em linguagem simples o que esta pergunta avalia, defina os termos técnicos e por que isso importa para soberania digital.',
+            _explainFallbackPrompt(),
             questionContext: q,
           );
           if (resp.answer.trim().isNotEmpty) {
@@ -171,7 +283,7 @@ class _ChatPanelState extends State<ChatPanel> {
         _messages.add(
           _ChatMessage(
             role: 'bot',
-            text: 'Não foi possível gerar a explicação automática. Faça uma pergunta no campo abaixo sobre a questão.',
+            text: _ui('auto_explain_failed'),
           ),
         );
       } else {
@@ -185,14 +297,16 @@ class _ChatPanelState extends State<ChatPanel> {
       }
     } on RagException catch (e) {
       if (!mounted) return;
-      _messages.add(_ChatMessage(role: 'bot', text: 'Erro: ${e.message}'));
+      setState(() => _connected = false);
+      _messages.add(_ChatMessage(role: 'bot', text: '${_ui('error_prefix')}: ${e.message}'));
       _autoExplainRequested = false;
     } catch (e) {
       if (!mounted) return;
+      setState(() => _connected = false);
       _messages.add(
         _ChatMessage(
           role: 'bot',
-          text: 'Não foi possível obter a explicação. Verifique sua conexão ou se o RAG está online.',
+            text: _ui('auto_explain_fetch_failed'),
         ),
       );
       _autoExplainRequested = false;
@@ -225,13 +339,15 @@ class _ChatPanelState extends State<ChatPanel> {
       final explanations =
           await _rag.explainBatch(items, languageCode: _languageCode);
       if (!mounted) return;
+      if (!_connected) {
+        setState(() => _connected = true);
+      }
 
       if (explanations.isEmpty) {
         _messages.add(
           _ChatMessage(
             role: 'bot',
-            text:
-                'Não foi possível gerar as explicações automáticas para este bloco. Faça perguntas no campo abaixo sobre as questões.',
+                text: _ui('batch_explain_failed'),
           ),
         );
       } else {
@@ -246,15 +362,16 @@ class _ChatPanelState extends State<ChatPanel> {
       }
     } on RagException catch (e) {
       if (!mounted) return;
-      _messages.add(_ChatMessage(role: 'bot', text: 'Erro: ${e.message}'));
+      setState(() => _connected = false);
+      _messages.add(_ChatMessage(role: 'bot', text: '${_ui('error_prefix')}: ${e.message}'));
       _batchExplainRequested = false;
     } catch (e) {
       if (!mounted) return;
+      setState(() => _connected = false);
       _messages.add(
         _ChatMessage(
           role: 'bot',
-          text:
-              'Não foi possível obter as explicações automáticas. Verifique sua conexão ou se o RAG está online.',
+            text: _ui('batch_fetch_failed'),
         ),
       );
       _batchExplainRequested = false;
@@ -290,6 +407,9 @@ class _ChatPanelState extends State<ChatPanel> {
         languageCode: _languageCode,
       )) {
         if (!mounted) return;
+        if (!_connected) {
+          setState(() => _connected = true);
+        }
         if (chunk.text != null && chunk.text!.isNotEmpty) {
           setState(() => _streamingText += chunk.text!);
           _scrollToBottom();
@@ -316,7 +436,7 @@ class _ChatPanelState extends State<ChatPanel> {
         }
       }
       if (replyText.isEmpty) {
-        replyText = 'Não foi possível obter resposta. Verifique sua conexão ou tente novamente.';
+        replyText = _ui('no_response');
         sources = null;
       }
       _messages.add(
@@ -328,13 +448,15 @@ class _ChatPanelState extends State<ChatPanel> {
       );
     } on RagException catch (e) {
       if (!mounted) return;
-      _messages.add(_ChatMessage(role: 'bot', text: 'Erro: ${e.message}'));
+      setState(() => _connected = false);
+      _messages.add(_ChatMessage(role: 'bot', text: '${_ui('error_prefix')}: ${e.message}'));
     } catch (e) {
       if (!mounted) return;
+      setState(() => _connected = false);
       _messages.add(
         _ChatMessage(
           role: 'bot',
-          text: 'Não foi possível conectar ao servidor. Verifique sua conexão ou se o RAG está online.',
+          text: _ui('server_connect_failed'),
         ),
       );
     } finally {
@@ -411,7 +533,7 @@ class _ChatPanelState extends State<ChatPanel> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'RAG offline',
+                      _ui('rag_offline'),
                       style: TextStyle(color: Colors.orange.shade900, fontSize: 11),
                     ),
                   ),
@@ -434,7 +556,9 @@ class _ChatPanelState extends State<ChatPanel> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    widget.resultsContext != null ? 'Resultados:' : 'Pergunta atual:',
+                    widget.resultsContext != null
+                        ? _ui('results_context')
+                        : _ui('question_context'),
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: Brand.black,
@@ -459,8 +583,8 @@ class _ChatPanelState extends State<ChatPanel> {
                       padding: const EdgeInsets.all(16),
                       child: Text(
                         widget.resultsContext != null
-                            ? 'Pergunte sobre os resultados\nEx: o que significa 45% de Compliance?\nComo podemos melhorar?'
-                            : 'Pergunte sobre AWS, soberania digital\nou leis brasileiras',
+                            ? _ui('empty_results')
+                            : _ui('empty_general'),
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.black54,
@@ -508,7 +632,7 @@ class _ChatPanelState extends State<ChatPanel> {
                   child: TextField(
                     controller: _controller,
                     decoration: InputDecoration(
-                      hintText: 'Pergunte sobre AWS, soberania digital ou leis...',
+                      hintText: _ui('input_hint'),
                       border: const OutlineInputBorder(),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,

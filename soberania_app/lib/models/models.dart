@@ -4,6 +4,8 @@ class Question {
   final String pilar;
   final String? dominio;
   final String recommendation;
+  final String? recommendationEn;
+  final String? recommendationEs;
   final String? guidance;
   final String? howToCheck;
   final int orderIndex;
@@ -16,12 +18,24 @@ class Question {
     required this.pilar,
     this.dominio,
     required this.recommendation,
+    this.recommendationEn,
+    this.recommendationEs,
     required this.orderIndex,
     this.guidance,
     this.howToCheck,
     this.questionCode,
     this.associatedAwsService,
   });
+
+  String localizedRecommendation(String langCode) {
+    if (langCode == 'en' && (recommendationEn ?? '').isNotEmpty) {
+      return recommendationEn!;
+    }
+    if (langCode == 'es' && (recommendationEs ?? '').isNotEmpty) {
+      return recommendationEs!;
+    }
+    return recommendation;
+  }
 
   factory Question.fromJson(Map<String, dynamic> json) {
     return Question(
@@ -30,6 +44,8 @@ class Question {
       pilar: (json['pilar'] ?? '').toString(),
       dominio: json['dominio']?.toString(),
       recommendation: (json['recommendation'] ?? '').toString(),
+      recommendationEn: json['recommendation_en']?.toString(),
+      recommendationEs: json['recommendation_es']?.toString(),
       guidance: json['guidance']?.toString(),
       howToCheck: json['how_to_check']?.toString(),
       orderIndex: (json['order_index'] as num?)?.toInt() ?? 0,

@@ -59,6 +59,42 @@ class XanoApi {
     return headers;
   }
 
+  Future<void> forgotPassword({
+    required String email,
+  }) async {
+    final res = await _client.post(
+      _uri('/forgot_password'),
+      headers: _headers(),
+      body: jsonEncode({'email': email}),
+    );
+    final body = _tryJson(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return;
+    }
+    throw ApiException(res.statusCode, body);
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    final res = await _client.post(
+      _uri('/reset_password'),
+      headers: _headers(),
+      body: jsonEncode({
+        'email': email,
+        'new_password': newPassword,
+        // O backend atualmente não valida o token, então enviamos um valor fixo.
+        'token': 'app_flow',
+      }),
+    );
+    final body = _tryJson(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return;
+    }
+    throw ApiException(res.statusCode, body);
+  }
+
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,

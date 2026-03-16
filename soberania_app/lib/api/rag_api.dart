@@ -136,7 +136,8 @@ class RagApi {
   Future<bool> health() async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/health'));
-      return res.statusCode == 200;
+      // Alguns ambientes retornam 2xx/3xx no health com redirects/proxy.
+      return res.statusCode >= 200 && res.statusCode < 400;
     } catch (_) {
       return false;
     }

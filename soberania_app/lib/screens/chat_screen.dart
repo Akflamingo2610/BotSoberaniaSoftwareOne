@@ -32,7 +32,9 @@ class _ChatScreenState extends State<ChatScreen> {
     // Explicação automática quando há pergunta do assessment
     if (widget.questionContext != null &&
         widget.questionContext!.trim().length > 10) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _requestAutoExplanation());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _requestAutoExplanation(),
+      );
     }
   }
 
@@ -192,8 +194,10 @@ class _ChatScreenState extends State<ChatScreen> {
             Text(
               'SoberanIA',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: Brand.black,
+
+
+
+                 color: Brand.black,
               ),
             ),
           ],
@@ -384,6 +388,20 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUser = message.role == 'user';
+    // Deixa respostas do bot mais objetivas no front, limitando tamanho.
+    String displayText = message.text;
+    if (!isUser) {
+      // Limita a no máximo 2 parágrafos principais.
+      final paragraphs = displayText.split('\n\n');
+      if (paragraphs.length > 2) {
+        displayText = '${paragraphs.take(2).join('\n\n')}\n\n[...]';
+      }
+      // E garante um limite de caracteres para evitar textos muito longos.
+      const maxChars = 900;
+      if (displayText.length > maxChars) {
+        displayText = '${displayText.substring(0, maxChars)}...';
+      }
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -418,7 +436,7 @@ class _ChatBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SelectableText(
-                    message.text + (isStreaming ? '▌' : ''),
+                    displayText + (isStreaming ? '▌' : ''),
                     style: TextStyle(
                       color: isUser ? Brand.white : Brand.black,
                       fontSize: 14,

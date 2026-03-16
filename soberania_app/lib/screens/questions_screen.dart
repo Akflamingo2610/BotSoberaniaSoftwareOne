@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/xano_api.dart';
+import '../l10n/app_localizations.dart';
 import '../models/models.dart' show Question, SavedAnswer, scoreOptions, normalizeScore, scoreToApiValue;
 import '../storage/app_storage.dart';
 import '../storage/position_persistence.dart';
@@ -47,6 +48,37 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
   Timer? _persistTimer;
   bool _showCriteria = false;
   Question? _selectedQuestion;
+  bool _gridView = false;
+  int _singleQuestionOffset = 0;
+
+  String get _langCode {
+    final code = Localizations.localeOf(context).languageCode.toLowerCase();
+    if (code.startsWith('en')) return 'en';
+    if (code.startsWith('es')) return 'es';
+    return 'pt';
+  }
+
+  String _guidanceLabel() {
+    switch (_langCode) {
+      case 'en':
+        return 'Guidance';
+      case 'es':
+        return 'Guia';
+      default:
+        return 'Orientacao';
+    }
+  }
+
+  String _howToCheckLabel() {
+    switch (_langCode) {
+      case 'en':
+        return 'How to check';
+      case 'es':
+        return 'Como verificar';
+      default:
+        return 'Como verificar';
+    }
+  }
 
   void _persistPosition() {
     if (_questions.isNotEmpty &&
@@ -149,6 +181,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       } else {
         _blockStartIndex = (startIndex ~/ _blockSize) * _blockSize;
       }
+      _singleQuestionOffset = 0;
 
       _authToken = token;
       _assessmentId = assessmentId;
@@ -172,11 +205,11 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
 
   String _buildQuestionContext(Question q) {
     return [
-      q.recommendation,
+      q.localizedRecommendation(_langCode),
       if ((q.guidance ?? '').trim().isNotEmpty)
-        'Guidance: ${q.guidance!.trim()}',
+        '${_guidanceLabel()}: ${q.guidance!.trim()}',
       if ((q.howToCheck ?? '').trim().isNotEmpty)
-        'How to check: ${q.howToCheck!.trim()}',
+        '${_howToCheckLabel()}: ${q.howToCheck!.trim()}',
     ].join('\n\n');
   }
 
@@ -196,7 +229,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       final rawScore = pending ?? saved?.score;
       final normalized = rawScore != null ? normalizeScore(rawScore) : null;
       if (normalized == null || normalized.isEmpty) {
-        missing.add(q.recommendation);
+        missing.add(q.localizedRecommendation(_langCode));
         continue;
       }
       answersPayload.add({
@@ -209,8 +242,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
 
     if (missing.isNotEmpty || answersPayload.length != blockQuestions.length) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Responda todas as perguntas deste bloco antes de continuar.'),
+        SnackBar(
+          content: Text(_questionUiText('answer_all_block')),
         ),
       );
       return;
@@ -245,9 +278,9 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       } else {
         await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Todas as questões dessa sessão foram respondidas. Você pode alterar suas respostas se desejar.',
+              _questionUiText('all_answered_session'),
             ),
           ),
         );
@@ -257,7 +290,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
+      ).showSnackBar(SnackBar(content: Text(_saveErrorText(e))));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -280,6 +313,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     final newStart = (_blockStartIndex - _blockSize).clamp(0, _questions.length - 1);
     setState(() {
       _blockStartIndex = newStart;
+      _singleQuestionOffset = 0;
       _selectedQuestion = null;
     });
     _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
@@ -290,13 +324,105 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     if (nextStart >= _questions.length) return;
     setState(() {
       _blockStartIndex = nextStart;
+      _singleQuestionOffset = 0;
       _selectedQuestion = null;
     });
     _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
   }
 
+  void _goToPreviousQuestion() {
+    if (_singleQuestionOffset > 0) {
+      setState(() => _singleQuestionOffset -= 1);
+    } else if (_blockStartIndex > 0) {
+      final newStart = (_blockStartIndex - _blockSize).clamp(0, _questions.length - 1);
+      setState(() {
+        _blockStartIndex = newStart;
+        _singleQuestionOffset = _currentBlockQuestions.length - 1;
+      });
+      _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
+    }
+  }
+
+  void _goToNextQuestion() {
+    final maxOffset = _currentBlockQuestions.length - 1;
+    if (_singleQuestionOffset < maxOffset) {
+      setState(() => _singleQuestionOffset += 1);
+    } else {
+      final nextStart = _blockStartIndex + _blockSize;
+      if (nextStart < _questions.length) {
+        setState(() {
+          _blockStartIndex = nextStart;
+          _singleQuestionOffset = 0;
+        });
+        _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
+      }
+    }
+  }
+
+  String _questionUiText(String key) {
+    switch (_langCode) {
+      case 'en':
+        switch (key) {
+          case 'answer_all_block':
+            return 'Answer all questions in this block before continuing.';
+          case 'all_answered_session':
+            return 'All questions in this section have been answered. You can still change your answers.';
+          case 'chat_welcome':
+            return 'Any questions about the prompt? Click "Learn more" on the question and I will help you answer it.';
+          case 'criteria_button':
+            return 'ALIGNMENT CRITERIA';
+          case 'no_questions':
+            return 'No questions were found for this phase.';
+          default:
+            return key;
+        }
+      case 'es':
+        switch (key) {
+          case 'answer_all_block':
+            return 'Responda todas las preguntas de este bloque antes de continuar.';
+          case 'all_answered_session':
+            return 'Todas las preguntas de esta sección fueron respondidas. Puede cambiar sus respuestas si lo desea.';
+          case 'chat_welcome':
+            return '¿Alguna duda sobre la pregunta? Haga clic en "Saber más" en la pregunta y le ayudaré a responder.';
+          case 'criteria_button':
+            return 'CRITERIOS DE ALINEAMIENTO';
+          case 'no_questions':
+            return 'No se encontraron preguntas para esta fase.';
+          default:
+            return key;
+        }
+      default:
+        switch (key) {
+          case 'answer_all_block':
+            return 'Responda todas as perguntas deste bloco antes de continuar.';
+          case 'all_answered_session':
+            return 'Todas as questões dessa sessão foram respondidas. Você pode alterar suas respostas se desejar.';
+          case 'chat_welcome':
+            return 'Alguma dúvida sobre a pergunta? Clique em "Saiba mais" na questão e eu te ajudo a responder.';
+          case 'criteria_button':
+            return 'CRITERIOS DE ALINHAMENTO';
+          case 'no_questions':
+            return 'Nenhuma pergunta encontrada para essa fase.';
+          default:
+            return key;
+        }
+    }
+  }
+
+  String _saveErrorText(Object error) {
+    switch (_langCode) {
+      case 'en':
+        return 'Error while saving: $error';
+      case 'es':
+        return 'Error al guardar: $error';
+      default:
+        return 'Erro ao salvar: $error';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Brand.surface,
       appBar: soberaniaAppBar(
@@ -308,7 +434,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
             IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: _goBackToPillars,
-              tooltip: 'Voltar para pilares',
+              tooltip: l10n.t('back_to_pillars'),
             ),
             IconButton(
               icon: const Icon(Icons.home_rounded),
@@ -318,7 +444,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                   (_) => false,
                 );
               },
-              tooltip: 'Ir para introdução',
+              tooltip: l10n.t('go_to_intro'),
             ),
           ],
         ),
@@ -330,8 +456,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
             : _error != null
             ? _ErrorState(error: _error!, onRetry: _load)
             : _questions.isEmpty
-            ? const Center(
-                child: Text('Nenhuma pergunta encontrada para essa fase.'),
+            ? Center(
+                child: Text(_questionUiText('no_questions')),
               )
             : LayoutBuilder(
                 builder: (context, constraints) {
@@ -346,97 +472,169 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                               onClose: () => setState(() => _showCriteria = false),
                             ),
                           Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(left: _showCriteria ? 0 : 40),
-                        child: Column(
-                          children: [
-                            _ProgressBar(
-                              currentIndex: _blockStartIndex,
-                              answered: _questions
-                                  .where((q) => _answersByQuestionId.containsKey(q.id))
-                                  .length,
-                              total: _questions.length,
-                              phaseLabel: widget.phaseLabel,
-                              allAnswered: _allAnsweredInPhase,
-                              onPreviousBlock:
-                                  _blockStartIndex > 0 ? _goToPreviousBlock : null,
-                              onNextBlock: _blockStartIndex + _blockSize < _questions.length
-                                  ? _goToNextBlock
-                                  : null,
-                              onSaveBlock: _saveCurrentBlock,
-                              saving: _saving,
-                            ),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: _currentBlockQuestions.map((q) {
-                                    final saved = _answersByQuestionId[q.id];
-                                    final pending =
-                                        _pendingAnswersByQuestionId[q.id];
-                                    final rawScore = pending ?? saved?.score;
-                                    final selectedScore = rawScore != null
-                                        ? normalizeScore(rawScore)
-                                        : null;
-                                    final globalIndex =
-                                        _questions.indexOf(q);
+                            child: Padding(
+                              padding: EdgeInsets.only(left: _showCriteria ? 0 : 40),
+                              child: Column(
+                                children: [
+                                  _ProgressBar(
+                                    currentIndex: _gridView
+                                        ? _blockStartIndex
+                                        : _blockStartIndex + _singleQuestionOffset,
+                                    answered: _questions
+                                        .where((q) => _answersByQuestionId.containsKey(q.id))
+                                        .length,
+                                    total: _questions.length,
+                                    phaseLabel: widget.phaseLabel,
+                                    allAnswered: _allAnsweredInPhase,
+                                    onPreviousBlock:
+                                        _blockStartIndex > 0 ? _goToPreviousBlock : null,
+                                    onNextBlock:
+                                        _blockStartIndex + _blockSize < _questions.length
+                                            ? _goToNextBlock
+                                            : null,
+                                    onSaveBlock: _saveCurrentBlock,
+                                    saving: _saving,
+                                    gridView: _gridView,
+                                    onToggleView: (value) {
+                                      setState(() {
+                                        _gridView = value;
+                                        if (!_gridView) {
+                                          _singleQuestionOffset = 0;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                  Expanded(
+                                    child: _gridView
+                                        ? SingleChildScrollView(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                                              children: _currentBlockQuestions.map((q) {
+                                                final saved = _answersByQuestionId[q.id];
+                                                final pending =
+                                                    _pendingAnswersByQuestionId[q.id];
+                                                final rawScore = pending ?? saved?.score;
+                                                final selectedScore = rawScore != null
+                                                    ? normalizeScore(rawScore)
+                                                    : null;
+                                                final globalIndex = _questions.indexOf(q);
 
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 16),
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 900,
-                                        ),
-                                        child: _QuestionCard(
-                                          question: q,
-                                          index: globalIndex,
-                                          total: _questions.length,
-                                          selectedScore: selectedScore,
-                                          onScoreChanged: (v) {
-                                            setState(() {
-                                              if (v == null || v.isEmpty) {
-                                                _pendingAnswersByQuestionId
-                                                    .remove(q.id);
-                                              } else {
-                                                _pendingAnswersByQuestionId[q.id] =
-                                                    v;
-                                              }
-                                            });
-                                          },
-                                          onSaibaMais: () {
-                                            setState(() {
-                                              _selectedQuestion = q;
-                                            });
-                                          },
-                                          saving: _saving,
-                                          onSaveNext: _saveCurrentBlock,
-                                          onPrevious: null,
-                                          onNext: null,
-                                          hideCodeAndPilar: widget.byPilar,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
+                                                return Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(bottom: 16),
+                                                  child: ConstrainedBox(
+                                                    constraints: const BoxConstraints(
+                                                      maxWidth: 900,
+                                                    ),
+                                                    child: _QuestionCard(
+                                                      question: q,
+                                                      index: globalIndex,
+                                                      total: _questions.length,
+                                                      selectedScore: selectedScore,
+                                                      onScoreChanged: (v) {
+                                                        setState(() {
+                                                          if (v == null || v.isEmpty) {
+                                                            _pendingAnswersByQuestionId
+                                                                .remove(q.id);
+                                                          } else {
+                                                            _pendingAnswersByQuestionId[q.id] =
+                                                                v;
+                                                          }
+                                                        });
+                                                      },
+                                                      onSaibaMais: () {
+                                                        setState(() {
+                                                          _selectedQuestion = q;
+                                                        });
+                                                      },
+                                                      saving: _saving,
+                                                      onSaveNext: _saveCurrentBlock,
+                                                      onPrevious: null,
+                                                      onNext: null,
+                                                      hideCodeAndPilar: widget.byPilar,
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                          )
+                                        : Builder(
+                                            builder: (context) {
+                                              final blockQuestions = _currentBlockQuestions;
+                                              final safeOffset = _singleQuestionOffset.clamp(
+                                                0,
+                                                blockQuestions.isEmpty
+                                                    ? 0
+                                                    : blockQuestions.length - 1,
+                                              );
+                                              final q = blockQuestions[safeOffset];
+                                              final saved = _answersByQuestionId[q.id];
+                                              final pending =
+                                                  _pendingAnswersByQuestionId[q.id];
+                                              final rawScore = pending ?? saved?.score;
+                                              final selectedScore = rawScore != null
+                                                  ? normalizeScore(rawScore)
+                                                  : null;
+                                              final globalIndex = _questions.indexOf(q);
+
+                                              return SingleChildScrollView(
+                                                padding: const EdgeInsets.all(16),
+                                                child: Center(
+                                                  child: ConstrainedBox(
+                                                    constraints: const BoxConstraints(
+                                                      maxWidth: 900,
+                                                    ),
+                                                    child: _QuestionCard(
+                                                      question: q,
+                                                      index: globalIndex,
+                                                      total: _questions.length,
+                                                      selectedScore: selectedScore,
+                                                      onScoreChanged: (v) {
+                                                        setState(() {
+                                                          if (v == null || v.isEmpty) {
+                                                            _pendingAnswersByQuestionId
+                                                                .remove(q.id);
+                                                          } else {
+                                                            _pendingAnswersByQuestionId[q.id] =
+                                                                v;
+                                                          }
+                                                        });
+                                                      },
+                                                      onSaibaMais: () {
+                                                        setState(() {
+                                                          _selectedQuestion = q;
+                                                        });
+                                                      },
+                                                      saving: _saving,
+                                                      onSaveNext: _saveCurrentBlock,
+                                                      onPrevious: (globalIndex > 0)
+                                                          ? _goToPreviousQuestion
+                                                          : null,
+                                                      onNext: (globalIndex < _questions.length - 1)
+                                                          ? _goToNextQuestion
+                                                          : null,
+                                                      hideCodeAndPilar: widget.byPilar,
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                  ),
+                                ],
                               ),
                             ),
-                      ],
-                    ),
-                  ),
-                        ),
+                          ),
                           if (showPanel)
                             ChatPanel(
                               questionContext: _selectedQuestion == null
                                   ? null
                                   : _buildQuestionContext(_selectedQuestion!),
-                              welcomeMessage:
-                                  'Alguma dúvida sobre a pergunta? Clique em "Saiba mais" na questão e eu te ajudo a responder.',
+                              welcomeMessage: _questionUiText('chat_welcome'),
                             ),
                         ],
                       ),
-                      // Botão vertical colado na borda esquerda
                       if (!_showCriteria)
                         Positioned(
                           left: 0,
@@ -475,8 +673,11 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                     RotatedBox(
                                       quarterTurns: 3,
                                       child: Text(
-                                        'CRITÉRIOS DE ALINHAMENTO',
-                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                        _questionUiText('criteria_button'),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.copyWith(
                                               color: Brand.white,
                                               fontWeight: FontWeight.w800,
                                               letterSpacing: 1.2,
@@ -508,6 +709,8 @@ class _ProgressBar extends StatelessWidget {
   final VoidCallback? onNextBlock;
   final VoidCallback? onSaveBlock;
   final bool saving;
+  final bool gridView;
+  final ValueChanged<bool>? onToggleView;
 
   const _ProgressBar({
     required this.currentIndex,
@@ -519,7 +722,80 @@ class _ProgressBar extends StatelessWidget {
     this.onNextBlock,
     this.onSaveBlock,
     this.saving = false,
+    this.gridView = false,
+    this.onToggleView,
   });
+
+  String _lang(BuildContext context) =>
+      Localizations.localeOf(context).languageCode.toLowerCase();
+
+  String _txt(BuildContext context, String key) {
+    switch (_lang(context)) {
+      case 'en':
+        switch (key) {
+          case 'allAnswered':
+            return 'All questions in this section have been answered.';
+          case 'question':
+            return 'Question';
+          case 'answered':
+            return 'answered';
+          case 'of':
+            return 'of';
+          case 'previous':
+            return 'Previous';
+          case 'next':
+            return 'Next';
+          case 'saving':
+            return 'Saving...';
+          case 'saveContinue':
+            return 'Save and continue';
+          default:
+            return key;
+        }
+      case 'es':
+        switch (key) {
+          case 'allAnswered':
+            return 'Todas las preguntas de esta sección fueron respondidas.';
+          case 'question':
+            return 'Pregunta';
+          case 'answered':
+            return 'respondidas';
+          case 'of':
+            return 'de';
+          case 'previous':
+            return 'Anterior';
+          case 'next':
+            return 'Siguiente';
+          case 'saving':
+            return 'Guardando...';
+          case 'saveContinue':
+            return 'Guardar y continuar';
+          default:
+            return key;
+        }
+      default:
+        switch (key) {
+          case 'allAnswered':
+            return 'Todas as questões desta sessão foram respondidas.';
+          case 'question':
+            return 'Questão';
+          case 'answered':
+            return 'respondidas';
+          case 'of':
+            return 'de';
+          case 'previous':
+            return 'Anterior';
+          case 'next':
+            return 'Próxima';
+          case 'saving':
+            return 'Salvando...';
+          case 'saveContinue':
+            return 'Salvar e continuar';
+          default:
+            return key;
+        }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -527,7 +803,7 @@ class _ProgressBar extends StatelessWidget {
     final progress = total > 0 ? (currentIndex + 1) / total : 0.0;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       color: Brand.white,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -543,9 +819,11 @@ class _ProgressBar extends StatelessWidget {
           const SizedBox(height: 6),
           if (allAnswered)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 4),
               child: Text(
-                'Todas as questões dessa sessão foram respondidas. Você pode alterar suas respostas.',
+                _txt(context, 'allAnswered'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Brand.black.withOpacity(0.8),
                   fontWeight: FontWeight.w500,
@@ -555,25 +833,43 @@ class _ProgressBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                allAnswered
-                    ? 'Questão ${currentIndex + 1} de $total'
-                    : '$answered de $total respondidas',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Brand.black,
+              Expanded(
+                child: Text(
+                  allAnswered
+                      ? '${_txt(context, 'question')} ${currentIndex + 1} ${_txt(context, 'of')} $total'
+                      : '$answered ${_txt(context, 'of')} $total ${_txt(context, 'answered')}',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Brand.black,
+                      ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 12),
+              if (onToggleView != null)
+                ToggleButtons(
+                  isSelected: [gridView, !gridView],
+                  borderRadius: BorderRadius.circular(999),
+                  constraints: const BoxConstraints(minHeight: 32, minWidth: 40),
+                  onPressed: (index) {
+                    onToggleView!.call(index == 0);
+                  },
+                  children: const [
+                    Icon(Icons.view_stream_rounded, size: 18),
+                    Icon(Icons.crop_square_rounded, size: 18),
+                  ],
+                ),
+              const SizedBox(width: 12),
               Text(
                 '${(progress * 100).round()}%',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: Brand.black,
-                ),
+                      fontWeight: FontWeight.w700,
+                      color: Brand.black,
+                    ),
               ),
             ],
           ),
-          if (onPreviousBlock != null || onNextBlock != null) ...[
+          if (gridView && (onPreviousBlock != null || onNextBlock != null)) ...[
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -591,7 +887,7 @@ class _ProgressBar extends StatelessWidget {
                       ),
                       onPressed: onPreviousBlock,
                       icon: const Icon(Icons.arrow_back, size: 18),
-                      label: const Text('Anterior'),
+                      label: Text(_txt(context, 'previous')),
                     ),
                   ),
                 if (onNextBlock != null)
@@ -605,38 +901,40 @@ class _ProgressBar extends StatelessWidget {
                     ),
                     onPressed: onNextBlock,
                     icon: const Icon(Icons.arrow_forward, size: 18),
-                    label: const Text('Próxima'),
+                    label: Text(_txt(context, 'next')),
                   ),
               ],
             ),
-            if (onSaveBlock != null) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.center,
-                child: SizedBox(
-                  width: 260,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Brand.black,
-                      foregroundColor: Brand.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+          ],
+          if (gridView && onSaveBlock != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.center,
+              child: SizedBox(
+                width: 260,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Brand.black,
+                    foregroundColor: Brand.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    onPressed: saving ? null : onSaveBlock,
-                    icon: saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(saving ? 'Salvando...' : 'Salvar e continuar'),
+                  ),
+                  onPressed: saving ? null : onSaveBlock,
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    saving ? _txt(context, 'saving') : _txt(context, 'saveContinue'),
                   ),
                 ),
               ),
-            ],
+            ),
           ],
           const SizedBox(height: 8),
           ClipRRect(
@@ -680,6 +978,103 @@ class _QuestionCard extends StatelessWidget {
     this.onNext,
     this.hideCodeAndPilar = false,
   });
+
+  String _lang(BuildContext context) =>
+      Localizations.localeOf(context).languageCode.toLowerCase();
+
+  String _txt(BuildContext context, String key) {
+    switch (_lang(context)) {
+      case 'en':
+        switch (key) {
+          case 'alignment':
+            return 'Alignment';
+          case 'learnMore':
+            return 'Learn more';
+          case 'saveContinue':
+            return 'Save and continue';
+          case 'saving':
+            return 'Saving...';
+          case 'previous':
+            return 'Previous';
+          case 'next':
+            return 'Next';
+          default:
+            return key;
+        }
+      case 'es':
+        switch (key) {
+          case 'alignment':
+            return 'Alineamiento';
+          case 'learnMore':
+            return 'Saber más';
+          case 'saveContinue':
+            return 'Guardar y continuar';
+          case 'saving':
+            return 'Guardando...';
+          case 'previous':
+            return 'Anterior';
+          case 'next':
+            return 'Siguiente';
+          default:
+            return key;
+        }
+      default:
+        switch (key) {
+          case 'alignment':
+            return 'Alinhamento';
+          case 'learnMore':
+            return 'Saiba mais';
+          case 'saveContinue':
+            return 'Salvar e continuar';
+          case 'saving':
+            return 'Salvando...';
+          case 'previous':
+            return 'Anterior';
+          case 'next':
+            return 'Próxima';
+          default:
+            return key;
+        }
+    }
+  }
+
+  String _scoreLabel(BuildContext context, String option) {
+    switch (_lang(context)) {
+      case 'en':
+        switch (option) {
+          case 'Totalmente alinhado':
+            return 'Fully aligned';
+          case 'Bem alinhado':
+            return 'Well aligned';
+          case 'Parcialmente alinhado':
+            return 'Partially aligned';
+          case 'Pouco alinhado':
+            return 'Slightly aligned';
+          case 'Não alinhado':
+            return 'Not aligned';
+          case 'Desconhecido':
+            return 'Unknown';
+        }
+      case 'es':
+        switch (option) {
+          case 'Totalmente alinhado':
+            return 'Totalmente alineado';
+          case 'Bem alinhado':
+            return 'Bien alineado';
+          case 'Parcialmente alinhado':
+            return 'Parcialmente alineado';
+          case 'Pouco alinhado':
+            return 'Poco alineado';
+          case 'Não alinhado':
+            return 'No alineado';
+          case 'Desconhecido':
+            return 'Desconocido';
+        }
+      default:
+        return option;
+    }
+    return option;
+  }
 
   Widget _buildBadge(BuildContext context) {
     return Container(
@@ -734,7 +1129,7 @@ class _QuestionCard extends StatelessWidget {
               ),
             const SizedBox(height: 10),
             Text(
-              question.recommendation,
+              question.localizedRecommendation(_lang(context)),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.3,
@@ -744,7 +1139,7 @@ class _QuestionCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Alinhamento',
+                _txt(context, 'alignment'),
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: Brand.black.withOpacity(0.9),
@@ -760,7 +1155,7 @@ class _QuestionCard extends StatelessWidget {
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(
-                    option,
+                    _scoreLabel(context, option),
                     style: const TextStyle(fontSize: 13),
                   ),
                   activeColor: Brand.black,
@@ -775,11 +1170,63 @@ class _QuestionCard extends StatelessWidget {
                 child: TextButton.icon(
                   onPressed: onSaibaMais,
                   icon: const Icon(Icons.lightbulb_outline, size: 18, color: Brand.black),
-                  label: const Text('Saiba mais'),
+                  label: Text(_txt(context, 'learnMore')),
                   style: TextButton.styleFrom(
                     foregroundColor: Brand.black,
                   ),
                 ),
+              ),
+            ],
+            if (onPrevious != null || onNext != null) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: 280,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Brand.black,
+                      foregroundColor: Brand.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: saving ? null : onSaveNext,
+                    icon: saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save),
+                    label: Text(
+                      saving ? _txt(context, 'saving') : _txt(context, 'saveContinue'),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            if (onPrevious != null || onNext != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (onPrevious != null)
+                    OutlinedButton.icon(
+                      onPressed: onPrevious,
+                      icon: const Icon(Icons.arrow_back, size: 18),
+                      label: Text(_txt(context, 'previous')),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  if (onNext != null)
+                    OutlinedButton.icon(
+                      onPressed: onNext,
+                      icon: const Icon(Icons.arrow_forward, size: 18),
+                      label: Text(_txt(context, 'next')),
+                    ),
+                ],
               ),
             ],
           ],
@@ -793,6 +1240,20 @@ class _ErrorState extends StatelessWidget {
   final String error;
   final VoidCallback onRetry;
   const _ErrorState({required this.error, required this.onRetry});
+
+  String _lang(BuildContext context) =>
+      Localizations.localeOf(context).languageCode.toLowerCase();
+
+  String _txt(BuildContext context, String key) {
+    switch (_lang(context)) {
+      case 'en':
+        return key == 'title' ? 'Error loading' : 'Try again';
+      case 'es':
+        return key == 'title' ? 'Error al cargar' : 'Intentar de nuevo';
+      default:
+        return key == 'title' ? 'Erro ao carregar' : 'Tentar novamente';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -815,7 +1276,7 @@ class _ErrorState extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Erro ao carregar',
+                    _txt(context, 'title'),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -829,7 +1290,7 @@ class _ErrorState extends StatelessWidget {
                       foregroundColor: Brand.white,
                     ),
                     onPressed: onRetry,
-                    child: const Text('Tentar novamente'),
+                    child: Text(_txt(context, 'retry')),
                   ),
                 ],
               ),

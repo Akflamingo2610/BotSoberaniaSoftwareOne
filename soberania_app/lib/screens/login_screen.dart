@@ -7,6 +7,7 @@ import '../ui/brand.dart';
 import 'assessment_intro_screen.dart';
 import 'phases_screen.dart';
 import 'signup_screen.dart';
+import 'reset_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +21,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _password = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
+
+  Future<void> _forgotPassword() async {
+    final email = _email.text.trim();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResetPasswordScreen(initialEmail: email),
+      ),
+    );
+  }
   @override
   void dispose() {
     _email.dispose();
@@ -103,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          AppLocalizations.of(context).t('btn_login'),
+                          AppLocalizations.of(context).t('login_card_title'),
                           style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(
                                 fontWeight: FontWeight.w800,
@@ -198,13 +208,31 @@ class _LoginScreenState extends State<LoginScreen> {
                             AppLocalizations.of(context).t('no_account'),
                           ),
                         ),
-                      const SizedBox(height: 10),
-                        Text(
-                          AppLocalizations.of(context)
-                              .t('login_tip_config_xano'),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Colors.black45),
+                        const SizedBox(height: 16),
+                        Container(
+                          height: 36,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            gradient: const LinearGradient(
+                              colors: [Colors.black, Colors.white],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: _loading ? null : _forgotPassword,
+                            child: Center(
+                              child: Text(
+                                AppLocalizations.of(context)
+                                    .t('login_forgot_password'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),

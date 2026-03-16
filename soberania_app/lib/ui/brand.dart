@@ -9,6 +9,12 @@ class Brand {
   static const Color white = Colors.white;
   static const Color surface = Color(0xFFF6F6F6);
   static const Color border = Color(0xFFE6E6E6);
+
+  /// Acentos inspirados na identidade da SoftwareOne
+  /// (usados em gráficos e destaques, com moderação).
+  static const Color accentRed = Color(0xFFE30613); // vermelho principal
+  static const Color accentBlue = Color(0xFF4E79A7); // azul de suporte
+  static const Color accentOrange = Color(0xFFF28E2B); // laranja para contraste
 }
 
 const String _awsLogoAsset = 'assets/images/Aws_logo_black.png';
