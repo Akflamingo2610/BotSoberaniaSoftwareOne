@@ -213,25 +213,22 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     ].join('\n\n');
   }
 
-  Future<void> _saveCurrentBlock() async {
+  /// Envia ao servidor todas as respostas ainda pendentes neste pilar (parcial).
+  /// Pode ser usado a qualquer momento; ao reabrir o app, [getProgress] restaura o que foi salvo.
+  Future<void> _saveProgress() async {
     final token = _authToken;
     final assessmentId = _assessmentId;
     if (token == null || assessmentId == null) return;
-    final blockQuestions = _currentBlockQuestions;
-    if (blockQuestions.isEmpty) return;
+    if (_questions.isEmpty) return;
 
-    // Monta payload das 9 perguntas; exige que todas tenham score selecionado
     final answersPayload = <Map<String, dynamic>>[];
-    final missing = <String>[];
-    for (final q in blockQuestions) {
-      final saved = _answersByQuestionId[q.id];
+    final pendingIds = <int>[];
+    for (final q in _questions) {
       final pending = _pendingAnswersByQuestionId[q.id];
-      final rawScore = pending ?? saved?.score;
-      final normalized = rawScore != null ? normalizeScore(rawScore) : null;
-      if (normalized == null || normalized.isEmpty) {
-        missing.add(q.localizedRecommendation(_langCode));
-        continue;
-      }
+      if (pending == null) continue;
+      final normalized = normalizeScore(pending);
+      if (normalized.isEmpty) continue;
+      pendingIds.add(q.id);
       answersPayload.add({
         'question_id': q.id,
         'score': scoreToApiValue(normalized),
@@ -240,11 +237,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       });
     }
 
-    if (missing.isNotEmpty || answersPayload.length != blockQuestions.length) {
+    if (answersPayload.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_questionUiText('answer_all_block')),
-        ),
+        SnackBar(content: Text(_questionUiText('nothing_to_save'))),
       );
       return;
     }
@@ -257,35 +253,23 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         answers: answersPayload,
       );
 
-      // Atualiza cache local como "salvo" e remove pendentes deste bloco
-      for (final q in blockQuestions) {
-        final normalized = normalizeScore(
-          _pendingAnswersByQuestionId[q.id] ?? _answersByQuestionId[q.id]?.score,
-        );
-        _pendingAnswersByQuestionId.remove(q.id);
-        _answersByQuestionId[q.id] = SavedAnswer(
+      for (final id in pendingIds) {
+        final normalized = normalizeScore(_pendingAnswersByQuestionId[id]!);
+        _pendingAnswersByQuestionId.remove(id);
+        _answersByQuestionId[id] = SavedAnswer(
           id: -1,
-          questionId: q.id,
+          questionId: id,
           score: normalized,
         );
       }
 
       if (!mounted) return;
-      final nextStart = _blockStartIndex + _blockSize;
-      if (nextStart < _questions.length) {
-        setState(() => _blockStartIndex = nextStart);
-        await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
-      } else {
-        await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _questionUiText('all_answered_session'),
-            ),
-          ),
-        );
-        setState(() {}); // atualiza UI
-      }
+      await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_questionUiText('save_progress_ok'))),
+      );
+      setState(() {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -363,6 +347,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     switch (_langCode) {
       case 'en':
         switch (key) {
+          case 'nothing_to_save':
+            return 'Nothing to save right now.';
+          case 'save_progress_ok':
+            return 'Answers saved. You can continue later.';
           case 'answer_all_block':
             return 'Answer all questions in this block before continuing.';
           case 'all_answered_session':
@@ -378,6 +366,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         }
       case 'es':
         switch (key) {
+          case 'nothing_to_save':
+            return 'No hay nada que guardar ahora.';
+          case 'save_progress_ok':
+            return 'Respuestas guardadas. Puede continuar más tarde.';
           case 'answer_all_block':
             return 'Responda todas las preguntas de este bloque antes de continuar.';
           case 'all_answered_session':
@@ -393,6 +385,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         }
       default:
         switch (key) {
+          case 'nothing_to_save':
+            return 'Nada para salvar no momento.';
+          case 'save_progress_ok':
+            return 'Respostas salvas. Você pode continuar mais tarde.';
           case 'answer_all_block':
             return 'Responda todas as perguntas deste bloco antes de continuar.';
           case 'all_answered_session':
@@ -472,41 +468,45 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                               onClose: () => setState(() => _showCriteria = false),
                             ),
                           Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.only(left: _showCriteria ? 0 : 40),
-                              child: Column(
-                                children: [
-                                  _ProgressBar(
-                                    currentIndex: _gridView
-                                        ? _blockStartIndex
-                                        : _blockStartIndex + _singleQuestionOffset,
-                                    answered: _questions
-                                        .where((q) => _answersByQuestionId.containsKey(q.id))
-                                        .length,
-                                    total: _questions.length,
-                                    phaseLabel: widget.phaseLabel,
-                                    allAnswered: _allAnsweredInPhase,
-                                    onPreviousBlock:
-                                        _blockStartIndex > 0 ? _goToPreviousBlock : null,
-                                    onNextBlock:
-                                        _blockStartIndex + _blockSize < _questions.length
-                                            ? _goToNextBlock
-                                            : null,
-                                    onSaveBlock: _saveCurrentBlock,
-                                    saving: _saving,
-                                    gridView: _gridView,
-                                    onToggleView: (value) {
-                                      setState(() {
-                                        _gridView = value;
-                                        if (!_gridView) {
-                                          _singleQuestionOffset = 0;
-                                        }
-                                      });
-                                    },
-                                  ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _ProgressBar(
+                                  phaseValue: widget.phase,
+                                  currentIndex: _gridView
+                                      ? _blockStartIndex
+                                      : _blockStartIndex + _singleQuestionOffset,
+                                  answered: _questions
+                                      .where((q) => _answersByQuestionId.containsKey(q.id))
+                                      .length,
+                                  total: _questions.length,
+                                  phaseLabel: widget.phaseLabel,
+                                  allAnswered: _allAnsweredInPhase,
+                                  onPreviousBlock:
+                                      _blockStartIndex > 0 ? _goToPreviousBlock : null,
+                                  onNextBlock:
+                                      _blockStartIndex + _blockSize < _questions.length
+                                          ? _goToNextBlock
+                                          : null,
+                                  onSaveBlock: _saveProgress,
+                                  saving: _saving,
+                                  gridView: _gridView,
+                                  onToggleView: (value) {
+                                    setState(() {
+                                      _gridView = value;
+                                      if (!_gridView) {
+                                        _singleQuestionOffset = 0;
+                                      }
+                                    });
+                                  },
+                                ),
                                   Expanded(
-                                    child: _gridView
-                                        ? SingleChildScrollView(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        left: _showCriteria ? 0 : 40,
+                                      ),
+                                      child: _gridView
+                                          ? SingleChildScrollView(
                                             padding: const EdgeInsets.all(16),
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -537,6 +537,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                                           if (v == null || v.isEmpty) {
                                                             _pendingAnswersByQuestionId
                                                                 .remove(q.id);
+                                                            _answersByQuestionId.remove(q.id);
                                                           } else {
                                                             _pendingAnswersByQuestionId[q.id] =
                                                                 v;
@@ -549,7 +550,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                                         });
                                                       },
                                                       saving: _saving,
-                                                      onSaveNext: _saveCurrentBlock,
+                                                      onSaveNext: _saveProgress,
                                                       onPrevious: null,
                                                       onNext: null,
                                                       hideCodeAndPilar: widget.byPilar,
@@ -595,6 +596,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                                           if (v == null || v.isEmpty) {
                                                             _pendingAnswersByQuestionId
                                                                 .remove(q.id);
+                                                            _answersByQuestionId.remove(q.id);
                                                           } else {
                                                             _pendingAnswersByQuestionId[q.id] =
                                                                 v;
@@ -607,7 +609,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                                         });
                                                       },
                                                       saving: _saving,
-                                                      onSaveNext: _saveCurrentBlock,
+                                                      onSaveNext: _saveProgress,
                                                       onPrevious: (globalIndex > 0)
                                                           ? _goToPreviousQuestion
                                                           : null,
@@ -621,10 +623,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                               );
                                             },
                                           ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
                           ),
                           if (showPanel)
                             ChatPanel(
@@ -700,6 +702,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
 }
 
 class _ProgressBar extends StatelessWidget {
+  /// Valor do pilar vindo do Xano / [PhasesScreen], ex.: `Compliance`, `Continuity`, `Control`.
+  final String phaseValue;
   final int currentIndex;
   final int answered;
   final int total;
@@ -713,6 +717,7 @@ class _ProgressBar extends StatelessWidget {
   final ValueChanged<bool>? onToggleView;
 
   const _ProgressBar({
+    required this.phaseValue,
     required this.currentIndex,
     required this.answered,
     required this.total,
@@ -747,8 +752,8 @@ class _ProgressBar extends StatelessWidget {
             return 'Next';
           case 'saving':
             return 'Saving...';
-          case 'saveContinue':
-            return 'Save and continue';
+          case 'save':
+            return 'Save';
           default:
             return key;
         }
@@ -768,8 +773,8 @@ class _ProgressBar extends StatelessWidget {
             return 'Siguiente';
           case 'saving':
             return 'Guardando...';
-          case 'saveContinue':
-            return 'Guardar y continuar';
+          case 'save':
+            return 'Guardar';
           default:
             return key;
         }
@@ -789,22 +794,34 @@ class _ProgressBar extends StatelessWidget {
             return 'Próxima';
           case 'saving':
             return 'Salvando...';
-          case 'saveContinue':
-            return 'Salvar e continuar';
+          case 'save':
+            return 'Salvar';
           default:
             return key;
         }
     }
   }
 
+  static const Color _pillarDarkBg = Color(0xFF1C1D1F);
+
   @override
   Widget build(BuildContext context) {
     // Barra responsiva à questão atual: progresso = (índice atual + 1) / total
     final progress = total > 0 ? (currentIndex + 1) / total : 0.0;
+    final isPillarDark = phaseValue == 'Compliance' ||
+        phaseValue == 'Continuity' ||
+        phaseValue == 'Control';
+    final bg = isPillarDark ? _pillarDarkBg : Brand.white;
+    final fg = isPillarDark ? Colors.white : Brand.black;
+    final fgMuted = isPillarDark ? Colors.white70 : Brand.black.withOpacity(0.7);
+    final fgBody = isPillarDark ? Colors.white.withOpacity(0.85) : Brand.black.withOpacity(0.8);
+    final progressTrack = isPillarDark ? Colors.white24 : Brand.border;
+    final progressFill = isPillarDark ? Colors.white : Brand.black;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      color: Brand.white,
+      color: bg,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -812,7 +829,7 @@ class _ProgressBar extends StatelessWidget {
           Text(
             phaseLabel,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Brand.black.withOpacity(0.7),
+              color: fgMuted,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -825,7 +842,7 @@ class _ProgressBar extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Brand.black.withOpacity(0.8),
+                  color: fgBody,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -840,7 +857,7 @@ class _ProgressBar extends StatelessWidget {
                       : '$answered ${_txt(context, 'of')} $total ${_txt(context, 'answered')}',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: Brand.black,
+                        color: fg,
                       ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -851,6 +868,11 @@ class _ProgressBar extends StatelessWidget {
                   isSelected: [gridView, !gridView],
                   borderRadius: BorderRadius.circular(999),
                   constraints: const BoxConstraints(minHeight: 32, minWidth: 40),
+                  color: isPillarDark ? Colors.white54 : null,
+                  selectedColor: isPillarDark ? Brand.black : null,
+                  fillColor: isPillarDark ? Colors.white : null,
+                  borderColor: isPillarDark ? Colors.white24 : null,
+                  selectedBorderColor: isPillarDark ? Colors.white : null,
                   onPressed: (index) {
                     onToggleView!.call(index == 0);
                   },
@@ -864,7 +886,7 @@ class _ProgressBar extends StatelessWidget {
                 '${(progress * 100).round()}%',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: Brand.black,
+                      color: fg,
                     ),
               ),
             ],
@@ -879,28 +901,40 @@ class _ProgressBar extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 8),
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Brand.black,
-                        side: const BorderSide(color: Brand.border),
+                        foregroundColor: isPillarDark ? Colors.white : Brand.black,
+                        side: BorderSide(
+                          color: isPillarDark ? Colors.white38 : Brand.border,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       onPressed: onPreviousBlock,
-                      icon: const Icon(Icons.arrow_back, size: 18),
+                      icon: Icon(
+                        Icons.arrow_back,
+                        size: 18,
+                        color: isPillarDark ? Colors.white : Brand.black,
+                      ),
                       label: Text(_txt(context, 'previous')),
                     ),
                   ),
                 if (onNextBlock != null)
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Brand.black,
-                      side: const BorderSide(color: Brand.border),
+                      foregroundColor: isPillarDark ? Colors.white : Brand.black,
+                      side: BorderSide(
+                        color: isPillarDark ? Colors.white38 : Brand.border,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     onPressed: onNextBlock,
-                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    icon: Icon(
+                      Icons.arrow_forward,
+                      size: 18,
+                      color: isPillarDark ? Colors.white : Brand.black,
+                    ),
                     label: Text(_txt(context, 'next')),
                   ),
               ],
@@ -926,11 +960,14 @@ class _ProgressBar extends StatelessWidget {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Icon(Icons.save),
                   label: Text(
-                    saving ? _txt(context, 'saving') : _txt(context, 'saveContinue'),
+                    saving ? _txt(context, 'saving') : _txt(context, 'save'),
                   ),
                 ),
               ),
@@ -942,8 +979,8 @@ class _ProgressBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: Brand.border,
-              valueColor: const AlwaysStoppedAnimation<Color>(Brand.black),
+              backgroundColor: progressTrack,
+              valueColor: AlwaysStoppedAnimation<Color>(progressFill),
             ),
           ),
         ],
@@ -990,14 +1027,16 @@ class _QuestionCard extends StatelessWidget {
             return 'Alignment';
           case 'learnMore':
             return 'Learn more';
-          case 'saveContinue':
-            return 'Save and continue';
+          case 'save':
+            return 'Save';
           case 'saving':
             return 'Saving...';
           case 'previous':
             return 'Previous';
           case 'next':
             return 'Next';
+          case 'clearSelection':
+            return 'Clear selection';
           default:
             return key;
         }
@@ -1007,14 +1046,16 @@ class _QuestionCard extends StatelessWidget {
             return 'Alineamiento';
           case 'learnMore':
             return 'Saber más';
-          case 'saveContinue':
-            return 'Guardar y continuar';
+          case 'save':
+            return 'Guardar';
           case 'saving':
             return 'Guardando...';
           case 'previous':
             return 'Anterior';
           case 'next':
             return 'Siguiente';
+          case 'clearSelection':
+            return 'Desmarcar';
           default:
             return key;
         }
@@ -1024,14 +1065,16 @@ class _QuestionCard extends StatelessWidget {
             return 'Alinhamento';
           case 'learnMore':
             return 'Saiba mais';
-          case 'saveContinue':
-            return 'Salvar e continuar';
+          case 'save':
+            return 'Salvar';
           case 'saving':
             return 'Salvando...';
           case 'previous':
             return 'Anterior';
           case 'next':
             return 'Próxima';
+          case 'clearSelection':
+            return 'Desmarcar';
           default:
             return key;
         }
@@ -1163,6 +1206,24 @@ class _QuestionCard extends StatelessWidget {
                 );
               }).toList(),
             ),
+            if (selectedScore != null) ...[
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: saving ? null : () => onScoreChanged(null),
+                  icon: Icon(
+                    Icons.clear,
+                    size: 18,
+                    color: Brand.black.withValues(alpha: saving ? 0.35 : 0.75),
+                  ),
+                  label: Text(_txt(context, 'clearSelection')),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Brand.black.withValues(alpha: saving ? 0.35 : 0.85),
+                  ),
+                ),
+              ),
+            ],
             if (onSaibaMais != null) ...[
               const SizedBox(height: 16),
               Align(
@@ -1179,53 +1240,61 @@ class _QuestionCard extends StatelessWidget {
             ],
             if (onPrevious != null || onNext != null) ...[
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.center,
-                child: SizedBox(
-                  width: 280,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Brand.black,
-                      foregroundColor: Brand.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: saving ? null : onSaveNext,
-                    icon: saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(
-                      saving ? _txt(context, 'saving') : _txt(context, 'saveContinue'),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: onPrevious != null
+                          ? OutlinedButton.icon(
+                              onPressed: onPrevious,
+                              icon: const Icon(Icons.arrow_back, size: 18),
+                              label: Text(_txt(context, 'previous')),
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ),
-                ),
-              ),
-            ],
-            if (onPrevious != null || onNext != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (onPrevious != null)
-                    OutlinedButton.icon(
-                      onPressed: onPrevious,
-                      icon: const Icon(Icons.arrow_back, size: 18),
-                      label: Text(_txt(context, 'previous')),
-                    )
-                  else
-                    const SizedBox.shrink(),
-                  if (onNext != null)
-                    OutlinedButton.icon(
-                      onPressed: onNext,
-                      icon: const Icon(Icons.arrow_forward, size: 18),
-                      label: Text(_txt(context, 'next')),
+                  Expanded(
+                    child: Center(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Brand.black,
+                          foregroundColor: Brand.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: saving ? null : onSaveNext,
+                        icon: saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(
+                          saving ? _txt(context, 'saving') : _txt(context, 'save'),
+                        ),
+                      ),
                     ),
+                  ),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: onNext != null
+                          ? OutlinedButton.icon(
+                              onPressed: onNext,
+                              icon: const Icon(Icons.arrow_forward, size: 18),
+                              label: Text(_txt(context, 'next')),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
                 ],
               ),
             ],

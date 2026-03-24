@@ -20,6 +20,8 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _checkingAuth = true;
 
+  static const _pillButtonHeight = 38.0;
+
   @override
   void initState() {
     super.initState();
@@ -44,141 +46,205 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isWide = MediaQuery.sizeOf(context).width >= 980;
+
     if (_checkingAuth) {
       return const Scaffold(
         backgroundColor: Brand.surface,
         body: Center(child: CircularProgressIndicator()),
       );
     }
+
     return Scaffold(
-      backgroundColor: Brand.surface,
-      appBar: AppBar(
-        backgroundColor: Brand.white,
-        elevation: 0,
-        title: Text(
-          AppLocalizations.of(context).t('app_title'),
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: Brand.black,
-              ),
-        ),
-        iconTheme: const IconThemeData(color: Brand.black),
-        actions: [LanguageButton()],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SoftwareOneMark(size: 64),
-                      const SizedBox(width: 24),
-                      Container(width: 1, height: 48, color: Brand.border),
-                      const SizedBox(width: 24),
-                      const AwsMark(size: 64),
-                    ],
-                  ),
-                  const SizedBox(height: 48),
-                  Column(
-                    children: [
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        child: Text(
-                          AppLocalizations.of(context).t('welcome_line1'),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: Brand.black,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        child: Text(
-                          AppLocalizations.of(context).t('welcome_line2'),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: Brand.black,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        child: Text(
-                          AppLocalizations.of(context).t('welcome_line3'),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: Brand.black,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 48),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Brand.black,
-                        foregroundColor: Brand.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const LoginScreen(),
-                          ),
-                        );
-                      },
-                      child: Text(AppLocalizations.of(context).t('btn_login')),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Brand.white,
-                        foregroundColor: Brand.black,
-                        side: const BorderSide(color: Brand.black),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SignupScreen(),
-                          ),
-                        );
-                      },
-                      child: Text(AppLocalizations.of(context).t('btn_signup')),
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-                ],
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/login_bg.jpg',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Image.asset(
+                'assets/images/login_bg.png',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Image.asset(
+                  'assets/images/login_bg.jpeg',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(color: Brand.surface),
+                ),
               ),
             ),
           ),
-        ),
+          Positioned.fill(
+            child: Container(color: Colors.black.withValues(alpha: 0.34)),
+          ),
+          SafeArea(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Align(
+                          alignment: Alignment.topLeft,
+                          child: Text(
+                            'Soberania Digital',
+                            style: TextStyle(
+                              color: Brand.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 430),
+                            child: Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Brand.white.withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: Brand.border),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x33000000),
+                                    blurRadius: 22,
+                                    offset: Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const SoftwareOneMark(size: 56),
+                                      const SizedBox(width: 18),
+                                      Container(width: 1, height: 40, color: Brand.border),
+                                      const SizedBox(width: 18),
+                                      const AwsMark(size: 56),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'Seja bem-vindo',
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: Brand.black,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: _pillButtonHeight,
+                                    child: FilledButton(
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: Brand.black,
+                                        foregroundColor: Brand.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(999),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => const LoginScreen(),
+                                          ),
+                                        );
+                                      },
+                                      child: Text(l10n.t('btn_login')),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: _pillButtonHeight,
+                                    child: FilledButton(
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: Brand.white,
+                                        foregroundColor: Brand.black,
+                                        side: const BorderSide(color: Brand.black),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(999),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => const SignupScreen(),
+                                          ),
+                                        );
+                                      },
+                                      child: Text(l10n.t('btn_signup')),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                      ],
+                    ),
+                  ),
+                ),
+                if (isWide)
+                  Container(
+                    width: 360,
+                    padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
+                    color: Brand.white.withValues(alpha: 0.95),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Align(
+                          alignment: Alignment.topRight,
+                          child: LanguageButton(),
+                        ),
+                        const SizedBox(height: 28),
+                        Text(
+                          l10n.t('right_panel_title'),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: Brand.black,
+                              ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          l10n.t('right_panel_intro'),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Brand.black.withValues(alpha: 0.82),
+                                height: 1.35,
+                              ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          l10n.t('right_panel_topics'),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Brand.black.withValues(alpha: 0.82),
+                                height: 1.35,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (!isWide)
+            const SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: EdgeInsets.only(right: 8, top: 8),
+                  child: LanguageButton(),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
