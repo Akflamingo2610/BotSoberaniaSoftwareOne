@@ -1,5 +1,12 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../api/rag_api.dart';
 import '../api/xano_api.dart';
@@ -37,6 +44,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   final _api = XanoApi();
   final _rag = RagApi();
   final _storage = AppStorage();
+  final GlobalKey _pdfKey = GlobalKey();
 
   bool _loading = true;
   String? _error;
@@ -45,6 +53,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   String? _userEmail;
   String? _botOverview;
   bool _overviewLoading = false;
+  bool _exportingPdf = false;
 
   static const _phaseOrder = ['Quick_Wins', 'Foundational', 'Efficient', 'Optimized'];
 
@@ -200,25 +209,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
       final resp = await _rag.ask(
         _languageCode == 'en'
-            ? 'Write ONE short paragraph in English summarizing the results of this digital sovereignty assessment. Use at most 4 sentences, highlighting the main strengths and improvement opportunities in an executive and objective tone.'
+            ? 'Write ONE short paragraph in English summarizing the results of this digital sovereignty assessment. Use 3 to 4 complete sentences, highlighting strengths and improvement opportunities in an executive and objective tone. End with a clear concluding sentence. Do not use ellipses.'
             : _languageCode == 'es'
-                ? 'Escriba UN párrafo corto en español resumiendo los resultados de este assessment de soberanía digital. Use un máximo de 4 frases, destacando las principales fortalezas y oportunidades de mejora, de forma ejecutiva y objetiva.'
-                : 'Escreva UM parágrafo curto, em português, resumindo os resultados deste assessment de soberania digital. Use no máximo 4 frases, destacando principais pontos fortes e principais oportunidades de melhoria, de forma executiva e objetiva.',
+                ? 'Escriba UN párrafo corto en español resumiendo los resultados de este assessment de soberanía digital. Use de 3 a 4 frases completas, destacando las principales fortalezas y oportunidades de mejora de forma ejecutiva y objetiva. Termine con una frase de cierre clara. No use puntos suspensivos.'
+                : 'Escreva UM parágrafo curto, em português, resumindo os resultados deste assessment de soberania digital. Use de 3 a 4 frases completas, destacando os principais pontos fortes e oportunidades de melhoria de forma executiva e objetiva. Finalize com uma frase de conclusão clara. Não use reticências.',
         questionContext: ctx,
         languageCode: _languageCode,
       );
       if (mounted && resp.answer.trim().isNotEmpty) {
-        // Garante no mínimo 1 parágrafo enxuto na UI: pega só o primeiro parágrafo
-        // e limita o tamanho máximo do texto.
-        var text = resp.answer.trim();
-        final paragraphs = text.split('\n\n');
-        if (paragraphs.isNotEmpty) {
-          text = paragraphs.first.trim();
-        }
-        const maxChars = 600;
-        if (text.length > maxChars) {
-          text = '${text.substring(0, maxChars).trim()}...';
-        }
+        final text = _normalizeOverviewText(resp.answer);
         setState(() {
           _botOverview = text;
           _overviewLoading = false;
@@ -228,6 +227,124 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
     } catch (_) {
       if (mounted) setState(() => _overviewLoading = false);
+    }
+  }
+
+  String _normalizeOverviewText(String raw) {
+    var text = raw.trim();
+    final paragraphs = text.split(RegExp(r'\n\s*\n'));
+    if (paragraphs.isNotEmpty) {
+      text = paragraphs.first.trim();
+    }
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    text = text.replaceAll('...', '.').replaceAll('…', '.').trim();
+
+    const maxChars = 420;
+    if (text.length > maxChars) {
+      final clipped = text.substring(0, maxChars).trim();
+      final boundary = _lastSentenceBoundary(clipped);
+      if (boundary >= (maxChars * 0.55).floor()) {
+        text = clipped.substring(0, boundary + 1).trim();
+      } else {
+        final lastSpace = clipped.lastIndexOf(' ');
+        text = (lastSpace > 0 ? clipped.substring(0, lastSpace) : clipped).trim();
+      }
+    }
+
+    // Garante término conclusivo sem reticências/corte no meio.
+    text = text.replaceFirst(RegExp(r'[,:;]\s*$'), '').trim();
+    if (!_hasTerminalPunctuation(text)) {
+      text = '$text.';
+    }
+    return text;
+  }
+
+  int _lastSentenceBoundary(String text) {
+    final chars = text.split('');
+    for (var i = chars.length - 1; i >= 0; i--) {
+      final c = chars[i];
+      if (c == '.' || c == '!' || c == '?') return i;
+    }
+    return -1;
+  }
+
+  bool _hasTerminalPunctuation(String text) {
+    return text.endsWith('.') || text.endsWith('!') || text.endsWith('?');
+  }
+
+  Future<void> _exportResultsPdf() async {
+    if (_exportingPdf || _loading || _data == null) return;
+    setState(() => _exportingPdf = true);
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+
+      final boundary =
+          _pdfKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      // Aumenta nitidez para gráficos e textos no PDF final.
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.4);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      final doc = pw.Document();
+      final pw.MemoryImage chartImage = pw.MemoryImage(pngBytes);
+
+      final title = _languageCode == 'en'
+          ? 'Digital Sovereignty Assessment Results'
+          : _languageCode == 'es'
+              ? 'Resultados del Assessment de Soberanía Digital'
+              : 'Resultados do Assessment de Soberania Digital';
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(20),
+          build: (context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  title,
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 12),
+                pw.Expanded(
+                  child: pw.Container(
+                    width: double.infinity,
+                    child: pw.Image(chartImage, fit: pw.BoxFit.contain),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      final bytes = await doc.save();
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'resultados_soberania_digital.pdf',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _languageCode == 'en'
+                ? 'Could not generate the PDF. Please try again.'
+                : _languageCode == 'es'
+                    ? 'No fue posible generar el PDF. Inténtelo nuevamente.'
+                    : 'Nao foi possivel gerar o PDF. Tente novamente.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingPdf = false);
     }
   }
 
@@ -272,6 +389,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
         context,
         title: l10n.t('results_title'),
         subtitle: subtitle,
+        trailing: IconButton(
+          tooltip: _languageCode == 'en'
+              ? 'Export PDF'
+              : _languageCode == 'es'
+                  ? 'Exportar PDF'
+                  : 'Exportar PDF',
+          onPressed: _exportingPdf ? null : _exportResultsPdf,
+          icon: _exportingPdf
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.picture_as_pdf),
+        ),
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -304,34 +436,59 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final showPanel = constraints.maxWidth > 1100;
-                          final chartsColumn = Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SizedBox(height: 8),
-                              _BotOverviewCard(
-                                overview: _botOverview,
-                                loading: _overviewLoading,
-                              ),
-                              const SizedBox(height: 24),
-                              _ChartCard(
-                                title: l10n.t('results_score_by_pillar'),
-                                child: _PilarBarChart(
-                                  data: _data!,
-                                  labelBuilder: (p) => _localizedPilar(context, p),
+                          final resultsContent = RepaintBoundary(
+                            key: _pdfKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SizedBox(height: 8),
+                                _BotOverviewCard(
+                                  overview: _botOverview,
+                                  loading: _overviewLoading,
                                 ),
-                              ),
-                              if (_data!.dominios.isNotEmpty) ...[
                                 const SizedBox(height: 24),
                                 _ChartCard(
-                                  title: l10n.t('results_score_by_domain'),
-                                  height: 400,
-                                  child: _DominioRadarChart(
+                                  title: l10n.t('results_score_by_pillar'),
+                                  child: _PilarBarChart(
                                     data: _data!,
-                                    labelBuilder: (d) => _localizedDominio(context, d),
+                                    labelBuilder: (p) => _localizedPilar(context, p),
                                   ),
                                 ),
+                                if (_data!.dominios.isNotEmpty) ...[
+                                  const SizedBox(height: 24),
+                                  _ChartCard(
+                                    title: l10n.t('results_score_by_domain'),
+                                    height: 400,
+                                    child: _DominioRadarChart(
+                                      data: _data!,
+                                      labelBuilder: (d) => _localizedDominio(context, d),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 32),
                               ],
-                              if (!showPanel) ...[
+                            ),
+                          );
+                          if (showPanel) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.all(16),
+                                    child: resultsContent,
+                                  ),
+                                ),
+                                ChatPanel(resultsContext: _buildResultsContext()),
+                              ],
+                            );
+                          }
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                resultsContent,
                                 const SizedBox(height: 24),
                                 SizedBox(
                                   height: 400,
@@ -350,26 +507,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                   ),
                                 ),
                               ],
-                              const SizedBox(height: 32),
-                            ],
-                          );
-                          if (showPanel) {
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.all(16),
-                                    child: chartsColumn,
-                                  ),
-                                ),
-                                ChatPanel(resultsContext: _buildResultsContext()),
-                              ],
-                            );
-                          }
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.all(16),
-                            child: chartsColumn,
+                            ),
                           );
                         },
                       ),
@@ -539,8 +677,8 @@ class _PilarBarChart extends StatelessWidget {
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
                 colors: [
-                  color.withOpacity(0.9),
-                  color.withOpacity(0.6),
+                  color.withValues(alpha: 0.9),
+                  color.withValues(alpha: 0.6),
                 ],
               ),
             ),
