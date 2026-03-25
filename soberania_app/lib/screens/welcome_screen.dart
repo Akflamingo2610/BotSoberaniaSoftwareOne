@@ -130,7 +130,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                   ),
                                   const SizedBox(height: 20),
                                   Text(
-                                    'Seja bem-vindo',
+                                    l10n.t('login_welcome_title'),
                                     textAlign: TextAlign.center,
                                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                                           fontWeight: FontWeight.w800,

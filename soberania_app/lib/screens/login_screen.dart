@@ -8,6 +8,7 @@ import 'assessment_intro_screen.dart';
 import 'phases_screen.dart';
 import 'signup_screen.dart';
 import 'reset_password_screen.dart';
+import 'welcome_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -88,6 +89,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
   static const _pillButtonHeight = 38.0;
 
+  /// Volta na pilha ou vai à tela inicial — após logout [LoginScreen] é a única rota e [maybePop] não faz nada.
+  void _handleBackOrHome() {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+    } else {
+      nav.pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const WelcomeScreen()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -126,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Row(
                           children: [
                             IconButton(
-                              onPressed: () => Navigator.of(context).maybePop(),
+                              onPressed: _handleBackOrHome,
                               style: IconButton.styleFrom(
                                 backgroundColor: Brand.white.withValues(alpha: 0.85),
                               ),
@@ -172,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                     const SizedBox(height: 14),
                                     Text(
-                                      'Seja bem-vindo',
+                                      l10n.t('login_welcome_title'),
                                       textAlign: TextAlign.center,
                                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                             fontWeight: FontWeight.w800,
