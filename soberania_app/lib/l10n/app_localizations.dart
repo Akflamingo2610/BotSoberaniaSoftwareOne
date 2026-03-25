@@ -137,6 +137,7 @@ class AppLocalizations {
       'lang_es': 'Español',
       'login_title': 'Acesso',
       'login_card_title': 'Acesse sua conta',
+      'login_welcome_title': 'Seja bem-vindo',
       'login_subtitle': 'Insira seus dados para continuar.',
       'login_email_label': 'E-mail',
       'login_email_required': 'Informe seu e-mail',
@@ -175,6 +176,16 @@ class AppLocalizations {
       'btn_register': 'Criar minha conta',
       'signup_already_have': 'Já tem conta? ',
       'no_account': 'Não tem uma conta ainda? Cadastre-se',
+      'right_panel_title': 'O que oferecemos',
+      'right_panel_intro':
+          'Na plataforma de Soberania Digital da SoftwareOne + AWS, você pode:',
+      'right_panel_topics':
+          'Avaliar a maturidade digital nos pilares Compliance, Control e Continuity.\n\n'
+          'Responder a um assessment guiado por fases, com progresso salvo.\n\n'
+          'Visualizar pontuações por pilar e por domínio com gráficos.\n\n'
+          'Receber análise automatizada do bot com recomendações práticas.\n\n'
+          'Identificar lacunas, riscos e prioridades para evolução.\n\n'
+          'Apoiar a construção de um roadmap alinhado ao negócio e à regulação.',
     },
     'en': {
       'app_title': 'Digital Sovereignty',
@@ -301,6 +312,7 @@ class AppLocalizations {
       'lang_es': 'Español',
       'login_title': 'Log in',
       'login_card_title': 'Access your account',
+      'login_welcome_title': 'Welcome',
       'login_subtitle': 'Enter your details to continue.',
       'login_email_label': 'Email',
       'login_email_required': 'Enter your email',
@@ -339,6 +351,16 @@ class AppLocalizations {
       'btn_register': 'Create my account',
       'signup_already_have': 'Already have an account? ',
       'no_account': "Don't have an account yet? Sign up",
+      'right_panel_title': 'What we offer',
+      'right_panel_intro':
+          'On the SoftwareOne + AWS Digital Sovereignty platform, you can:',
+      'right_panel_topics':
+          'Assess digital maturity across the Compliance, Control, and Continuity pillars.\n\n'
+          'Complete a guided assessment by phases, with saved progress.\n\n'
+          'View scores by pillar and by domain with charts.\n\n'
+          'Receive automated bot analysis with practical recommendations.\n\n'
+          'Identify gaps, risks, and priorities for evolution.\n\n'
+          'Support the creation of a roadmap aligned with business and regulatory requirements.',
     },
     'es': {
       'app_title': 'Soberanía Digital',
@@ -465,6 +487,7 @@ class AppLocalizations {
       'lang_es': 'Español',
       'login_title': 'Acceso',
       'login_card_title': 'Accede a tu cuenta',
+      'login_welcome_title': 'Bienvenido',
       'login_subtitle': 'Ingresa tus datos para continuar.',
       'login_email_label': 'Correo electrónico',
       'login_email_required': 'Ingrese su correo electrónico',
@@ -503,6 +526,16 @@ class AppLocalizations {
       'btn_register': 'Crear mi cuenta',
       'signup_already_have': '¿Ya tiene cuenta? ',
       'no_account': '¿No tiene cuenta? Regístrese',
+      'right_panel_title': 'Lo que ofrecemos',
+      'right_panel_intro':
+          'En la plataforma de Soberanía Digital de SoftwareOne + AWS, usted puede:',
+      'right_panel_topics':
+          'Evaluar la madurez digital en los pilares Compliance, Control y Continuity.\n\n'
+          'Completar un assessment guiado por fases, con progreso guardado.\n\n'
+          'Visualizar puntuaciones por pilar y por dominio con gráficos.\n\n'
+          'Recibir análisis automatizado del bot con recomendaciones prácticas.\n\n'
+          'Identificar brechas, riesgos y prioridades de evolución.\n\n'
+          'Apoyar la construcción de una hoja de ruta alineada con el negocio y la regulación.',
     },
   };
 

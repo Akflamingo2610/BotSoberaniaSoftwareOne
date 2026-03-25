@@ -50,6 +50,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
   Question? _selectedQuestion;
   bool _gridView = false;
   int _singleQuestionOffset = 0;
+  bool _saveQueued = false;
 
   String get _langCode {
     final code = Localizations.localeOf(context).languageCode.toLowerCase();
@@ -213,25 +214,22 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     ].join('\n\n');
   }
 
-  Future<void> _saveCurrentBlock() async {
+  /// Envia ao servidor todas as respostas ainda pendentes neste pilar (parcial).
+  /// [silent]: sem SnackBar de sucesso ou de "nada para salvar" (uso no salvamento automático).
+  Future<void> _saveProgress({bool silent = false}) async {
     final token = _authToken;
     final assessmentId = _assessmentId;
     if (token == null || assessmentId == null) return;
-    final blockQuestions = _currentBlockQuestions;
-    if (blockQuestions.isEmpty) return;
+    if (_questions.isEmpty) return;
 
-    // Monta payload das 9 perguntas; exige que todas tenham score selecionado
     final answersPayload = <Map<String, dynamic>>[];
-    final missing = <String>[];
-    for (final q in blockQuestions) {
-      final saved = _answersByQuestionId[q.id];
+    final pendingIds = <int>[];
+    for (final q in _questions) {
       final pending = _pendingAnswersByQuestionId[q.id];
-      final rawScore = pending ?? saved?.score;
-      final normalized = rawScore != null ? normalizeScore(rawScore) : null;
-      if (normalized == null || normalized.isEmpty) {
-        missing.add(q.localizedRecommendation(_langCode));
-        continue;
-      }
+      if (pending == null) continue;
+      final normalized = normalizeScore(pending);
+      if (normalized.isEmpty) continue;
+      pendingIds.add(q.id);
       answersPayload.add({
         'question_id': q.id,
         'score': scoreToApiValue(normalized),
@@ -240,12 +238,17 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       });
     }
 
-    if (missing.isNotEmpty || answersPayload.length != blockQuestions.length) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_questionUiText('answer_all_block')),
-        ),
-      );
+    if (answersPayload.isEmpty) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_questionUiText('nothing_to_save'))),
+        );
+      }
+      return;
+    }
+
+    if (_saving) {
+      _saveQueued = true;
       return;
     }
 
@@ -257,35 +260,25 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         answers: answersPayload,
       );
 
-      // Atualiza cache local como "salvo" e remove pendentes deste bloco
-      for (final q in blockQuestions) {
-        final normalized = normalizeScore(
-          _pendingAnswersByQuestionId[q.id] ?? _answersByQuestionId[q.id]?.score,
-        );
-        _pendingAnswersByQuestionId.remove(q.id);
-        _answersByQuestionId[q.id] = SavedAnswer(
+      for (final id in pendingIds) {
+        final normalized = normalizeScore(_pendingAnswersByQuestionId[id]!);
+        _pendingAnswersByQuestionId.remove(id);
+        _answersByQuestionId[id] = SavedAnswer(
           id: -1,
-          questionId: q.id,
+          questionId: id,
           score: normalized,
         );
       }
 
       if (!mounted) return;
-      final nextStart = _blockStartIndex + _blockSize;
-      if (nextStart < _questions.length) {
-        setState(() => _blockStartIndex = nextStart);
-        await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
-      } else {
-        await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
+      await _storage.setLastQuestionIndex(widget.phase, _blockStartIndex);
+      if (!mounted) return;
+      if (!silent) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _questionUiText('all_answered_session'),
-            ),
-          ),
+          SnackBar(content: Text(_questionUiText('save_progress_ok'))),
         );
-        setState(() {}); // atualiza UI
       }
+      setState(() {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -293,6 +286,24 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
       ).showSnackBar(SnackBar(content: Text(_saveErrorText(e))));
     } finally {
       if (mounted) setState(() => _saving = false);
+      if (mounted && _saveQueued) {
+        _saveQueued = false;
+        unawaited(_saveProgress(silent: true));
+      }
+    }
+  }
+
+  void _onScoreChangedForQuestion(Question q, String? v) {
+    setState(() {
+      if (v == null || v.isEmpty) {
+        _pendingAnswersByQuestionId.remove(q.id);
+        _answersByQuestionId.remove(q.id);
+      } else {
+        _pendingAnswersByQuestionId[q.id] = v;
+      }
+    });
+    if (v != null && v.isNotEmpty) {
+      unawaited(_saveProgress(silent: true));
     }
   }
 
@@ -303,10 +314,23 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     Navigator.of(context).pop();
   }
 
+  /// Quantas perguntas já têm resposta (salva no servidor ou seleção pendente).
+  int get _effectiveAnsweredCount {
+    var n = 0;
+    for (final q in _questions) {
+      if (_answersByQuestionId.containsKey(q.id)) {
+        n++;
+        continue;
+      }
+      final p = _pendingAnswersByQuestionId[q.id];
+      if (p != null && normalizeScore(p).isNotEmpty) n++;
+    }
+    return n;
+  }
+
   /// Verifica se todas as questões DESTE pilar foram respondidas (não das outras abas).
   bool get _allAnsweredInPhase =>
-      _questions.isNotEmpty &&
-      _questions.every((q) => _answersByQuestionId.containsKey(q.id));
+      _questions.isNotEmpty && _effectiveAnsweredCount >= _questions.length;
 
   void _goToPreviousBlock() {
     if (_blockStartIndex <= 0) return;
@@ -363,6 +387,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
     switch (_langCode) {
       case 'en':
         switch (key) {
+          case 'nothing_to_save':
+            return 'Nothing to save right now.';
+          case 'save_progress_ok':
+            return 'Answers saved. You can continue later.';
           case 'answer_all_block':
             return 'Answer all questions in this block before continuing.';
           case 'all_answered_session':
@@ -378,6 +406,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         }
       case 'es':
         switch (key) {
+          case 'nothing_to_save':
+            return 'No hay nada que guardar ahora.';
+          case 'save_progress_ok':
+            return 'Respuestas guardadas. Puede continuar más tarde.';
           case 'answer_all_block':
             return 'Responda todas las preguntas de este bloque antes de continuar.';
           case 'all_answered_session':
@@ -393,6 +425,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
         }
       default:
         switch (key) {
+          case 'nothing_to_save':
+            return 'Nada para salvar no momento.';
+          case 'save_progress_ok':
+            return 'Respostas salvas. Você pode continuar mais tarde.';
           case 'answer_all_block':
             return 'Responda todas as perguntas deste bloco antes de continuar.';
           case 'all_answered_session':
@@ -472,41 +508,41 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                               onClose: () => setState(() => _showCriteria = false),
                             ),
                           Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.only(left: _showCriteria ? 0 : 40),
-                              child: Column(
-                                children: [
-                                  _ProgressBar(
-                                    currentIndex: _gridView
-                                        ? _blockStartIndex
-                                        : _blockStartIndex + _singleQuestionOffset,
-                                    answered: _questions
-                                        .where((q) => _answersByQuestionId.containsKey(q.id))
-                                        .length,
-                                    total: _questions.length,
-                                    phaseLabel: widget.phaseLabel,
-                                    allAnswered: _allAnsweredInPhase,
-                                    onPreviousBlock:
-                                        _blockStartIndex > 0 ? _goToPreviousBlock : null,
-                                    onNextBlock:
-                                        _blockStartIndex + _blockSize < _questions.length
-                                            ? _goToNextBlock
-                                            : null,
-                                    onSaveBlock: _saveCurrentBlock,
-                                    saving: _saving,
-                                    gridView: _gridView,
-                                    onToggleView: (value) {
-                                      setState(() {
-                                        _gridView = value;
-                                        if (!_gridView) {
-                                          _singleQuestionOffset = 0;
-                                        }
-                                      });
-                                    },
-                                  ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _ProgressBar(
+                                  phaseValue: widget.phase,
+                                  currentIndex: _gridView
+                                      ? _blockStartIndex
+                                      : _blockStartIndex + _singleQuestionOffset,
+                                  answered: _effectiveAnsweredCount,
+                                  total: _questions.length,
+                                  phaseLabel: widget.phaseLabel,
+                                  allAnswered: _allAnsweredInPhase,
+                                  onPreviousBlock:
+                                      _blockStartIndex > 0 ? _goToPreviousBlock : null,
+                                  onNextBlock:
+                                      _blockStartIndex + _blockSize < _questions.length
+                                          ? _goToNextBlock
+                                          : null,
+                                  gridView: _gridView,
+                                  onToggleView: (value) {
+                                    setState(() {
+                                      _gridView = value;
+                                      if (!_gridView) {
+                                        _singleQuestionOffset = 0;
+                                      }
+                                    });
+                                  },
+                                ),
                                   Expanded(
-                                    child: _gridView
-                                        ? SingleChildScrollView(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        left: _showCriteria ? 0 : 40,
+                                      ),
+                                      child: _gridView
+                                          ? SingleChildScrollView(
                                             padding: const EdgeInsets.all(16),
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -532,24 +568,14 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                                       index: globalIndex,
                                                       total: _questions.length,
                                                       selectedScore: selectedScore,
-                                                      onScoreChanged: (v) {
-                                                        setState(() {
-                                                          if (v == null || v.isEmpty) {
-                                                            _pendingAnswersByQuestionId
-                                                                .remove(q.id);
-                                                          } else {
-                                                            _pendingAnswersByQuestionId[q.id] =
-                                                                v;
-                                                          }
-                                                        });
-                                                      },
+                                                      onScoreChanged: (v) =>
+                                                          _onScoreChangedForQuestion(q, v),
                                                       onSaibaMais: () {
                                                         setState(() {
                                                           _selectedQuestion = q;
                                                         });
                                                       },
                                                       saving: _saving,
-                                                      onSaveNext: _saveCurrentBlock,
                                                       onPrevious: null,
                                                       onNext: null,
                                                       hideCodeAndPilar: widget.byPilar,
@@ -590,24 +616,14 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                                       index: globalIndex,
                                                       total: _questions.length,
                                                       selectedScore: selectedScore,
-                                                      onScoreChanged: (v) {
-                                                        setState(() {
-                                                          if (v == null || v.isEmpty) {
-                                                            _pendingAnswersByQuestionId
-                                                                .remove(q.id);
-                                                          } else {
-                                                            _pendingAnswersByQuestionId[q.id] =
-                                                                v;
-                                                          }
-                                                        });
-                                                      },
+                                                      onScoreChanged: (v) =>
+                                                          _onScoreChangedForQuestion(q, v),
                                                       onSaibaMais: () {
                                                         setState(() {
                                                           _selectedQuestion = q;
                                                         });
                                                       },
                                                       saving: _saving,
-                                                      onSaveNext: _saveCurrentBlock,
                                                       onPrevious: (globalIndex > 0)
                                                           ? _goToPreviousQuestion
                                                           : null,
@@ -621,10 +637,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
                                               );
                                             },
                                           ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
                           ),
                           if (showPanel)
                             ChatPanel(
@@ -700,6 +716,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
 }
 
 class _ProgressBar extends StatelessWidget {
+  /// Valor do pilar vindo do Xano / [PhasesScreen], ex.: `Compliance`, `Continuity`, `Control`.
+  final String phaseValue;
   final int currentIndex;
   final int answered;
   final int total;
@@ -707,12 +725,11 @@ class _ProgressBar extends StatelessWidget {
   final bool allAnswered;
   final VoidCallback? onPreviousBlock;
   final VoidCallback? onNextBlock;
-  final VoidCallback? onSaveBlock;
-  final bool saving;
   final bool gridView;
   final ValueChanged<bool>? onToggleView;
 
   const _ProgressBar({
+    required this.phaseValue,
     required this.currentIndex,
     required this.answered,
     required this.total,
@@ -720,8 +737,6 @@ class _ProgressBar extends StatelessWidget {
     this.allAnswered = false,
     this.onPreviousBlock,
     this.onNextBlock,
-    this.onSaveBlock,
-    this.saving = false,
     this.gridView = false,
     this.onToggleView,
   });
@@ -745,10 +760,6 @@ class _ProgressBar extends StatelessWidget {
             return 'Previous';
           case 'next':
             return 'Next';
-          case 'saving':
-            return 'Saving...';
-          case 'saveContinue':
-            return 'Save and continue';
           default:
             return key;
         }
@@ -766,10 +777,6 @@ class _ProgressBar extends StatelessWidget {
             return 'Anterior';
           case 'next':
             return 'Siguiente';
-          case 'saving':
-            return 'Guardando...';
-          case 'saveContinue':
-            return 'Guardar y continuar';
           default:
             return key;
         }
@@ -787,24 +794,32 @@ class _ProgressBar extends StatelessWidget {
             return 'Anterior';
           case 'next':
             return 'Próxima';
-          case 'saving':
-            return 'Salvando...';
-          case 'saveContinue':
-            return 'Salvar e continuar';
           default:
             return key;
         }
     }
   }
 
+  static const Color _pillarDarkBg = Color(0xFF1C1D1F);
+
   @override
   Widget build(BuildContext context) {
-    // Barra responsiva à questão atual: progresso = (índice atual + 1) / total
-    final progress = total > 0 ? (currentIndex + 1) / total : 0.0;
+    // Barra e % só refletem quantas perguntas foram respondidas (não a posição de navegação).
+    final progress = total > 0 ? answered / total : 0.0;
+    final isPillarDark = phaseValue == 'Compliance' ||
+        phaseValue == 'Continuity' ||
+        phaseValue == 'Control';
+    final bg = isPillarDark ? _pillarDarkBg : Brand.white;
+    final fg = isPillarDark ? Colors.white : Brand.black;
+    final fgMuted = isPillarDark ? Colors.white70 : Brand.black.withOpacity(0.7);
+    final fgBody = isPillarDark ? Colors.white.withOpacity(0.85) : Brand.black.withOpacity(0.8);
+    final progressTrack = isPillarDark ? Colors.white24 : Brand.border;
+    final progressFill = isPillarDark ? Colors.white : Brand.black;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      color: Brand.white,
+      color: bg,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -812,7 +827,7 @@ class _ProgressBar extends StatelessWidget {
           Text(
             phaseLabel,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Brand.black.withOpacity(0.7),
+              color: fgMuted,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -825,7 +840,7 @@ class _ProgressBar extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Brand.black.withOpacity(0.8),
+                  color: fgBody,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -840,7 +855,7 @@ class _ProgressBar extends StatelessWidget {
                       : '$answered ${_txt(context, 'of')} $total ${_txt(context, 'answered')}',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: Brand.black,
+                        color: fg,
                       ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -851,6 +866,11 @@ class _ProgressBar extends StatelessWidget {
                   isSelected: [gridView, !gridView],
                   borderRadius: BorderRadius.circular(999),
                   constraints: const BoxConstraints(minHeight: 32, minWidth: 40),
+                  color: isPillarDark ? Colors.white54 : null,
+                  selectedColor: isPillarDark ? Brand.black : null,
+                  fillColor: isPillarDark ? Colors.white : null,
+                  borderColor: isPillarDark ? Colors.white24 : null,
+                  selectedBorderColor: isPillarDark ? Colors.white : null,
                   onPressed: (index) {
                     onToggleView!.call(index == 0);
                   },
@@ -864,7 +884,7 @@ class _ProgressBar extends StatelessWidget {
                 '${(progress * 100).round()}%',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: Brand.black,
+                      color: fg,
                     ),
               ),
             ],
@@ -879,61 +899,43 @@ class _ProgressBar extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 8),
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Brand.black,
-                        side: const BorderSide(color: Brand.border),
+                        foregroundColor: isPillarDark ? Colors.white : Brand.black,
+                        side: BorderSide(
+                          color: isPillarDark ? Colors.white38 : Brand.border,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       onPressed: onPreviousBlock,
-                      icon: const Icon(Icons.arrow_back, size: 18),
+                      icon: Icon(
+                        Icons.arrow_back,
+                        size: 18,
+                        color: isPillarDark ? Colors.white : Brand.black,
+                      ),
                       label: Text(_txt(context, 'previous')),
                     ),
                   ),
                 if (onNextBlock != null)
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Brand.black,
-                      side: const BorderSide(color: Brand.border),
+                      foregroundColor: isPillarDark ? Colors.white : Brand.black,
+                      side: BorderSide(
+                        color: isPillarDark ? Colors.white38 : Brand.border,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     onPressed: onNextBlock,
-                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    icon: Icon(
+                      Icons.arrow_forward,
+                      size: 18,
+                      color: isPillarDark ? Colors.white : Brand.black,
+                    ),
                     label: Text(_txt(context, 'next')),
                   ),
               ],
-            ),
-          ],
-          if (gridView && onSaveBlock != null) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.center,
-              child: SizedBox(
-                width: 260,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Brand.black,
-                    foregroundColor: Brand.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: saving ? null : onSaveBlock,
-                  icon: saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(
-                    saving ? _txt(context, 'saving') : _txt(context, 'saveContinue'),
-                  ),
-                ),
-              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -942,8 +944,8 @@ class _ProgressBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: Brand.border,
-              valueColor: const AlwaysStoppedAnimation<Color>(Brand.black),
+              backgroundColor: progressTrack,
+              valueColor: AlwaysStoppedAnimation<Color>(progressFill),
             ),
           ),
         ],
@@ -960,7 +962,6 @@ class _QuestionCard extends StatelessWidget {
   final ValueChanged<String?> onScoreChanged;
   final VoidCallback? onSaibaMais;
   final bool saving;
-  final VoidCallback onSaveNext;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
   final bool hideCodeAndPilar;
@@ -973,7 +974,6 @@ class _QuestionCard extends StatelessWidget {
     required this.onScoreChanged,
     this.onSaibaMais,
     required this.saving,
-    required this.onSaveNext,
     this.onPrevious,
     this.onNext,
     this.hideCodeAndPilar = false,
@@ -990,14 +990,12 @@ class _QuestionCard extends StatelessWidget {
             return 'Alignment';
           case 'learnMore':
             return 'Learn more';
-          case 'saveContinue':
-            return 'Save and continue';
-          case 'saving':
-            return 'Saving...';
           case 'previous':
             return 'Previous';
           case 'next':
             return 'Next';
+          case 'clearSelection':
+            return 'Clear selection';
           default:
             return key;
         }
@@ -1007,14 +1005,12 @@ class _QuestionCard extends StatelessWidget {
             return 'Alineamiento';
           case 'learnMore':
             return 'Saber más';
-          case 'saveContinue':
-            return 'Guardar y continuar';
-          case 'saving':
-            return 'Guardando...';
           case 'previous':
             return 'Anterior';
           case 'next':
             return 'Siguiente';
+          case 'clearSelection':
+            return 'Desmarcar';
           default:
             return key;
         }
@@ -1024,14 +1020,12 @@ class _QuestionCard extends StatelessWidget {
             return 'Alinhamento';
           case 'learnMore':
             return 'Saiba mais';
-          case 'saveContinue':
-            return 'Salvar e continuar';
-          case 'saving':
-            return 'Salvando...';
           case 'previous':
             return 'Anterior';
           case 'next':
             return 'Próxima';
+          case 'clearSelection':
+            return 'Desmarcar';
           default:
             return key;
         }
@@ -1147,21 +1141,67 @@ class _QuestionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Column(
-              children: scoreOptions.take(5).map((option) {
-                return RadioListTile<String>(
-                  value: option,
-                  groupValue: selectedScore,
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    _scoreLabel(context, option),
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  activeColor: Brand.black,
-                  onChanged: onScoreChanged,
-                );
-              }).toList(),
+            ListTileTheme(
+              // O RadioListTile usa largura intrínseca ~kMinInteractiveDimension (48) no leading;
+              // com minLeadingWidth 40 o ícone do “Desmarcar” ficava deslocado.
+              data: ListTileTheme.of(context).copyWith(
+                minLeadingWidth: kMinInteractiveDimension,
+                horizontalTitleGap: 16,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ...scoreOptions.take(5).map((option) {
+                    return RadioListTile<String>(
+                      value: option,
+                      groupValue: selectedScore,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        _scoreLabel(context, option),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      activeColor: Brand.black,
+                      onChanged: onScoreChanged,
+                    );
+                  }),
+                  if (selectedScore != null) ...[
+                    const SizedBox(height: 4),
+                    // Desloca ícone + texto um pouco à esquerda para coincidir com o círculo do Radio.
+                    Transform.translate(
+                      offset: const Offset(-8, 0),
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        enabled: !saving,
+                        leading: SizedBox(
+                          width: kMinInteractiveDimension,
+                          height: kMinInteractiveDimension,
+                          child: Center(
+                            child: Icon(
+                              Icons.clear,
+                              size: 18,
+                              color: Brand.black.withValues(
+                                alpha: saving ? 0.35 : 0.75,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          _txt(context, 'clearSelection'),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Brand.black.withValues(
+                              alpha: saving ? 0.35 : 0.85,
+                            ),
+                          ),
+                        ),
+                        onTap: saving ? null : () => onScoreChanged(null),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
             if (onSaibaMais != null) ...[
               const SizedBox(height: 16),
@@ -1179,53 +1219,33 @@ class _QuestionCard extends StatelessWidget {
             ],
             if (onPrevious != null || onNext != null) ...[
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.center,
-                child: SizedBox(
-                  width: 280,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Brand.black,
-                      foregroundColor: Brand.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: saving ? null : onSaveNext,
-                    icon: saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(
-                      saving ? _txt(context, 'saving') : _txt(context, 'saveContinue'),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: onPrevious != null
+                          ? OutlinedButton.icon(
+                              onPressed: onPrevious,
+                              icon: const Icon(Icons.arrow_back, size: 18),
+                              label: Text(_txt(context, 'previous')),
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ),
-                ),
-              ),
-            ],
-            if (onPrevious != null || onNext != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (onPrevious != null)
-                    OutlinedButton.icon(
-                      onPressed: onPrevious,
-                      icon: const Icon(Icons.arrow_back, size: 18),
-                      label: Text(_txt(context, 'previous')),
-                    )
-                  else
-                    const SizedBox.shrink(),
-                  if (onNext != null)
-                    OutlinedButton.icon(
-                      onPressed: onNext,
-                      icon: const Icon(Icons.arrow_forward, size: 18),
-                      label: Text(_txt(context, 'next')),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: onNext != null
+                          ? OutlinedButton.icon(
+                              onPressed: onNext,
+                              icon: const Icon(Icons.arrow_forward, size: 18),
+                              label: Text(_txt(context, 'next')),
+                            )
+                          : const SizedBox.shrink(),
                     ),
+                  ),
                 ],
               ),
             ],

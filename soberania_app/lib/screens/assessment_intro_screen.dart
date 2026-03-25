@@ -442,7 +442,7 @@ class _SectionCard extends StatelessWidget {
 
           final imageWidth = (constraints.maxWidth * 0.42).clamp(280.0, 360.0);
           return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Padding(
@@ -457,7 +457,11 @@ class _SectionCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                   child: SizedBox(
                     height: 240,
-                    child: Image.asset(imagePath!, fit: BoxFit.cover),
+                    child: Image.asset(
+                      imagePath!,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                    ),
                   ),
                 ),
               ),

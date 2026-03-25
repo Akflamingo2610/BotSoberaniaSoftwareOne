@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_scope.dart';
@@ -17,8 +18,8 @@ class Brand {
   static const Color accentOrange = Color(0xFFF28E2B); // laranja para contraste
 }
 
-const String _awsLogoAsset = 'assets/images/Aws_logo_black.png';
-const String _softwareOneLogoAsset = 'assets/images/logo_da_software.png';
+const String _awsLogoAsset = 'assets/images/aws_preta_semfundo.png';
+const String _softwareOneLogoAsset = 'assets/images/softwareone_logo_semfundo.png';
 
 /// Logo da AWS (à direita do header).
 /// [size] define altura e largura da caixa para manter proporção igual ao SoftwareOne.
@@ -33,8 +34,15 @@ class AwsMark extends StatelessWidget {
       height: size,
       child: Image.asset(
         _awsLogoAsset,
+        bundle: rootBundle,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _AwsMarkFallback(height: size),
+        width: size * 2,
+        height: size,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('AwsMark asset failed ($_awsLogoAsset): $error');
+          return _AwsMarkFallback(height: size);
+        },
       ),
     );
   }
@@ -66,8 +74,15 @@ class SoftwareOneMark extends StatelessWidget {
       height: size,
       child: Image.asset(
         _softwareOneLogoAsset,
+        bundle: rootBundle,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _SoftwareOneFallback(size: size),
+        width: size * 2,
+        height: size,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('SoftwareOneMark asset failed ($_softwareOneLogoAsset): $error');
+          return _SoftwareOneFallback(size: size);
+        },
       ),
     );
   }

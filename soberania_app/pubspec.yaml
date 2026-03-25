@@ -68,6 +68,8 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/aws_preta_semfundo.png
+    - assets/images/softwareone_logo_semfundo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
