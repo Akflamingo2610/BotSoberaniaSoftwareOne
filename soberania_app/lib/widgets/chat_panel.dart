@@ -20,12 +20,20 @@ class ChatPanel extends StatefulWidget {
   /// cada item deve conter: { "id": int, "questionContext": String }.
   final List<Map<String, dynamic>>? blockExplainItems;
 
+  /// Pergunta rápida disparada por cliques na UI (ex.: termos glossário).
+  final String? quickQuestion;
+
+  /// Nonce para forçar reenvio da mesma pergunta rápida.
+  final int quickQuestionNonce;
+
   const ChatPanel({
     super.key,
     this.questionContext,
     this.resultsContext,
     this.welcomeMessage,
     this.blockExplainItems,
+    this.quickQuestion,
+    this.quickQuestionNonce = 0,
   });
 
   @override
@@ -45,6 +53,7 @@ class _ChatPanelState extends State<ChatPanel> {
 
   bool _autoExplainRequested = false;
   bool _batchExplainRequested = false;
+  int _lastQuickQuestionNonce = 0;
 
   String? get _effectiveContext =>
       (widget.resultsContext?.trim().isNotEmpty == true)
@@ -80,7 +89,7 @@ class _ChatPanelState extends State<ChatPanel> {
           case 'empty_general':
             return 'Ask about AWS, digital sovereignty\nor local regulations';
           case 'input_hint':
-            return 'Ask about AWS, digital sovereignty or laws...';
+            return 'Type your question. I am here to help.';
           default:
             return key;
         }
@@ -111,7 +120,7 @@ class _ChatPanelState extends State<ChatPanel> {
           case 'empty_general':
             return 'Pregunte sobre AWS, soberanía digital\no leyes';
           case 'input_hint':
-            return 'Pregunte sobre AWS, soberanía digital o leyes...';
+            return 'Escriba su duda. Estoy aquí para ayudar.';
           default:
             return key;
         }
@@ -142,7 +151,7 @@ class _ChatPanelState extends State<ChatPanel> {
           case 'empty_general':
             return 'Pergunte sobre AWS, soberania digital\nou leis brasileiras';
           case 'input_hint':
-            return 'Pergunte sobre AWS, soberania digital ou leis...';
+            return 'Digite sua dúvida. Estou aqui para ajudar.';
           default:
             return key;
         }
@@ -223,6 +232,7 @@ class _ChatPanelState extends State<ChatPanel> {
   void initState() {
     super.initState();
     _checkHealth();
+    _lastQuickQuestionNonce = widget.quickQuestionNonce;
     if (widget.welcomeMessage != null && widget.welcomeMessage!.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -239,11 +249,22 @@ class _ChatPanelState extends State<ChatPanel> {
         widget.questionContext!.trim().length > 10) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _requestAutoExplanation());
     }
+    if (widget.quickQuestion != null &&
+        widget.quickQuestion!.trim().isNotEmpty &&
+        widget.quickQuestionNonce > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _sendQuickQuestion());
+    }
   }
 
   @override
   void didUpdateWidget(covariant ChatPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Perguntas rápidas via clique devem funcionar também no modo de resultados.
+    if (widget.quickQuestionNonce != _lastQuickQuestionNonce) {
+      _lastQuickQuestionNonce = widget.quickQuestionNonce;
+      _sendQuickQuestion();
+    }
+
     if (widget.resultsContext != null) return;
 
     // Atualização do bloco de explicações
@@ -269,6 +290,7 @@ class _ChatPanelState extends State<ChatPanel> {
         setState(() {});
       }
     }
+
   }
 
   @override
@@ -502,6 +524,89 @@ class _ChatPanelState extends State<ChatPanel> {
       setState(() => _connected = false);
       _messages.add(_ChatMessage(role: 'bot', text: '${_ui('error_prefix')}: ${e.message}'));
     } catch (e) {
+      if (!mounted) return;
+      setState(() => _connected = false);
+      _messages.add(
+        _ChatMessage(
+          role: 'bot',
+          text: _ui('server_connect_failed'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _streamingText = '';
+          _streamingSources = [];
+        });
+        _scrollToBottom();
+      }
+    }
+  }
+
+  Future<void> _sendQuickQuestion() async {
+    final text = widget.quickQuestion?.trim() ?? '';
+    if (text.isEmpty || _loading) return;
+
+    _messages.add(_ChatMessage(role: 'user', text: text));
+    setState(() {
+      _loading = true;
+      _streamingText = '';
+      _streamingSources = [];
+    });
+    _scrollToBottom();
+
+    try {
+      await for (final chunk in _rag.askStream(
+        '$text\n\n${_conciseInstruction()}',
+        questionContext: _effectiveContext,
+        languageCode: _languageCode,
+      )) {
+        if (!mounted) return;
+        if (!_connected) {
+          setState(() => _connected = true);
+        }
+        if (chunk.text != null && chunk.text!.isNotEmpty) {
+          setState(() => _streamingText += chunk.text!);
+          _scrollToBottom();
+        }
+        if (chunk.done && chunk.sources.isNotEmpty) {
+          setState(() => _streamingSources = chunk.sources);
+        }
+      }
+      if (!mounted) return;
+      String replyText = _streamingText.trim();
+      List<RagSource>? sources = _streamingSources.isEmpty ? null : _streamingSources;
+
+      if (replyText.isEmpty) {
+        try {
+          final resp = await _rag.ask(
+            '$text\n\n${_conciseInstruction()}',
+            questionContext: _effectiveContext,
+            languageCode: _languageCode,
+          );
+          replyText = _compactBotText(resp.answer);
+          if (resp.sources.isNotEmpty) sources = resp.sources;
+        } catch (_) {
+          replyText = '';
+        }
+      }
+      if (replyText.isEmpty) {
+        replyText = _ui('no_response');
+        sources = null;
+      }
+      _messages.add(
+        _ChatMessage(
+          role: 'bot',
+          text: _compactBotText(replyText),
+          sources: sources,
+        ),
+      );
+    } on RagException catch (e) {
+      if (!mounted) return;
+      setState(() => _connected = false);
+      _messages.add(_ChatMessage(role: 'bot', text: '${_ui('error_prefix')}: ${e.message}'));
+    } catch (_) {
       if (!mounted) return;
       setState(() => _connected = false);
       _messages.add(

@@ -334,18 +334,30 @@ class _SignupScreenState extends State<SignupScreen> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Checkbox(
-                                value: _marketingConsent,
-                                onChanged: (v) {
-                                  setState(() {
-                                    _marketingConsent = v ?? false;
-                                  });
-                                },
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: Checkbox(
+                                    value: _marketingConsent,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    onChanged: (v) {
+                                      setState(() {
+                                        _marketingConsent = v ?? false;
+                                      });
+                                    },
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'A SoftwareOne pode usar meus dados para me manter informado sobre futuros eventos, bem como sobre produtos, serviços e ofertas.',
+                                  AppLocalizations.of(context).t(
+                                    'signup_marketing_consent',
+                                  ),
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodyMedium
@@ -434,11 +446,12 @@ class _PrivacyPolicyText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Text(
-          'By submitting this form the entered data will be handed over to and stored by us for contact purposes. Your data will under no circumstances be disclosed to third parties. You can review additional information about your data and rights in our ',
+          l10n.t('signup_privacy_prefix'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Colors.black54,
               ),
@@ -447,9 +460,9 @@ class _PrivacyPolicyText extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: () => _openPrivacy(context),
-            child: const Text(
-              'Privacy Policy',
-              style: TextStyle(
+            child: Text(
+              l10n.t('signup_privacy_link'),
+              style: const TextStyle(
                 color: Brand.black,
                 decoration: TextDecoration.underline,
                 fontWeight: FontWeight.w600,
