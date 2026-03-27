@@ -91,39 +91,54 @@ class _AssessmentIntroScreenState extends State<AssessmentIntroScreen> {
           ],
         ),
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 1100;
-            if (isWide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _ContentColumn(
-                      onContinue: () => _continue(context),
-                      onLogout: () => _logout(context),
-                      onKeywordTap: _onKeywordTap,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 420,
-                    child: ChatPanel(
-                      welcomeMessage: l10n.t('intro_chat_welcome'),
-                      quickQuestion: _quickQuestion,
-                      quickQuestionNonce: _quickQuestionNonce,
-                    ),
-                  ),
-                ],
-              );
-            }
-            return _ContentColumn(
-              onContinue: () => _continue(context),
-              onLogout: () => _logout(context),
-              onKeywordTap: _onKeywordTap,
-            );
-          },
-        ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/pedrasluzjpg.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              errorBuilder: (_, __, ___) =>
+                  const ColoredBox(color: Brand.surface),
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              color: Colors.white.withValues(alpha: 0.76),
+            ),
+          ),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 1100;
+                if (isWide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _ContentColumn(
+                          onContinue: () => _continue(context),
+                          onLogout: () => _logout(context),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 420,
+                        child: ChatPanel(
+                          welcomeMessage: l10n.t('intro_chat_welcome'),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                return _ContentColumn(
+                  onContinue: () => _continue(context),
+                  onLogout: () => _logout(context),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

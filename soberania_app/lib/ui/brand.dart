@@ -16,6 +16,9 @@ class Brand {
   static const Color accentRed = Color(0xFFE30613); // vermelho principal
   static const Color accentBlue = Color(0xFF4E79A7); // azul de suporte
   static const Color accentOrange = Color(0xFFF28E2B); // laranja para contraste
+
+  /// Azul do CTA “Resultados” na tela de pilares.
+  static const Color resultsBlue = Color(0xFF4766D6);
 }
 
 const String _awsLogoAsset = 'assets/images/aws_preta_semfundo.png';
@@ -208,7 +211,7 @@ class LanguageButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return PopupMenuButton<String>(
-      tooltip: 'Idioma / Language',
+      tooltip: l10n.t('lang_menu_tooltip'),
       icon: const Icon(Icons.language, color: Brand.black),
       onSelected: (code) => scope.setLocale(code),
       itemBuilder: (_) => [
