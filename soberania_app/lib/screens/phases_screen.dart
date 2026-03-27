@@ -24,6 +24,11 @@ class _PhasesScreenState extends State<PhasesScreen> {
   final _api = XanoApi();
   bool _loadingResults = true;
   bool _allQuestionsAnswered = false;
+  static const List<String> _phaseValuesForValidation = <String>[
+    'Compliance',
+    'Continuity',
+    'Control',
+  ];
 
   List<PhaseOption> _localizedPhases(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -51,7 +56,6 @@ class _PhasesScreenState extends State<PhasesScreen> {
 
   Future<void> _checkIfAllAnswered() async {
     try {
-      final phases = _localizedPhases(context);
       final token = await AppStorage().getAuthToken();
       final assessmentId = await AppStorage().getAssessmentId();
       if (token == null || assessmentId == null) {
@@ -61,10 +65,10 @@ class _PhasesScreenState extends State<PhasesScreen> {
 
       var totalQuestions = 0;
       final answeredIds = <int>{};
-      for (final p in phases) {
+      for (final phaseValue in _phaseValuesForValidation) {
         final raw = await _api.listQuestionsByPilar(
           authToken: token,
-          pilar: p.value,
+          pilar: phaseValue,
         );
         for (final e in raw) {
           if (e is Map && e['id'] != null) {
@@ -128,7 +132,10 @@ class _PhasesScreenState extends State<PhasesScreen> {
   @override
   void initState() {
     super.initState();
-    _checkIfAllAnswered();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _checkIfAllAnswered();
+    });
   }
 
   static String _formatTimestamp(DateTime dt) {

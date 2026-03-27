@@ -8,6 +8,7 @@ class CustomRadarChart extends StatelessWidget {
   final Color borderColor;
   final Color gridColor;
   final Color textColor;
+  final void Function(int index, String label, double value)? onDomainTap;
 
   const CustomRadarChart({
     super.key,
@@ -17,24 +18,167 @@ class CustomRadarChart extends StatelessWidget {
     this.borderColor = const Color(0xFF1976D2),
     this.gridColor = const Color(0xFFE0E0E0),
     this.textColor = Colors.black,
+    this.onDomainTap,
   });
+
+  List<_RadarLabelHit> _labelHitsForSize(Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide * 0.35;
+    final n = labels.length;
+    if (n == 0) return const <_RadarLabelHit>[];
+    final angleStep = (2 * math.pi) / n;
+    const startAngle = -math.pi / 2;
+
+    final hits = <_RadarLabelHit>[];
+    for (var i = 0; i < n; i++) {
+      final angle = startAngle + angleStep * i;
+      final labelDistance = radius + 30;
+      final x = center.dx + labelDistance * math.cos(angle);
+      final y = center.dy + labelDistance * math.sin(angle);
+
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: labels[i],
+          style: TextStyle(
+            color: textColor,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final rect = Rect.fromLTWH(
+        x - textPainter.width / 2,
+        y - textPainter.height / 2,
+        textPainter.width,
+        textPainter.height,
+      );
+      hits.add(_RadarLabelHit(index: i, rect: rect.inflate(8)));
+    }
+    return hits;
+  }
+
+  List<_RadarPointHit> _pointHitsForSize(Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide * 0.35;
+    final n = labels.length;
+    if (n == 0) return const <_RadarPointHit>[];
+    final angleStep = (2 * math.pi) / n;
+    const startAngle = -math.pi / 2;
+
+    final hits = <_RadarPointHit>[];
+    for (var i = 0; i < n; i++) {
+      final value = (i < values.length ? values[i] : 0).clamp(0.0, 100.0);
+      final valueRadius = radius * (value / 100);
+      final angle = startAngle + angleStep * i;
+      final x = center.dx + valueRadius * math.cos(angle);
+      final y = center.dy + valueRadius * math.sin(angle);
+      hits.add(_RadarPointHit(index: i, center: Offset(x, y), radius: 16));
+    }
+    return hits;
+  }
+
+  void _handleTap(Offset localPosition, BoxConstraints constraints) {
+    if (onDomainTap == null || labels.isEmpty) return;
+    final size = Size(constraints.maxWidth, constraints.maxHeight);
+
+    for (final hit in _labelHitsForSize(size)) {
+      if (hit.rect.contains(localPosition)) {
+        final idx = hit.index;
+        onDomainTap!(
+          idx,
+          labels[idx],
+          (idx < values.length ? values[idx] : 0).toDouble(),
+        );
+        return;
+      }
+    }
+
+    for (final hit in _pointHitsForSize(size)) {
+      if ((hit.center - localPosition).distance <= hit.radius) {
+        final idx = hit.index;
+        onDomainTap!(
+          idx,
+          labels[idx],
+          (idx < values.length ? values[idx] : 0).toDouble(),
+        );
+        return;
+      }
+    }
+
+    // Fallback: clique em qualquer setor da teia também seleciona o domínio mais próximo.
+    final center = Offset(size.width / 2, size.height / 2);
+    final dx = localPosition.dx - center.dx;
+    final dy = localPosition.dy - center.dy;
+    final distance = math.sqrt((dx * dx) + (dy * dy));
+    final radius = size.shortestSide * 0.35;
+    if (distance <= radius + 24) {
+      final n = labels.length;
+      final angleStep = (2 * math.pi) / n;
+      const startAngle = -math.pi / 2;
+      var angle = math.atan2(dy, dx) - startAngle;
+      while (angle < 0) {
+        angle += 2 * math.pi;
+      }
+      final idx = ((angle / angleStep).round()) % n;
+      onDomainTap!(
+        idx,
+        labels[idx],
+        (idx < values.length ? values[idx] : 0).toDouble(),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
       aspectRatio: 1,
-      child: CustomPaint(
-        painter: _RadarChartPainter(
-          labels: labels,
-          values: values,
-          fillColor: fillColor,
-          borderColor: borderColor,
-          gridColor: gridColor,
-          textColor: textColor,
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return MouseRegion(
+            cursor: onDomainTap == null
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapUp: (details) => _handleTap(details.localPosition, constraints),
+              child: CustomPaint(
+                painter: _RadarChartPainter(
+                  labels: labels,
+                  values: values,
+                  fillColor: fillColor,
+                  borderColor: borderColor,
+                  gridColor: gridColor,
+                  textColor: textColor,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
+}
+
+class _RadarLabelHit {
+  final int index;
+  final Rect rect;
+
+  const _RadarLabelHit({required this.index, required this.rect});
+}
+
+class _RadarPointHit {
+  final int index;
+  final Offset center;
+  final double radius;
+
+  const _RadarPointHit({
+    required this.index,
+    required this.center,
+    required this.radius,
+  });
 }
 
 class _RadarChartPainter extends CustomPainter {
@@ -168,7 +312,7 @@ class _RadarChartPainter extends CustomPainter {
     // 5. Polígono de dados
     final dataPath = Path();
     final dataPaint = Paint()
-      ..color = fillColor.withOpacity(0.15)
+      ..color = fillColor.withValues(alpha: 0.15)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < n; i++) {

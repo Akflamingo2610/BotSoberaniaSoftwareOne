@@ -20,12 +20,20 @@ class ChatPanel extends StatefulWidget {
   /// cada item deve conter: { "id": int, "questionContext": String }.
   final List<Map<String, dynamic>>? blockExplainItems;
 
+  /// Pergunta rápida disparada por cliques na UI (ex.: termos glossário).
+  final String? quickQuestion;
+
+  /// Nonce para forçar reenvio da mesma pergunta rápida.
+  final int quickQuestionNonce;
+
   const ChatPanel({
     super.key,
     this.questionContext,
     this.resultsContext,
     this.welcomeMessage,
     this.blockExplainItems,
+    this.quickQuestion,
+    this.quickQuestionNonce = 0,
   });
 
   @override
@@ -45,6 +53,7 @@ class _ChatPanelState extends State<ChatPanel> {
 
   bool _autoExplainRequested = false;
   bool _batchExplainRequested = false;
+  int _lastQuickQuestionNonce = 0;
 
   String? get _effectiveContext =>
       (widget.resultsContext?.trim().isNotEmpty == true)
@@ -80,7 +89,7 @@ class _ChatPanelState extends State<ChatPanel> {
           case 'empty_general':
             return 'Ask about AWS, digital sovereignty\nor local regulations';
           case 'input_hint':
-            return 'Ask about AWS, digital sovereignty or laws...';
+            return 'Type your question. I am here to help.';
           default:
             return key;
         }
@@ -111,7 +120,7 @@ class _ChatPanelState extends State<ChatPanel> {
           case 'empty_general':
             return 'Pregunte sobre AWS, soberanía digital\no leyes';
           case 'input_hint':
-            return 'Pregunte sobre AWS, soberanía digital o leyes...';
+            return 'Escriba su duda. Estoy aquí para ayudar.';
           default:
             return key;
         }
@@ -142,7 +151,7 @@ class _ChatPanelState extends State<ChatPanel> {
           case 'empty_general':
             return 'Pergunte sobre AWS, soberania digital\nou leis brasileiras';
           case 'input_hint':
-            return 'Pergunte sobre AWS, soberania digital ou leis...';
+            return 'Digite sua dúvida. Estou aqui para ajudar.';
           default:
             return key;
         }
@@ -152,12 +161,62 @@ class _ChatPanelState extends State<ChatPanel> {
   String _explainFallbackPrompt() {
     switch (_languageCode) {
       case 'en':
-        return 'Explain in simple language what this prompt evaluates, define the technical terms, and why this matters for digital sovereignty.';
+        return 'Explain in simple language what this prompt evaluates, define key technical terms, and why this matters for digital sovereignty. Keep the response very concise (2 to 3 complete sentences), with a clear conclusion and no ellipses.';
       case 'es':
-        return 'Explique en lenguaje simple qué evalúa esta pregunta, defina los términos técnicos y por qué esto importa para la soberanía digital.';
+        return 'Explique en lenguaje simple qué evalúa esta pregunta, defina los términos técnicos clave y por qué esto importa para la soberanía digital. Mantenga la respuesta muy concisa (2 a 3 frases completas), con cierre claro y sin puntos suspensivos.';
       default:
-        return 'Explique em linguagem simples o que esta pergunta avalia, defina os termos técnicos e por que isso importa para soberania digital.';
+        return 'Explique em linguagem simples o que esta pergunta avalia, defina os termos técnicos principais e por que isso importa para soberania digital. Mantenha a resposta muito concisa (2 a 3 frases completas), com fechamento claro e sem reticências.';
     }
+  }
+
+  String _conciseInstruction() {
+    switch (_languageCode) {
+      case 'en':
+        return 'Answer very briefly (max 2-3 complete sentences), with direct language and a clear ending. Do not use ellipses.';
+      case 'es':
+        return 'Responda de forma muy breve (máximo 2-3 frases completas), con lenguaje directo y cierre claro. No use puntos suspensivos.';
+      default:
+        return 'Responda de forma muito breve (máximo 2-3 frases completas), com linguagem direta e fechamento claro. Não use reticências.';
+    }
+  }
+
+  String _compactBotText(String raw, {int maxChars = 420}) {
+    var text = raw.trim();
+    final paragraphs = text.split(RegExp(r'\n\s*\n'));
+    if (paragraphs.isNotEmpty) {
+      text = paragraphs.first.trim();
+    }
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    text = text.replaceAll('...', '.').replaceAll('…', '.').trim();
+
+    if (text.length > maxChars) {
+      final clipped = text.substring(0, maxChars).trim();
+      final sentenceEnd = _lastSentenceBoundary(clipped);
+      if (sentenceEnd >= (maxChars * 0.45).floor()) {
+        text = clipped.substring(0, sentenceEnd + 1).trim();
+      } else {
+        final lastSpace = clipped.lastIndexOf(' ');
+        text = (lastSpace > 0 ? clipped.substring(0, lastSpace) : clipped).trim();
+      }
+    }
+
+    text = text.replaceFirst(RegExp(r'[,:;]\s*$'), '').trim();
+    if (!_hasTerminalPunctuation(text)) {
+      text = '$text.';
+    }
+    return text;
+  }
+
+  int _lastSentenceBoundary(String text) {
+    for (var i = text.length - 1; i >= 0; i--) {
+      final c = text[i];
+      if (c == '.' || c == '!' || c == '?') return i;
+    }
+    return -1;
+  }
+
+  bool _hasTerminalPunctuation(String text) {
+    return text.endsWith('.') || text.endsWith('!') || text.endsWith('?');
   }
 
   String get _languageCode {
@@ -173,6 +232,7 @@ class _ChatPanelState extends State<ChatPanel> {
   void initState() {
     super.initState();
     _checkHealth();
+    _lastQuickQuestionNonce = widget.quickQuestionNonce;
     if (widget.welcomeMessage != null && widget.welcomeMessage!.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -189,11 +249,22 @@ class _ChatPanelState extends State<ChatPanel> {
         widget.questionContext!.trim().length > 10) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _requestAutoExplanation());
     }
+    if (widget.quickQuestion != null &&
+        widget.quickQuestion!.trim().isNotEmpty &&
+        widget.quickQuestionNonce > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _sendQuickQuestion());
+    }
   }
 
   @override
   void didUpdateWidget(covariant ChatPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Perguntas rápidas via clique devem funcionar também no modo de resultados.
+    if (widget.quickQuestionNonce != _lastQuickQuestionNonce) {
+      _lastQuickQuestionNonce = widget.quickQuestionNonce;
+      _sendQuickQuestion();
+    }
+
     if (widget.resultsContext != null) return;
 
     // Atualização do bloco de explicações
@@ -219,6 +290,7 @@ class _ChatPanelState extends State<ChatPanel> {
         setState(() {});
       }
     }
+
   }
 
   @override
@@ -269,11 +341,12 @@ class _ChatPanelState extends State<ChatPanel> {
         // Fallback: streaming veio vazio — tentar endpoint /ask (não-streaming)
         try {
           final resp = await _rag.ask(
-            _explainFallbackPrompt(),
+            '${_explainFallbackPrompt()} ${_conciseInstruction()}',
             questionContext: q,
+            languageCode: _languageCode,
           );
           if (resp.answer.trim().isNotEmpty) {
-            replyText = resp.answer.trim();
+            replyText = _compactBotText(resp.answer);
             replySources = resp.sources.isEmpty ? null : resp.sources;
           }
         } catch (_) {}
@@ -290,7 +363,7 @@ class _ChatPanelState extends State<ChatPanel> {
         _messages.add(
           _ChatMessage(
             role: 'bot',
-            text: replyText,
+            text: _compactBotText(replyText),
             sources: replySources,
           ),
         );
@@ -355,7 +428,7 @@ class _ChatPanelState extends State<ChatPanel> {
           _messages.add(
             _ChatMessage(
               role: 'bot',
-              text: e.text,
+              text: _compactBotText(e.text, maxChars: 320),
             ),
           );
         }
@@ -425,11 +498,11 @@ class _ChatPanelState extends State<ChatPanel> {
       if (replyText.isEmpty) {
         try {
           final resp = await _rag.ask(
-            text,
+            '$text\n\n${_conciseInstruction()}',
             questionContext: _effectiveContext,
             languageCode: _languageCode,
           );
-          replyText = resp.answer.trim();
+          replyText = _compactBotText(resp.answer);
           if (resp.sources.isNotEmpty) sources = resp.sources;
         } catch (_) {
           replyText = '';
@@ -442,7 +515,7 @@ class _ChatPanelState extends State<ChatPanel> {
       _messages.add(
         _ChatMessage(
           role: 'bot',
-          text: replyText,
+          text: _compactBotText(replyText),
           sources: sources,
         ),
       );
@@ -451,6 +524,89 @@ class _ChatPanelState extends State<ChatPanel> {
       setState(() => _connected = false);
       _messages.add(_ChatMessage(role: 'bot', text: '${_ui('error_prefix')}: ${e.message}'));
     } catch (e) {
+      if (!mounted) return;
+      setState(() => _connected = false);
+      _messages.add(
+        _ChatMessage(
+          role: 'bot',
+          text: _ui('server_connect_failed'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _streamingText = '';
+          _streamingSources = [];
+        });
+        _scrollToBottom();
+      }
+    }
+  }
+
+  Future<void> _sendQuickQuestion() async {
+    final text = widget.quickQuestion?.trim() ?? '';
+    if (text.isEmpty || _loading) return;
+
+    _messages.add(_ChatMessage(role: 'user', text: text));
+    setState(() {
+      _loading = true;
+      _streamingText = '';
+      _streamingSources = [];
+    });
+    _scrollToBottom();
+
+    try {
+      await for (final chunk in _rag.askStream(
+        '$text\n\n${_conciseInstruction()}',
+        questionContext: _effectiveContext,
+        languageCode: _languageCode,
+      )) {
+        if (!mounted) return;
+        if (!_connected) {
+          setState(() => _connected = true);
+        }
+        if (chunk.text != null && chunk.text!.isNotEmpty) {
+          setState(() => _streamingText += chunk.text!);
+          _scrollToBottom();
+        }
+        if (chunk.done && chunk.sources.isNotEmpty) {
+          setState(() => _streamingSources = chunk.sources);
+        }
+      }
+      if (!mounted) return;
+      String replyText = _streamingText.trim();
+      List<RagSource>? sources = _streamingSources.isEmpty ? null : _streamingSources;
+
+      if (replyText.isEmpty) {
+        try {
+          final resp = await _rag.ask(
+            '$text\n\n${_conciseInstruction()}',
+            questionContext: _effectiveContext,
+            languageCode: _languageCode,
+          );
+          replyText = _compactBotText(resp.answer);
+          if (resp.sources.isNotEmpty) sources = resp.sources;
+        } catch (_) {
+          replyText = '';
+        }
+      }
+      if (replyText.isEmpty) {
+        replyText = _ui('no_response');
+        sources = null;
+      }
+      _messages.add(
+        _ChatMessage(
+          role: 'bot',
+          text: _compactBotText(replyText),
+          sources: sources,
+        ),
+      );
+    } on RagException catch (e) {
+      if (!mounted) return;
+      setState(() => _connected = false);
+      _messages.add(_ChatMessage(role: 'bot', text: '${_ui('error_prefix')}: ${e.message}'));
+    } catch (_) {
       if (!mounted) return;
       setState(() => _connected = false);
       _messages.add(
@@ -492,7 +648,7 @@ class _ChatPanelState extends State<ChatPanel> {
         border: Border(left: BorderSide(color: Brand.border)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(-4, 0),
           ),
@@ -504,7 +660,7 @@ class _ChatPanelState extends State<ChatPanel> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Brand.black.withOpacity(0.03),
+              color: Brand.black.withValues(alpha: 0.03),
               border: Border(bottom: BorderSide(color: Brand.border)),
             ),
             child: Row(
@@ -547,7 +703,7 @@ class _ChatPanelState extends State<ChatPanel> {
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Brand.black.withOpacity(0.04),
+                color: Brand.black.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Brand.border),
               ),
@@ -598,21 +754,9 @@ class _ChatPanelState extends State<ChatPanel> {
                     itemCount: _messages.length + (_loading ? 1 : 0),
                     itemBuilder: (context, i) {
                       if (_loading && i == _messages.length) {
-                        if (_streamingText.isEmpty) {
-                          return const Padding(
-                            padding: EdgeInsets.only(bottom: 10),
-                            child: _TypingIndicator(),
-                          );
-                        }
-                        return _ChatBubble(
-                          message: _ChatMessage(
-                            role: 'bot',
-                            text: _streamingText,
-                            sources: _streamingSources.isEmpty
-                                ? null
-                                : _streamingSources,
-                          ),
-                          isStreaming: true,
+                        return const Padding(
+                          padding: EdgeInsets.only(bottom: 10),
+                          child: _TypingIndicator(),
                         );
                       }
                       return _ChatBubble(message: _messages[i]);
@@ -767,9 +911,8 @@ class _TypingIndicatorState extends State<_TypingIndicator>
 
 class _ChatBubble extends StatelessWidget {
   final _ChatMessage message;
-  final bool isStreaming;
 
-  const _ChatBubble({required this.message, this.isStreaming = false});
+  const _ChatBubble({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -784,7 +927,7 @@ class _ChatBubble extends StatelessWidget {
           if (!isUser)
             CircleAvatar(
               radius: 12,
-              backgroundColor: Brand.black.withOpacity(0.1),
+              backgroundColor: Brand.black.withValues(alpha: 0.1),
               child: Icon(Icons.smart_toy, size: 14, color: Brand.black),
             ),
           if (!isUser) const SizedBox(width: 6),
@@ -800,7 +943,7 @@ class _ChatBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SelectableText(
-                    message.text + (isStreaming ? '▌' : ''),
+                    message.text,
                     style: TextStyle(
                       color: isUser ? Brand.white : Brand.black,
                       fontSize: 13,

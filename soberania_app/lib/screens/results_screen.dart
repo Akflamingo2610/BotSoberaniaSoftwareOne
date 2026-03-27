@@ -1,5 +1,12 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../api/rag_api.dart';
 import '../api/xano_api.dart';
@@ -37,6 +44,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   final _api = XanoApi();
   final _rag = RagApi();
   final _storage = AppStorage();
+  final GlobalKey _pdfKey = GlobalKey();
 
   bool _loading = true;
   String? _error;
@@ -45,6 +53,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
   String? _userEmail;
   String? _botOverview;
   bool _overviewLoading = false;
+  bool _exportingPdf = false;
+  String? _quickQuestion;
+  int _quickQuestionNonce = 0;
 
   static const _phaseOrder = ['Quick_Wins', 'Foundational', 'Efficient', 'Optimized'];
 
@@ -200,25 +211,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
       final resp = await _rag.ask(
         _languageCode == 'en'
-            ? 'Write ONE short paragraph in English summarizing the results of this digital sovereignty assessment. Use at most 4 sentences, highlighting the main strengths and improvement opportunities in an executive and objective tone.'
+            ? 'Write one short and clear paragraph in English summarizing these digital sovereignty assessment results. Use simple language, 3 to 4 complete sentences, and explain what the scores mean in practice. Mention the strongest point and the main opportunity for improvement. End with a direct recommendation in one sentence.'
             : _languageCode == 'es'
-                ? 'Escriba UN párrafo corto en español resumiendo los resultados de este assessment de soberanía digital. Use un máximo de 4 frases, destacando las principales fortalezas y oportunidades de mejora, de forma ejecutiva y objetiva.'
-                : 'Escreva UM parágrafo curto, em português, resumindo os resultados deste assessment de soberania digital. Use no máximo 4 frases, destacando principais pontos fortes e principais oportunidades de melhoria, de forma executiva e objetiva.',
+                ? 'Escriba un párrafo breve y claro en español resumiendo estos resultados del assessment de soberanía digital. Use lenguaje simple, de 3 a 4 frases completas, y explique qué significan los puntajes en la práctica. Mencione el punto más fuerte y la principal oportunidad de mejora. Termine con una recomendación directa en una frase.'
+                : 'Escreva um parágrafo curto e claro, em português, resumindo os resultados deste assessment de soberania digital. Use linguagem simples, de 3 a 4 frases completas, e explique o que os percentuais significam na prática. Destaque o ponto mais forte e a principal oportunidade de melhoria. Termine com uma recomendação direta em uma frase.',
         questionContext: ctx,
         languageCode: _languageCode,
       );
       if (mounted && resp.answer.trim().isNotEmpty) {
-        // Garante no mínimo 1 parágrafo enxuto na UI: pega só o primeiro parágrafo
-        // e limita o tamanho máximo do texto.
-        var text = resp.answer.trim();
-        final paragraphs = text.split('\n\n');
-        if (paragraphs.isNotEmpty) {
-          text = paragraphs.first.trim();
-        }
-        const maxChars = 600;
-        if (text.length > maxChars) {
-          text = '${text.substring(0, maxChars).trim()}...';
-        }
+        final text = _normalizeOverviewText(resp.answer);
         setState(() {
           _botOverview = text;
           _overviewLoading = false;
@@ -228,6 +229,166 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
     } catch (_) {
       if (mounted) setState(() => _overviewLoading = false);
+    }
+  }
+
+  String _normalizeOverviewText(String raw) {
+    var text = raw.trim();
+    final paragraphs = text.split(RegExp(r'\n\s*\n'));
+    if (paragraphs.isNotEmpty) {
+      text = paragraphs.first.trim();
+    }
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    text = text.replaceAll('...', '.').replaceAll('…', '.').trim();
+
+    const maxChars = 520;
+    if (text.length > maxChars) {
+      final clipped = text.substring(0, maxChars).trim();
+      final boundary = _lastSentenceBoundary(clipped);
+      if (boundary >= (maxChars * 0.55).floor()) {
+        text = clipped.substring(0, boundary + 1).trim();
+      } else {
+        final lastSpace = clipped.lastIndexOf(' ');
+        text = (lastSpace > 0 ? clipped.substring(0, lastSpace) : clipped).trim();
+      }
+    }
+
+    // Garante término conclusivo sem reticências/corte no meio.
+    text = text.replaceFirst(RegExp(r'[,:;]\s*$'), '').trim();
+    if (!_hasTerminalPunctuation(text)) {
+      text = '$text.';
+    }
+    return text;
+  }
+
+  int _lastSentenceBoundary(String text) {
+    final chars = text.split('');
+    for (var i = chars.length - 1; i >= 0; i--) {
+      final c = chars[i];
+      if (c == '.' || c == '!' || c == '?') return i;
+    }
+    return -1;
+  }
+
+  bool _hasTerminalPunctuation(String text) {
+    return text.endsWith('.') || text.endsWith('!') || text.endsWith('?');
+  }
+
+  void _triggerQuickQuestion(String question) {
+    setState(() {
+      _quickQuestion = question.trim();
+      _quickQuestionNonce += 1;
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(milliseconds: 1200),
+        content: Text(
+          _languageCode == 'en'
+              ? 'Question sent to the bot.'
+              : _languageCode == 'es'
+                  ? 'Pregunta enviada al bot.'
+                  : 'Pergunta enviada ao bot.',
+        ),
+      ),
+    );
+  }
+
+  String _buildPilarQuestion(String pilar, int score) {
+    final localized = _localizedPilar(context, pilar);
+    if (_languageCode == 'en') {
+      return 'Explain in a simple and concise way what $score% in $localized means for our current maturity, and list the next 3 practical actions to improve this pillar.';
+    }
+    if (_languageCode == 'es') {
+      return 'Explique de forma simple y breve qué significa $score% en $localized para nuestra madurez actual, e indique las próximas 3 acciones prácticas para mejorar este pilar.';
+    }
+    return 'Explique de forma simples e objetiva o que significa $score% em $localized para nossa maturidade atual, e liste as próximas 3 ações práticas para melhorar este pilar.';
+  }
+
+  String _buildDomainQuestion(String domain, int score) {
+    final localized = _localizedDominio(context, domain);
+    if (_languageCode == 'en') {
+      return 'Explain what the domain "$localized" means and what our score of $score% indicates today. Then suggest 2 practical actions to improve this domain.';
+    }
+    if (_languageCode == 'es') {
+      return 'Explique qué significa el dominio "$localized" y qué indica hoy nuestra puntuación de $score%. Luego sugiera 2 acciones prácticas para mejorar este dominio.';
+    }
+    return 'Explique o que significa o domínio "$localized" e o que a nossa pontuação de $score% indica hoje. Em seguida, sugira 2 ações práticas para melhorar este domínio.';
+  }
+
+  Future<void> _exportResultsPdf() async {
+    if (_exportingPdf || _loading || _data == null) return;
+    setState(() => _exportingPdf = true);
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+
+      final boundary =
+          _pdfKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      // Aumenta nitidez para gráficos e textos no PDF final.
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.4);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      final doc = pw.Document();
+      final pw.MemoryImage chartImage = pw.MemoryImage(pngBytes);
+
+      final title = _languageCode == 'en'
+          ? 'Digital Sovereignty Assessment Results'
+          : _languageCode == 'es'
+              ? 'Resultados del Assessment de Soberanía Digital'
+              : 'Resultados do Assessment de Soberania Digital';
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(20),
+          build: (context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  title,
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 12),
+                pw.Expanded(
+                  child: pw.Container(
+                    width: double.infinity,
+                    child: pw.Image(chartImage, fit: pw.BoxFit.contain),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      final bytes = await doc.save();
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'resultados_soberania_digital.pdf',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _languageCode == 'en'
+                ? 'Could not generate the PDF. Please try again.'
+                : _languageCode == 'es'
+                    ? 'No fue posible generar el PDF. Inténtelo nuevamente.'
+                    : 'Nao foi possivel gerar o PDF. Tente novamente.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingPdf = false);
     }
   }
 
@@ -272,6 +433,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
         context,
         title: l10n.t('results_title'),
         subtitle: subtitle,
+        trailing: IconButton(
+          tooltip: _languageCode == 'en'
+              ? 'Export PDF'
+              : _languageCode == 'es'
+                  ? 'Exportar PDF'
+                  : 'Exportar PDF',
+          onPressed: _exportingPdf ? null : _exportResultsPdf,
+          icon: _exportingPdf
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.picture_as_pdf),
+        ),
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -304,34 +480,136 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final showPanel = constraints.maxWidth > 1100;
-                          final chartsColumn = Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SizedBox(height: 8),
-                              _BotOverviewCard(
-                                overview: _botOverview,
-                                loading: _overviewLoading,
-                              ),
-                              const SizedBox(height: 24),
-                              _ChartCard(
-                                title: l10n.t('results_score_by_pillar'),
-                                child: _PilarBarChart(
-                                  data: _data!,
-                                  labelBuilder: (p) => _localizedPilar(context, p),
+                          final contentWidth = showPanel
+                              ? (constraints.maxWidth - 360).clamp(0, constraints.maxWidth)
+                              : constraints.maxWidth;
+                          final sideBySideCharts = contentWidth >= 980;
+                          final resultsContent = RepaintBoundary(
+                            key: _pdfKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const SizedBox(height: 8),
+                                _BotOverviewCard(
+                                  overview: _botOverview,
+                                  loading: _overviewLoading,
                                 ),
-                              ),
-                              if (_data!.dominios.isNotEmpty) ...[
                                 const SizedBox(height: 24),
-                                _ChartCard(
-                                  title: l10n.t('results_score_by_domain'),
-                                  height: 400,
-                                  child: _DominioRadarChart(
-                                    data: _data!,
-                                    labelBuilder: (d) => _localizedDominio(context, d),
+                                if (_data!.dominios.isNotEmpty && sideBySideCharts) ...[
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: _ChartCard(
+                                          title: l10n.t('results_score_by_pillar'),
+                                          subtitle: _languageCode == 'en'
+                                              ? 'Tap a bar or percentage to ask the bot for an explanation.'
+                                              : _languageCode == 'es'
+                                                  ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
+                                                  : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
+                                          height: 400,
+                                          child: _PilarBarChart(
+                                            data: _data!,
+                                            labelBuilder: (p) => _localizedPilar(context, p),
+                                            onPilarTap: (pilar, score) {
+                                              _triggerQuickQuestion(
+                                                _buildPilarQuestion(pilar, score),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: _ChartCard(
+                                          title: l10n.t('results_score_by_domain'),
+                                          subtitle: _languageCode == 'en'
+                                              ? 'Tap a domain label or point on the radar to see what your percentage means.'
+                                              : _languageCode == 'es'
+                                                  ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
+                                                  : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
+                                          height: 400,
+                                          child: _DominioRadarChart(
+                                            data: _data!,
+                                            labelBuilder: (d) => _localizedDominio(context, d),
+                                            onDomainTap: (domain, score) {
+                                              _triggerQuickQuestion(
+                                                _buildDomainQuestion(domain, score),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ] else ...[
+                                  _ChartCard(
+                                    title: l10n.t('results_score_by_pillar'),
+                                    subtitle: _languageCode == 'en'
+                                        ? 'Tap a bar or percentage to ask the bot for an explanation.'
+                                        : _languageCode == 'es'
+                                            ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
+                                            : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
+                                    child: _PilarBarChart(
+                                      data: _data!,
+                                      labelBuilder: (p) => _localizedPilar(context, p),
+                                      onPilarTap: (pilar, score) {
+                                        _triggerQuickQuestion(
+                                          _buildPilarQuestion(pilar, score),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                                if (_data!.dominios.isNotEmpty && !sideBySideCharts) ...[
+                                  const SizedBox(height: 24),
+                                  _ChartCard(
+                                    title: l10n.t('results_score_by_domain'),
+                                    subtitle: _languageCode == 'en'
+                                        ? 'Tap a domain label or point on the radar to see what your percentage means.'
+                                        : _languageCode == 'es'
+                                            ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
+                                            : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
+                                    height: 400,
+                                    child: _DominioRadarChart(
+                                      data: _data!,
+                                      labelBuilder: (d) => _localizedDominio(context, d),
+                                      onDomainTap: (domain, score) {
+                                        _triggerQuickQuestion(
+                                          _buildDomainQuestion(domain, score),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 32),
+                              ],
+                            ),
+                          );
+                          if (showPanel) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.all(16),
+                                    child: resultsContent,
                                   ),
                                 ),
+                                ChatPanel(
+                                  resultsContext: _buildResultsContext(),
+                                  quickQuestion: _quickQuestion,
+                                  quickQuestionNonce: _quickQuestionNonce,
+                                ),
                               ],
-                              if (!showPanel) ...[
+                            );
+                          }
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                resultsContent,
                                 const SizedBox(height: 24),
                                 SizedBox(
                                   height: 400,
@@ -345,31 +623,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                     ),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(16),
-                                      child: ChatPanel(resultsContext: _buildResultsContext()),
+                                      child: ChatPanel(
+                                        resultsContext: _buildResultsContext(),
+                                        quickQuestion: _quickQuestion,
+                                        quickQuestionNonce: _quickQuestionNonce,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ],
-                              const SizedBox(height: 32),
-                            ],
-                          );
-                          if (showPanel) {
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.all(16),
-                                    child: chartsColumn,
-                                  ),
-                                ),
-                                ChatPanel(resultsContext: _buildResultsContext()),
-                              ],
-                            );
-                          }
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.all(16),
-                            child: chartsColumn,
+                            ),
                           );
                         },
                       ),
@@ -441,11 +704,13 @@ class _BotOverviewCard extends StatelessWidget {
 
 class _ChartCard extends StatelessWidget {
   final String title;
+  final String? subtitle;
   final Widget child;
   final double height;
 
   const _ChartCard({
     required this.title,
+    this.subtitle,
     required this.child,
     this.height = 220,
   });
@@ -471,6 +736,15 @@ class _ChartCard extends StatelessWidget {
                     color: Brand.black,
                   ),
             ),
+            if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                subtitle!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.black54,
+                    ),
+              ),
+            ],
             const SizedBox(height: 16),
             SizedBox(height: height, child: child),
           ],
@@ -484,8 +758,13 @@ class _ChartCard extends StatelessWidget {
 class _DominioRadarChart extends StatelessWidget {
   final ResultsData data;
   final String Function(String) labelBuilder;
+  final void Function(String domain, int score)? onDomainTap;
 
-  const _DominioRadarChart({required this.data, required this.labelBuilder});
+  const _DominioRadarChart({
+    required this.data,
+    required this.labelBuilder,
+    this.onDomainTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -500,6 +779,10 @@ class _DominioRadarChart extends StatelessWidget {
     return CustomRadarChart(
       labels: data.dominios.map(labelBuilder).toList(),
       values: values,
+      onDomainTap: (index, _, value) {
+        if (index < 0 || index >= data.dominios.length) return;
+        onDomainTap?.call(data.dominios[index], value.round());
+      },
       // Usa paleta da marca: preenchimento suave em azul, borda em vermelho.
       fillColor: Brand.accentBlue,
       borderColor: Brand.accentRed,
@@ -512,21 +795,44 @@ class _DominioRadarChart extends StatelessWidget {
 class _PilarBarChart extends StatelessWidget {
   final ResultsData data;
   final String Function(String) labelBuilder;
+  final void Function(String pilar, int score)? onPilarTap;
 
-  const _PilarBarChart({required this.data, required this.labelBuilder});
+  const _PilarBarChart({
+    required this.data,
+    required this.labelBuilder,
+    this.onPilarTap,
+  });
+
+  void _handleFallbackTap(Offset localPosition, Size size) {
+    if (onPilarTap == null || data.pilars.isEmpty || size.width <= 0) return;
+    final n = data.pilars.length;
+    final rawIndex = ((localPosition.dx / size.width) * n).floor();
+    final index = rawIndex.clamp(0, n - 1);
+    final pilar = data.pilars[index];
+    final score = (data.scoreByPilar[pilar] ?? 0).round();
+    onPilarTap!(pilar, score);
+  }
+
+  Color _colorForPilar(String pilar) {
+    final key = pilar.toLowerCase().trim();
+    if (key.contains('compliance') || key.contains('conform')) {
+      return const Color(0xFFF7675E);
+    }
+    if (key.contains('continuity') || key.contains('contin')) {
+      return const Color(0xFF3366FF);
+    }
+    if (key.contains('control') || key.contains('controle')) {
+      return const Color(0xFFB0A7FF);
+    }
+    return Brand.accentBlue;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final palette = <Color>[
-      Brand.accentRed,
-      Brand.accentBlue,
-      Brand.accentOrange,
-    ];
-
     final items = <BarChartGroupData>[];
     for (var i = 0; i < data.pilars.length; i++) {
       final p = data.pilars[i];
-      final color = palette[i % palette.length];
+      final color = _colorForPilar(p);
       items.add(
         BarChartGroupData(
           x: i,
@@ -539,8 +845,8 @@ class _PilarBarChart extends StatelessWidget {
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
                 colors: [
-                  color.withOpacity(0.9),
-                  color.withOpacity(0.6),
+                  color.withValues(alpha: 0.9),
+                  color.withValues(alpha: 0.6),
                 ],
               ),
             ),
@@ -550,81 +856,99 @@ class _PilarBarChart extends StatelessWidget {
       );
     }
 
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: 100,
-        barTouchData: BarTouchData(
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => Brand.black,
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final pilar = labelBuilder(data.pilars[group.x]);
-              return BarTooltipItem(
-                '$pilar\n${rod.toY.toInt()}%',
-                const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              );
-            },
-          ),
-        ),
-        titlesData: FlTitlesData(
-          show: true,
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                if (value.toInt() >= 0 && value.toInt() < data.pilars.length) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      labelBuilder(data.pilars[value.toInt()]),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Brand.black,
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final chart = BarChart(
+          BarChartData(
+            alignment: BarChartAlignment.spaceAround,
+            maxY: 100,
+            barTouchData: BarTouchData(
+              touchCallback: (event, response) {
+                if (onPilarTap == null) return;
+                final isTapEvent =
+                    event is FlTapDownEvent ||
+                    event is FlTapUpEvent ||
+                    event is FlLongPressStart ||
+                    event is FlLongPressEnd;
+                if (!isTapEvent) return;
+                final spot = response?.spot;
+                if (spot == null) return;
+                final index = spot.touchedBarGroupIndex;
+                if (index < 0 || index >= data.pilars.length) return;
+                final pilar = data.pilars[index];
+                final score = (data.scoreByPilar[pilar] ?? 0).round();
+                onPilarTap!(pilar, score);
+              },
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipColor: (_) => Brand.black,
+                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                  final pilar = labelBuilder(data.pilars[group.x]);
+                  return BarTooltipItem(
+                    '$pilar\n${rod.toY.toInt()}%',
+                    const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
                     ),
                   );
-                }
-                return const SizedBox();
-              },
-              reservedSize: 28,
-              interval: 1,
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 32,
-              interval: 25,
-              getTitlesWidget: (value, meta) => Text(
-                '${value.toInt()}%',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Brand.black,
-                  fontWeight: FontWeight.w500,
-                ),
+                },
               ),
             ),
+            titlesData: FlTitlesData(
+              show: true,
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: false,
+                  reservedSize: 0,
+                  interval: 1,
+                ),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 32,
+                  interval: 25,
+                  getTitlesWidget: (value, meta) => Text(
+                    '${value.toInt()}%',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Brand.black,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            gridData: FlGridData(
+              show: true,
+              drawVerticalLine: false,
+              horizontalInterval: 25,
+              getDrawingHorizontalLine: (value) => FlLine(
+                color: Brand.border,
+                strokeWidth: 1,
+              ),
+            ),
+            borderData: FlBorderData(show: false),
+            barGroups: items,
           ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        ),
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: 25,
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: Brand.border,
-            strokeWidth: 1,
+          duration: const Duration(milliseconds: 300),
+        );
+
+        return MouseRegion(
+          cursor: onPilarTap == null
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTapUp: (details) => _handleFallbackTap(
+              details.localPosition,
+              Size(constraints.maxWidth, constraints.maxHeight),
+            ),
+            child: chart,
           ),
-        ),
-        borderData: FlBorderData(show: false),
-        barGroups: items,
-      ),
-      duration: const Duration(milliseconds: 300),
+        );
+      },
     );
   }
 }

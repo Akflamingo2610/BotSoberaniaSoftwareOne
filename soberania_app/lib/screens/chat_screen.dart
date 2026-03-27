@@ -25,6 +25,45 @@ class _ChatScreenState extends State<ChatScreen> {
   String _streamingText = '';
   List<RagSource> _streamingSources = [];
 
+  String _conciseInstruction() {
+    return 'Responda de forma muito breve (maximo 2 a 3 frases completas), com linguagem direta e conclusao clara. Nao use reticencias.';
+  }
+
+  String _compactBotText(String raw, {int maxChars = 420}) {
+    var text = raw.trim();
+    final paragraphs = text.split(RegExp(r'\n\s*\n'));
+    if (paragraphs.isNotEmpty) {
+      text = paragraphs.first.trim();
+    }
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    text = text.replaceAll('...', '.').replaceAll('…', '.').trim();
+
+    if (text.length > maxChars) {
+      final clipped = text.substring(0, maxChars).trim();
+      final sentenceEnd = _lastSentenceBoundary(clipped);
+      if (sentenceEnd >= (maxChars * 0.45).floor()) {
+        text = clipped.substring(0, sentenceEnd + 1).trim();
+      } else {
+        final lastSpace = clipped.lastIndexOf(' ');
+        text = (lastSpace > 0 ? clipped.substring(0, lastSpace) : clipped).trim();
+      }
+    }
+
+    text = text.replaceFirst(RegExp(r'[,:;]\s*$'), '').trim();
+    if (!(text.endsWith('.') || text.endsWith('!') || text.endsWith('?'))) {
+      text = '$text.';
+    }
+    return text;
+  }
+
+  int _lastSentenceBoundary(String text) {
+    for (var i = text.length - 1; i >= 0; i--) {
+      final c = text[i];
+      if (c == '.' || c == '!' || c == '?') return i;
+    }
+    return -1;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -76,7 +115,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _messages.add(
         _Message(
           role: 'bot',
-          text: _streamingText,
+          text: _compactBotText(_streamingText),
           sources: _streamingSources.isEmpty ? null : _streamingSources,
         ),
       );
@@ -119,7 +158,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       await for (final chunk in _rag.askStream(
-        text,
+        '$text\n\n${_conciseInstruction()}',
         questionContext: widget.questionContext,
       )) {
         if (!mounted) return;
@@ -135,7 +174,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _messages.add(
         _Message(
           role: 'bot',
-          text: _streamingText,
+          text: _compactBotText(_streamingText),
           sources: _streamingSources.isEmpty ? null : _streamingSources,
         ),
       );
@@ -237,7 +276,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           Icon(
                             Icons.menu_book,
                             size: 64,
-                            color: Brand.black.withOpacity(0.3),
+                            color: Brand.black.withValues(alpha: 0.3),
                           ),
                           const SizedBox(height: 16),
                           if (widget.questionContext != null &&
@@ -246,7 +285,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               padding: const EdgeInsets.all(12),
                               margin: const EdgeInsets.only(bottom: 16),
                               decoration: BoxDecoration(
-                                color: Brand.black.withOpacity(0.05),
+                                color: Brand.black.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Brand.border),
                               ),
@@ -308,17 +347,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemCount: _messages.length + (_loading ? 1 : 0),
                     itemBuilder: (context, i) {
                       if (_loading && i == _messages.length) {
-                        return _ChatBubble(
-                          message: _Message(
-                            role: 'bot',
-                            text: _streamingText.isEmpty
-                                ? '...'
-                                : _streamingText,
-                            sources: _streamingSources.isEmpty
-                                ? null
-                                : _streamingSources,
-                          ),
-                          isStreaming: true,
+                        return const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: _TypingIndicatorInline(),
                         );
                       }
                       return _ChatBubble(message: _messages[i]);
@@ -379,11 +410,42 @@ class _Message {
   _Message({required this.role, required this.text, this.sources});
 }
 
+class _TypingIndicatorInline extends StatelessWidget {
+  const _TypingIndicatorInline();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: Brand.black.withValues(alpha: 0.1),
+          child: Icon(Icons.smart_toy, size: 18, color: Brand.black),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Brand.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Brand.border),
+          ),
+          child: const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ChatBubble extends StatelessWidget {
   final _Message message;
-  final bool isStreaming;
 
-  const _ChatBubble({required this.message, this.isStreaming = false});
+  const _ChatBubble({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -413,7 +475,7 @@ class _ChatBubble extends StatelessWidget {
           if (!isUser)
             CircleAvatar(
               radius: 16,
-              backgroundColor: Brand.black.withOpacity(0.1),
+              backgroundColor: Brand.black.withValues(alpha: 0.1),
               child: Icon(Icons.smart_toy, size: 18, color: Brand.black),
             ),
           if (!isUser) const SizedBox(width: 8),
@@ -426,7 +488,7 @@ class _ChatBubble extends StatelessWidget {
                 border: isUser ? null : Border.all(color: Brand.border),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -436,7 +498,7 @@ class _ChatBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SelectableText(
-                    displayText + (isStreaming ? '▌' : ''),
+                    displayText,
                     style: TextStyle(
                       color: isUser ? Brand.white : Brand.black,
                       fontSize: 14,
