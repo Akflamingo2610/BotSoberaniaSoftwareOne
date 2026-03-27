@@ -32,16 +32,19 @@ class _PhasesScreenState extends State<PhasesScreen> {
         'Compliance',
         l10n.t('phase_compliance_label'),
         l10n.t('phase_compliance_subtitle'),
+        descriptionKey: 'phase_compliance_card_body',
       ),
       PhaseOption(
         'Continuity',
         l10n.t('phase_continuity_label'),
         l10n.t('phase_continuity_subtitle'),
+        descriptionKey: 'phase_continuity_card_body',
       ),
       PhaseOption(
         'Control',
         l10n.t('phase_control_label'),
         l10n.t('phase_control_subtitle'),
+        descriptionKey: 'phase_control_card_body',
       ),
     ];
   }
@@ -104,7 +107,9 @@ class _PhasesScreenState extends State<PhasesScreen> {
         if (allAnswered && wasNotAllAnswered) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(AppLocalizations.of(context).t('results_new_generated')),
+              content: Text(
+                AppLocalizations.of(context).t('results_new_generated'),
+              ),
               backgroundColor: Brand.black,
               behavior: SnackBarBehavior.floating,
             ),
@@ -131,7 +136,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
     final m = dt.month.toString().padLeft(2, '0');
     final h = dt.hour.toString().padLeft(2, '0');
     final min = dt.minute.toString().padLeft(2, '0');
-    return '$d/$m ${h}:$min';
+    return '$d/$m $h:$min';
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -148,7 +153,8 @@ class _PhasesScreenState extends State<PhasesScreen> {
     final l10n = AppLocalizations.of(context);
     final phases = _localizedPhases(context);
     return Scaffold(
-      backgroundColor: Brand.surface,
+      // Tom próximo das montanhas se o asset atrasar; evita cinza do tema (web).
+      backgroundColor: const Color(0xFF3a4f63),
       appBar: soberaniaAppBar(
         context,
         title: l10n.t('phases_title'),
@@ -171,141 +177,297 @@ class _PhasesScreenState extends State<PhasesScreen> {
           ),
         ),
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final showPanel = constraints.maxWidth > 800;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          Text(
-                            l10n.t('phases_choose'),
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: Brand.black,
-                                ),
-                          ),
-                          const SizedBox(height: 16),
-                          ...phases.map(
-                            (p) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Card(
-                                elevation: 0,
-                                color: Brand.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: const BorderSide(color: Brand.border),
-                                ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 10,
-                                  ),
-                                  title: Text(
-                                    p.label,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  subtitle: Text(p.subtitle),
-                                  trailing: const Icon(Icons.chevron_right),
-                                  onTap: () {
-                                    Navigator.of(context)
-                                        .push(
-                                          MaterialPageRoute(
-                                            builder: (_) => QuestionsScreen(
-                                              phase: p.value,
-                                              phaseLabel: p.label,
-                                              byPilar: true,
-                                            ),
-                                          ),
-                                        )
-                                        .then((_) => _checkIfAllAnswered());
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (_allQuestionsAnswered) ...[
-                            const SizedBox(height: 12),
-                            Card(
-                              elevation: 0,
-                              color: Brand.black,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: const BorderSide(color: Brand.border),
-                              ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 14,
-                                ),
-                                leading: const Icon(
-                                  Icons.bar_chart_rounded,
-                                  color: Brand.white,
-                                  size: 28,
-                                ),
-                                title: Text(
-                                  l10n.t('results_title'),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: Brand.white,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  _lastResultsGeneratedAt != null
-                                      ? '${l10n.t('results_generated_at')}: ${_formatTimestamp(_lastResultsGeneratedAt!)}'
-                                      : l10n.t('results_view_scores'),
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                trailing: const Icon(
-                                  Icons.chevron_right,
-                                  color: Brand.white,
-                                  size: 28,
-                                ),
-                                onTap: () {
-                                  Navigator.of(context)
-                                      .push(
-                                        MaterialPageRoute(
-                                          builder: (_) => const ResultsScreen(),
-                                        ),
-                                      )
-                                      .then((_) => _checkIfAllAnswered());
-                                },
-                              ),
-                            ),
-                          ] else if (!_loadingResults) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              l10n.t('results_available_hint'),
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Colors.black54,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                            ),
-                          ],
-                        ],
-                      ),
+      body: SizedBox.expand(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Sem ImageFiltered: no Flutter Web costuma renderizar cinza em vez da imagem.
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/montanhas.jpg',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                filterQuality: FilterQuality.high,
+                errorBuilder: (_, __, ___) => Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF5a7a94), Color(0xFF2c3e50)],
                     ),
                   ),
                 ),
-                if (showPanel) const ChatPanel(questionContext: null),
-              ],
-            );
-          },
+              ),
+            ),
+            Positioned.fill(
+              child: Container(color: Colors.white.withValues(alpha: 0.45)),
+            ),
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final showPanel = constraints.maxWidth > 800;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 720),
+                            child: LayoutBuilder(
+                              builder: (context, inner) {
+                                return SingleChildScrollView(
+                                  padding: const EdgeInsets.all(16),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      minHeight: inner.maxHeight,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          l10n.t('phases_choose'),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                                color: Brand.black,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        ...phases.map(
+                                          (p) => Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 12,
+                                            ),
+                                            child: _PillarBannerCard(
+                                              option: p,
+                                              onTap: () {
+                                                Navigator.of(context)
+                                                    .push(
+                                                      MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            QuestionsScreen(
+                                                              phase: p.value,
+                                                              phaseLabel:
+                                                                  p.label,
+                                                              byPilar: true,
+                                                            ),
+                                                      ),
+                                                    )
+                                                    .then(
+                                                      (_) =>
+                                                          _checkIfAllAnswered(),
+                                                    );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        if (_allQuestionsAnswered) ...[
+                                          const SizedBox(height: 12),
+                                          Card(
+                                            margin: EdgeInsets.zero,
+                                            elevation: 0,
+                                            color: Brand.resultsBlue,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              side: const BorderSide(
+                                                color: Brand.border,
+                                              ),
+                                            ),
+                                            child: ListTile(
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 14,
+                                                  ),
+                                              leading: const Icon(
+                                                Icons.bar_chart_rounded,
+                                                color: Brand.white,
+                                                size: 28,
+                                              ),
+                                              title: Text(
+                                                l10n.t('results_title'),
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Brand.white,
+                                                  fontSize: 18,
+                                                ),
+                                              ),
+                                              subtitle: Text(
+                                                _lastResultsGeneratedAt != null
+                                                    ? '${l10n.t('results_generated_at')}: ${_formatTimestamp(_lastResultsGeneratedAt!)}'
+                                                    : l10n.t(
+                                                        'results_view_scores',
+                                                      ),
+                                                style: const TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              trailing: const Icon(
+                                                Icons.chevron_right,
+                                                color: Brand.white,
+                                                size: 28,
+                                              ),
+                                              onTap: () {
+                                                Navigator.of(context)
+                                                    .push(
+                                                      MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            const ResultsScreen(),
+                                                      ),
+                                                    )
+                                                    .then(
+                                                      (_) =>
+                                                          _checkIfAllAnswered(),
+                                                    );
+                                              },
+                                            ),
+                                          ),
+                                        ] else if (!_loadingResults) ...[
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            l10n.t('results_available_hint'),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: Colors.black54,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (showPanel) const ChatPanel(questionContext: null),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PillarBannerCard extends StatelessWidget {
+  const _PillarBannerCard({required this.option, required this.onTap});
+
+  final PhaseOption option;
+  final VoidCallback onTap;
+
+  static Color _baseColor(String value) {
+    switch (value) {
+      case 'Compliance':
+        return Brand.accentRed;
+      case 'Continuity':
+        return Brand.accentBlue;
+      case 'Control':
+        return Brand.accentOrange;
+      default:
+        return Brand.accentBlue;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final base = _baseColor(option.value);
+    final panelBg = Color.lerp(Brand.white, base, 0.15) ?? Brand.white;
+    const accentWidth = 9.0;
+
+    final textBlock = Container(
+      width: double.infinity,
+      color: panelBg,
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            option.label,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: Brand.black,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            option.subtitle,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.black54,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.t(option.descriptionKey),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Brand.black.withValues(alpha: 0.88),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Align(
+            alignment: Alignment.centerRight,
+            child: Icon(Icons.chevron_right, color: Colors.black45, size: 22),
+          ),
+        ],
+      ),
+    );
+
+    return SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: Brand.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Brand.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: accentWidth),
+                child: textBlock,
+              ),
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: accentWidth,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Color.lerp(Colors.white, base, 0.62) ?? base,
+                        Color.lerp(Colors.white, base, 0.90) ?? base,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

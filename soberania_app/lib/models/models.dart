@@ -146,5 +146,13 @@ class PhaseOption {
   final String label;
   final String subtitle;
 
-  const PhaseOption(this.value, this.label, this.subtitle);
+  /// Chave de tradução para o texto descritivo do cartão do pilar.
+  final String descriptionKey;
+
+  const PhaseOption(
+    this.value,
+    this.label,
+    this.subtitle, {
+    required this.descriptionKey,
+  });
 }

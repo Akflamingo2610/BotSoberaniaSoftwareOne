@@ -34,6 +34,22 @@
 
   <title>soberania_app</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    /* Viewport cheia e fundo escuro — evita faixa clara abaixo do canvas (Flutter Web). */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: #0B120B;
+    }
+    body {
+      overflow: hidden;
+    }
+    flt-glass-pane, flt-scene-host, flutter-view {
+      min-height: 100%;
+      min-width: 100%;
+    }
+  </style>
 </head>
 <body>
   <script>

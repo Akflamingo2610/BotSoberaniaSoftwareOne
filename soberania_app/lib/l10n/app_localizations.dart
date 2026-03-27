@@ -102,13 +102,19 @@ class AppLocalizations {
           'Base sólida para inovação segura, incluindo dados sensíveis e cargas de trabalho críticas.',
       'btn_start_assessment': 'Iniciar Assessment',
       'phases_title': 'Pilares da Soberania Digital',
-      'phases_choose': 'Escolha um pilar para responder',
+      'phases_choose': 'Responda aos 3 pilares para exibir seu resultado',
       'phase_compliance_label': 'Compliance',
       'phase_compliance_subtitle': 'Conformidade e requisitos regulatórios',
       'phase_continuity_label': 'Continuity',
       'phase_continuity_subtitle': 'Continuidade de negócio e resiliência',
       'phase_control_label': 'Control',
       'phase_control_subtitle': 'Controles e governança',
+      'phase_compliance_card_body':
+          'As perguntas deste pilar avaliam leis, normas, auditoria e evidências de conformidade com requisitos regulatórios e de segurança aplicáveis à sua operação.',
+      'phase_continuity_card_body':
+          'Aqui você responde sobre recuperação, disponibilidade, planos de continuidade e resiliência dos serviços e dados críticos para o negócio.',
+      'phase_control_card_body':
+          'As questões cobrem governança, acessos, segregação de funções, criptografia e visibilidade sobre infraestrutura e operações na nuvem.',
       'results_title': 'Resultados',
       'results_score_by_pillar': 'Score por Pilar',
       'results_score_by_domain': 'Score por Domínio',
@@ -135,6 +141,7 @@ class AppLocalizations {
       'lang_pt': 'Português',
       'lang_en': 'English',
       'lang_es': 'Español',
+      'lang_menu_tooltip': 'Idioma',
       'login_title': 'Acesso',
       'login_card_title': 'Acesse sua conta',
       'login_welcome_title': 'Seja bem-vindo',
@@ -175,6 +182,14 @@ class AppLocalizations {
       'signup_password_too_short': 'Senha deve ter no mínimo 6 caracteres',
       'btn_register': 'Criar minha conta',
       'signup_already_have': 'Já tem conta? ',
+      'signup_marketing_consent':
+          'A SoftwareOne pode usar meus dados para me manter informado sobre futuros eventos, bem como sobre produtos, serviços e ofertas.',
+      'signup_privacy_prefix':
+          'Ao enviar este formulário, os dados informados serão encaminhados e armazenados por nós para fins de contato. Seus dados não serão, em hipótese alguma, divulgados a terceiros. Você pode consultar informações adicionais sobre seus dados e direitos na nossa ',
+      'signup_privacy_link': 'Política de privacidade',
+      'signup_register_error': 'Erro ao cadastrar',
+      'signup_privacy_url_clipboard': 'Link:',
+      'signup_privacy_url_open': 'Abrir:',
       'no_account': 'Não tem uma conta ainda? Cadastre-se',
       'right_panel_title': 'O que oferecemos',
       'right_panel_intro':
@@ -277,13 +292,19 @@ class AppLocalizations {
           'A solid foundation for secure innovation, including sensitive data and mission-critical workloads.',
       'btn_start_assessment': 'Start Assessment',
       'phases_title': 'Digital Sovereignty Pillars',
-      'phases_choose': 'Choose a pillar to answer',
+      'phases_choose': 'Answer the 3 pillars to view your result',
       'phase_compliance_label': 'Compliance',
       'phase_compliance_subtitle': 'Compliance and regulatory requirements',
       'phase_continuity_label': 'Continuity',
       'phase_continuity_subtitle': 'Business continuity and resilience',
       'phase_control_label': 'Control',
       'phase_control_subtitle': 'Controls and governance',
+      'phase_compliance_card_body':
+          'This pillar covers laws, standards, audits, and evidence of compliance with regulatory and security requirements applicable to your operation.',
+      'phase_continuity_card_body':
+          'Here you answer about recovery, availability, continuity planning, and resilience of critical services and data.',
+      'phase_control_card_body':
+          'Questions cover governance, access, segregation of duties, encryption, and visibility over cloud infrastructure and operations.',
       'results_title': 'Results',
       'results_score_by_pillar': 'Score by Pillar',
       'results_score_by_domain': 'Score by Domain',
@@ -310,6 +331,7 @@ class AppLocalizations {
       'lang_pt': 'Português',
       'lang_en': 'English',
       'lang_es': 'Español',
+      'lang_menu_tooltip': 'Language',
       'login_title': 'Log in',
       'login_card_title': 'Access your account',
       'login_welcome_title': 'Welcome',
@@ -350,6 +372,14 @@ class AppLocalizations {
       'signup_password_too_short': 'Password must be at least 6 characters',
       'btn_register': 'Create my account',
       'signup_already_have': 'Already have an account? ',
+      'signup_marketing_consent':
+          'SoftwareOne may use my data to keep me informed about future events, as well as about products, services, and offers.',
+      'signup_privacy_prefix':
+          'By submitting this form the entered data will be handed over to and stored by us for contact purposes. Your data will under no circumstances be disclosed to third parties. You can review additional information about your data and rights in our ',
+      'signup_privacy_link': 'Privacy Policy',
+      'signup_register_error': 'Could not complete registration',
+      'signup_privacy_url_clipboard': 'Link:',
+      'signup_privacy_url_open': 'Open:',
       'no_account': "Don't have an account yet? Sign up",
       'right_panel_title': 'What we offer',
       'right_panel_intro':
@@ -452,13 +482,19 @@ class AppLocalizations {
           'Base sólida para la innovación segura, incluyendo datos sensibles y cargas de trabajo críticas.',
       'btn_start_assessment': 'Iniciar Assessment',
       'phases_title': 'Pilares de Soberanía Digital',
-      'phases_choose': 'Elija un pilar para responder',
+      'phases_choose': 'Responda los 3 pilares para ver su resultado',
       'phase_compliance_label': 'Compliance',
       'phase_compliance_subtitle': 'Conformidad y requisitos regulatorios',
       'phase_continuity_label': 'Continuity',
       'phase_continuity_subtitle': 'Continuidad del negocio y resiliencia',
       'phase_control_label': 'Control',
       'phase_control_subtitle': 'Controles y gobernanza',
+      'phase_compliance_card_body':
+          'Este pilar evalúa leyes, normas, auditorías y evidencias de conformidad con requisitos regulatorios y de seguridad aplicables a su operación.',
+      'phase_continuity_card_body':
+          'Aquí usted responde sobre recuperación, disponibilidad, planes de continuidad y resiliencia de servicios y datos críticos para el negocio.',
+      'phase_control_card_body':
+          'Las preguntas cubren gobernanza, accesos, segregación de funciones, cifrado y visibilidad sobre infraestructura y operaciones en la nube.',
       'results_title': 'Resultados',
       'results_score_by_pillar': 'Puntuación por Pilar',
       'results_score_by_domain': 'Puntuación por Dominio',
@@ -485,6 +521,7 @@ class AppLocalizations {
       'lang_pt': 'Português',
       'lang_en': 'English',
       'lang_es': 'Español',
+      'lang_menu_tooltip': 'Idioma',
       'login_title': 'Acceso',
       'login_card_title': 'Accede a tu cuenta',
       'login_welcome_title': 'Bienvenido',
@@ -525,6 +562,14 @@ class AppLocalizations {
       'signup_password_too_short': 'La contraseña debe tener al menos 6 caracteres',
       'btn_register': 'Crear mi cuenta',
       'signup_already_have': '¿Ya tiene cuenta? ',
+      'signup_marketing_consent':
+          'SoftwareOne puede usar mis datos para mantenerme informado sobre futuros eventos, así como sobre productos, servicios y ofertas.',
+      'signup_privacy_prefix':
+          'Al enviar este formulario, los datos ingresados serán entregados y almacenados por nosotros con fines de contacto. Sus datos no serán divulgados a terceros bajo ninguna circunstancia. Puede consultar información adicional sobre sus datos y derechos en nuestra ',
+      'signup_privacy_link': 'Política de privacidad',
+      'signup_register_error': 'No se pudo completar el registro',
+      'signup_privacy_url_clipboard': 'Enlace:',
+      'signup_privacy_url_open': 'Abrir:',
       'no_account': '¿No tiene cuenta? Regístrese',
       'right_panel_title': 'Lo que ofrecemos',
       'right_panel_intro':

@@ -111,16 +111,12 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/images/login_bg.jpg',
+              'assets/images/pedrasluzjpg.png',
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Image.asset(
-                'assets/images/login_bg.png',
+                'assets/images/pedrasluzjpg.png',
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Image.asset(
-                  'assets/images/login_bg.jpeg',
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(color: Brand.surface),
-                ),
+                errorBuilder: (_, __, ___) => Container(color: Brand.surface),
               ),
             ),
           ),
