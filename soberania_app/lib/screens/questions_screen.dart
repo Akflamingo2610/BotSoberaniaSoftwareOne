@@ -955,6 +955,9 @@ class _ProgressBar extends StatelessWidget {
 }
 
 class _QuestionCard extends StatelessWidget {
+  /// Mesma largura-alvo do botão «Próxima» (rótulo + ícone em PT/EN/ES).
+  static const double _kNavPairButtonWidth = 152;
+
   final Question question;
   final int index;
   final int total;
@@ -1165,56 +1168,85 @@ class _QuestionCard extends StatelessWidget {
                       onChanged: onScoreChanged,
                     );
                   }),
-                  if (selectedScore != null) ...[
-                    const SizedBox(height: 4),
-                    // Desloca ícone + texto um pouco à esquerda para coincidir com o círculo do Radio.
-                    Transform.translate(
-                      offset: const Offset(-8, 0),
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        enabled: !saving,
-                        leading: SizedBox(
-                          width: kMinInteractiveDimension,
-                          height: kMinInteractiveDimension,
-                          child: Center(
-                            child: Icon(
-                              Icons.clear,
-                              size: 18,
-                              color: Brand.black.withValues(
-                                alpha: saving ? 0.35 : 0.75,
+                ],
+              ),
+            ),
+            if (selectedScore != null || onSaibaMais != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (onSaibaMais != null)
+                    SizedBox(
+                      width: _kNavPairButtonWidth,
+                      child: OutlinedButton.icon(
+                          onPressed: onSaibaMais,
+                          icon: Icon(
+                            Icons.lightbulb_outline,
+                            size: 18,
+                            color: Brand.assessmentCtaBlue,
+                          ),
+                          label: Text(
+                            _txt(context, 'learnMore'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Brand.assessmentCtaBlue,
+                            side: BorderSide(
+                              color: Brand.assessmentCtaBlue.withValues(
+                                alpha: 0.45,
                               ),
                             ),
-                          ),
-                        ),
-                        title: Text(
-                          _txt(context, 'clearSelection'),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Brand.black.withValues(
-                              alpha: saving ? 0.35 : 0.85,
+                            backgroundColor: Brand.assessmentCtaBlue
+                                .withValues(alpha: 0.06),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            minimumSize: const Size(
+                              _kNavPairButtonWidth,
+                              40,
+                            ),
+                            maximumSize: const Size(
+                              _kNavPairButtonWidth,
+                              40,
+                            ),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                         ),
-                        onTap: saving ? null : () => onScoreChanged(null),
+                    ),
+                  if (selectedScore != null) ...[
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: saving ? null : () => onScoreChanged(null),
+                      icon: Icon(
+                        Icons.clear,
+                        size: 18,
+                        color: Brand.black.withValues(
+                          alpha: saving ? 0.35 : 0.75,
+                        ),
+                      ),
+                      label: Text(
+                        _txt(context, 'clearSelection'),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Brand.black.withValues(
+                            alpha: saving ? 0.35 : 0.85,
+                          ),
+                        ),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Brand.black,
                       ),
                     ),
                   ],
                 ],
-              ),
-            ),
-            if (onSaibaMais != null) ...[
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: onSaibaMais,
-                  icon: const Icon(Icons.lightbulb_outline, size: 18, color: Brand.black),
-                  label: Text(_txt(context, 'learnMore')),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Brand.black,
-                  ),
-                ),
               ),
             ],
             if (onPrevious != null || onNext != null) ...[
@@ -1238,10 +1270,30 @@ class _QuestionCard extends StatelessWidget {
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: onNext != null
-                          ? OutlinedButton.icon(
-                              onPressed: onNext,
-                              icon: const Icon(Icons.arrow_forward, size: 18),
-                              label: Text(_txt(context, 'next')),
+                          ? SizedBox(
+                              width: _kNavPairButtonWidth,
+                              child: OutlinedButton.icon(
+                                onPressed: onNext,
+                                icon: const Icon(Icons.arrow_forward, size: 18),
+                                label: Text(_txt(context, 'next')),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  minimumSize: const Size(
+                                    _kNavPairButtonWidth,
+                                    40,
+                                  ),
+                                  maximumSize: const Size(
+                                    _kNavPairButtonWidth,
+                                    40,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
                             )
                           : const SizedBox.shrink(),
                     ),

@@ -433,20 +433,54 @@ class _ResultsScreenState extends State<ResultsScreen> {
         context,
         title: l10n.t('results_title'),
         subtitle: subtitle,
-        trailing: IconButton(
-          tooltip: _languageCode == 'en'
-              ? 'Export PDF'
-              : _languageCode == 'es'
-                  ? 'Exportar PDF'
-                  : 'Exportar PDF',
-          onPressed: _exportingPdf ? null : _exportResultsPdf,
-          icon: _exportingPdf
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.picture_as_pdf),
+        compactTrailingActions: true,
+        actionsPadding: const EdgeInsetsDirectional.only(end: 6, start: 4),
+        trailing: Tooltip(
+          message: l10n.t('btn_generate_pdf'),
+          child: SizedBox(
+            height: 36,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: Brand.assessmentCtaBlue,
+                foregroundColor: Brand.white,
+                padding: const EdgeInsets.fromLTRB(14, 8, 20, 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: _exportingPdf ? null : _exportResultsPdf,
+              icon: _exportingPdf
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Brand.white,
+                      ),
+                    )
+                  : Image.asset(
+                      'assets/images/PDF.png',
+                      width: 22,
+                      height: 22,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.picture_as_pdf,
+                        color: Brand.white,
+                        size: 22,
+                      ),
+                    ),
+              label: Text(
+                l10n.t('btn_generate_pdf').toUpperCase(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
         ),
         leading: Row(
           mainAxisSize: MainAxisSize.min,
@@ -496,51 +530,69 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                 ),
                                 const SizedBox(height: 24),
                                 if (_data!.dominios.isNotEmpty && sideBySideCharts) ...[
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: _ChartCard(
-                                          title: l10n.t('results_score_by_pillar'),
-                                          subtitle: _languageCode == 'en'
-                                              ? 'Tap a bar or percentage to ask the bot for an explanation.'
-                                              : _languageCode == 'es'
-                                                  ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
-                                                  : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
-                                          height: 400,
-                                          child: _PilarBarChart(
-                                            data: _data!,
-                                            labelBuilder: (p) => _localizedPilar(context, p),
-                                            onPilarTap: (pilar, score) {
-                                              _triggerQuickQuestion(
-                                                _buildPilarQuestion(pilar, score),
-                                              );
-                                            },
+                                  // Altura fixa para a linha: os dois cartões ficam iguais (scroll tem altura ilimitada).
+                                  SizedBox(
+                                    height: 528,
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Expanded(
+                                          child: _ChartCard(
+                                            title: l10n
+                                                .t('results_score_by_pillar'),
+                                            subtitle: _languageCode == 'en'
+                                                ? 'Tap a bar or percentage to ask the bot for an explanation.'
+                                                : _languageCode == 'es'
+                                                    ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
+                                                    : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
+                                            fillChartHeight: true,
+                                            child: _PilarBarChart(
+                                              data: _data!,
+                                              labelBuilder: (p) =>
+                                                  _localizedPilar(context, p),
+                                              onPilarTap: (pilar, score) {
+                                                _triggerQuickQuestion(
+                                                  _buildPilarQuestion(
+                                                    pilar,
+                                                    score,
+                                                  ),
+                                                );
+                                              },
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: _ChartCard(
-                                          title: l10n.t('results_score_by_domain'),
-                                          subtitle: _languageCode == 'en'
-                                              ? 'Tap a domain label or point on the radar to see what your percentage means.'
-                                              : _languageCode == 'es'
-                                                  ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
-                                                  : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
-                                          height: 400,
-                                          child: _DominioRadarChart(
-                                            data: _data!,
-                                            labelBuilder: (d) => _localizedDominio(context, d),
-                                            onDomainTap: (domain, score) {
-                                              _triggerQuickQuestion(
-                                                _buildDomainQuestion(domain, score),
-                                              );
-                                            },
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: _ChartCard(
+                                            title: l10n
+                                                .t('results_score_by_domain'),
+                                            subtitle: _languageCode == 'en'
+                                                ? 'Tap a domain label or point on the radar to see what your percentage means.'
+                                                : _languageCode == 'es'
+                                                    ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
+                                                    : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
+                                            fillChartHeight: true,
+                                            child: _DominioRadarChart(
+                                              data: _data!,
+                                              labelBuilder: (d) =>
+                                                  _localizedDominio(
+                                                context,
+                                                d,
+                                              ),
+                                              onDomainTap: (domain, score) {
+                                                _triggerQuickQuestion(
+                                                  _buildDomainQuestion(
+                                                    domain,
+                                                    score,
+                                                  ),
+                                                );
+                                              },
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ] else ...[
                                   _ChartCard(
@@ -707,16 +759,23 @@ class _ChartCard extends StatelessWidget {
   final String? subtitle;
   final Widget child;
   final double height;
+  /// Em [Row] lado a lado: gráfico preenche a altura para igualar o cartão vizinho.
+  final bool fillChartHeight;
 
   const _ChartCard({
     required this.title,
     this.subtitle,
     required this.child,
     this.height = 220,
+    this.fillChartHeight = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final chartSlot = fillChartHeight
+        ? Expanded(child: child)
+        : SizedBox(height: height, child: child);
+
     return Card(
       elevation: 0,
       color: Brand.white,
@@ -728,6 +787,7 @@ class _ChartCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: fillChartHeight ? MainAxisSize.max : MainAxisSize.min,
           children: [
             Text(
               title,
@@ -746,7 +806,7 @@ class _ChartCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            SizedBox(height: height, child: child),
+            chartSlot,
           ],
         ),
       ),
@@ -822,7 +882,7 @@ class _PilarBarChart extends StatelessWidget {
       return const Color(0xFF3366FF);
     }
     if (key.contains('control') || key.contains('controle')) {
-      return const Color(0xFFB0A7FF);
+      return Brand.controlPurple;
     }
     return Brand.accentBlue;
   }

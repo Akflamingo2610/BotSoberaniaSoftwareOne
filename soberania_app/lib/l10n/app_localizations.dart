@@ -101,18 +101,24 @@ class AppLocalizations {
       'intro_benefit_6':
           'Base sólida para inovação segura, incluindo dados sensíveis e cargas de trabalho críticas.',
       'btn_start_assessment': 'Iniciar Assessment',
+      'btn_generate_pdf': 'Gerar PDF',
       'phases_title': 'Pilares da Soberania Digital',
       'phases_choose': 'Por onde você quer começar',
       'phases_choose_subtext': 'Escolha um dos pilares e avance no seu ritmo.',
       'phase_compliance_label': 'Compliance',
       'phase_compliance_subtitle':
-          'Conformidade com leis e requisitos regulatórios',
+          'Conformidade e requisitos regulatórios',
       'phase_continuity_label': 'Continuity',
       'phase_continuity_subtitle':
-          'Continuidade do negócio e resiliência operacional',
+          'Continuidade de negócio e resiliência',
       'phase_control_label': 'Control',
-      'phase_control_subtitle':
-          'Continuidade do negócio e resiliência operacional',
+      'phase_control_subtitle': 'Controles e governança',
+      'phase_compliance_card_body':
+          'As perguntas deste pilar avaliam leis, normas, auditoria e evidências de conformidade com requisitos regulatórios e de segurança aplicáveis à sua operação.',
+      'phase_continuity_card_body':
+          'Aqui você responde sobre recuperação, disponibilidade, planos de continuidade e resiliência dos serviços e dados críticos para o negócio.',
+      'phase_control_card_body':
+          'As questões cobrem governança, acessos, segregação de funções, criptografia e visibilidade sobre infraestrutura e operações na nuvem.',
       'results_title': 'Resultados',
       'results_score_by_pillar': 'Score por Pilar',
       'results_score_by_domain': 'Score por Domínio',
@@ -287,19 +293,25 @@ class AppLocalizations {
       'intro_benefit_6':
           'A solid foundation for secure innovation, including sensitive data and mission-critical workloads.',
       'btn_start_assessment': 'Start Assessment',
+      'btn_generate_pdf': 'Generate PDF',
       'phases_title': 'Digital Sovereignty Pillars',
       'phases_choose': 'Where would you like to start',
       'phases_choose_subtext':
           'Choose one of the pillars and move forward at your own pace.',
       'phase_compliance_label': 'Compliance',
       'phase_compliance_subtitle':
-          'Compliance with laws and regulatory requirements',
+          'Regulatory compliance and requirements',
       'phase_continuity_label': 'Continuity',
       'phase_continuity_subtitle':
-          'Business continuity and operational resilience',
+          'Business continuity and resilience',
       'phase_control_label': 'Control',
-      'phase_control_subtitle':
-          'Business continuity and operational resilience',
+      'phase_control_subtitle': 'Controls and governance',
+      'phase_compliance_card_body':
+          'Questions in this pillar assess laws, standards, auditing, and evidence of compliance with regulatory and security requirements that apply to your operation.',
+      'phase_continuity_card_body':
+          'Here you answer about recovery, availability, continuity plans, and the resilience of services and data that are critical to the business.',
+      'phase_control_card_body':
+          'The questions cover governance, access, segregation of duties, encryption, and visibility over cloud infrastructure and operations.',
       'results_title': 'Results',
       'results_score_by_pillar': 'Score by Pillar',
       'results_score_by_domain': 'Score by Domain',
@@ -474,19 +486,25 @@ class AppLocalizations {
       'intro_benefit_6':
           'Base sólida para la innovación segura, incluyendo datos sensibles y cargas de trabajo críticas.',
       'btn_start_assessment': 'Iniciar Assessment',
+      'btn_generate_pdf': 'Generar PDF',
       'phases_title': 'Pilares de Soberanía Digital',
       'phases_choose': '¿Por dónde quiere empezar?',
       'phases_choose_subtext':
           'Elija uno de los pilares y avance a su propio ritmo.',
       'phase_compliance_label': 'Compliance',
       'phase_compliance_subtitle':
-          'Conformidad con leyes y requisitos regulatorios',
+          'Conformidad y requisitos regulatorios',
       'phase_continuity_label': 'Continuity',
       'phase_continuity_subtitle':
-          'Continuidad del negocio y resiliencia operativa',
+          'Continuidad del negocio y resiliencia',
       'phase_control_label': 'Control',
-      'phase_control_subtitle':
-          'Continuidad del negocio y resiliencia operativa',
+      'phase_control_subtitle': 'Controles y gobernanza',
+      'phase_compliance_card_body':
+          'Las preguntas de este pilar evalúan leyes, normas, auditoría y evidencias de conformidad con los requisitos regulatorios y de seguridad aplicables a su operación.',
+      'phase_continuity_card_body':
+          'Aquí responde sobre recuperación, disponibilidad, planes de continuidad y resiliencia de los servicios y datos críticos para el negocio.',
+      'phase_control_card_body':
+          'Las preguntas abarcan gobernanza, accesos, segregación de funciones, cifrado y visibilidad sobre infraestructura y operaciones en la nube.',
       'results_title': 'Resultados',
       'results_score_by_pillar': 'Puntuación por Pilar',
       'results_score_by_domain': 'Puntuación por Dominio',

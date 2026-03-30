@@ -75,6 +75,7 @@ flutter:
     - assets/images/signup_bg_custom.png
     - assets/images/pedrasluzjpg.png
     - assets/images/montanhas.jpg
+    - assets/images/PDF.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

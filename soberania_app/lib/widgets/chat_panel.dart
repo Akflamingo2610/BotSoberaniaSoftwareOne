@@ -944,9 +944,12 @@ class _ChatBubble extends StatelessWidget {
                 children: [
                   SelectableText(
                     message.text,
+                    textAlign: TextAlign.start,
                     style: TextStyle(
                       color: isUser ? Brand.white : Brand.black,
                       fontSize: 13,
+                      height: 1.35,
+                      wordSpacing: 0,
                     ),
                   ),
                 ],
