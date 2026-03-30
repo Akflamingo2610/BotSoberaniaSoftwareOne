@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
+import '../widgets/login_card_form.dart';
 import 'assessment_intro_screen.dart';
-import 'login_screen.dart';
 import 'phases_screen.dart';
-import 'signup_screen.dart';
 
 /// Primeira tela do app: boas-vindas + Entrar ou Cadastre-se.
 /// Se o usuário já estiver logado, vai direto para a introdução ou pilares.
@@ -19,8 +18,6 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _checkingAuth = true;
-
-  static const _pillButtonHeight = 38.0;
 
   @override
   void initState() {
@@ -75,6 +72,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           ),
           SafeArea(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
                   child: Padding(
@@ -110,75 +108,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                   ),
                                 ],
                               ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const SoftwareOneMark(size: 56),
-                                      const SizedBox(width: 18),
-                                      Container(width: 1, height: 40, color: Brand.border),
-                                      const SizedBox(width: 18),
-                                      const AwsMark(size: 56),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Text(
-                                    l10n.t('login_welcome_title'),
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: Brand.black,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: _pillButtonHeight,
-                                    child: FilledButton(
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: Brand.black,
-                                        foregroundColor: Brand.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => const LoginScreen(),
-                                          ),
-                                        );
-                                      },
-                                      child: Text(l10n.t('btn_login')),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: _pillButtonHeight,
-                                    child: FilledButton(
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: Brand.white,
-                                        foregroundColor: Brand.black,
-                                        side: const BorderSide(color: Brand.black),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => const SignupScreen(),
-                                          ),
-                                        );
-                                      },
-                                      child: Text(l10n.t('btn_signup')),
-                                    ),
-                                  ),
-                                ],
+                              child: LoginCardForm(
+                                variant: LoginCardVariant.welcome,
+                                secondaryLabel: l10n.t('btn_signup'),
                               ),
                             ),
                           ),
@@ -194,35 +126,60 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
                     color: Brand.white.withValues(alpha: 0.95),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const Align(
                           alignment: Alignment.topRight,
                           child: LanguageButton(),
                         ),
-                        const SizedBox(height: 28),
-                        Text(
-                          l10n.t('right_panel_title'),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: Brand.black,
+                        Expanded(
+                          child: Align(
+                            alignment: const Alignment(0, -0.22),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.t('right_panel_title'),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: Brand.black,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    l10n.t('right_panel_intro'),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
+                                          color: Brand.black.withValues(
+                                            alpha: 0.82,
+                                          ),
+                                          height: 1.35,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    l10n.t('right_panel_topics'),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
+                                          color: Brand.black.withValues(
+                                            alpha: 0.82,
+                                          ),
+                                          height: 1.35,
+                                        ),
+                                  ),
+                                ],
                               ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          l10n.t('right_panel_intro'),
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Brand.black.withValues(alpha: 0.82),
-                                height: 1.35,
-                              ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          l10n.t('right_panel_topics'),
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Brand.black.withValues(alpha: 0.82),
-                                height: 1.35,
-                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),

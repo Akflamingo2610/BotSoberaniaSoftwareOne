@@ -17,8 +17,17 @@ class Brand {
   static const Color accentBlue = Color(0xFF4E79A7); // azul de suporte
   static const Color accentOrange = Color(0xFFF28E2B); // laranja para contraste
 
+  /// Roxo do pilar Control (mesmo tom do destaque “controle” nos textos).
+  static const Color controlPurple = Color(0xFF6854DC);
+
   /// Azul do CTA “Resultados” na tela de pilares.
   static const Color resultsBlue = Color(0xFF4766D6);
+
+  /// Azul do botão principal (Entrar), alinhado ao CTA de assessment.
+  static const Color primaryCtaBlue = Color(0xFF486BE2);
+
+  /// Azul do botão “Iniciar assessment” (introdução) e PDF em resultados.
+  static const Color assessmentCtaBlue = Color(0xFF4169E1);
 }
 
 const String _awsLogoAsset = 'assets/images/aws_preta_semfundo.png';
@@ -124,6 +133,9 @@ PreferredSizeWidget soberaniaAppBar(
   double? leadingWidth,
   Widget? trailing,
   bool showBack = true,
+  /// PDF + idioma na mesma linha, com folga à esquerda para aproximar do meio entre AWS e globo.
+  bool compactTrailingActions = false,
+  EdgeInsetsGeometry? actionsPadding,
 }) {
   return AppBar(
     backgroundColor: Brand.white,
@@ -133,6 +145,7 @@ PreferredSizeWidget soberaniaAppBar(
     leadingWidth: leadingWidth,
     automaticallyImplyLeading: showBack && leading == null,
     titleSpacing: 16,
+    actionsPadding: actionsPadding,
     title: Row(
       children: [
         Text(
@@ -194,8 +207,22 @@ PreferredSizeWidget soberaniaAppBar(
       ],
     ),
     actions: [
-      if (trailing != null) trailing,
-      const LanguageButton(),
+      if (trailing != null && compactTrailingActions)
+        Padding(
+          padding: const EdgeInsetsDirectional.only(start: 32),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              trailing,
+              const SizedBox(width: 6),
+              const LanguageButton(),
+            ],
+          ),
+        )
+      else ...[
+        if (trailing != null) trailing,
+        const LanguageButton(),
+      ],
     ],
     iconTheme: const IconThemeData(color: Brand.black),
   );
@@ -212,6 +239,8 @@ class LanguageButton extends StatelessWidget {
 
     return PopupMenuButton<String>(
       tooltip: l10n.t('lang_menu_tooltip'),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
       icon: const Icon(Icons.language, color: Brand.black),
       onSelected: (code) => scope.setLocale(code),
       itemBuilder: (_) => [

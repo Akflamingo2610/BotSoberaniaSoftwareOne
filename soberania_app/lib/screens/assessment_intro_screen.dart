@@ -21,7 +21,7 @@ class _AssessmentIntroScreenState extends State<AssessmentIntroScreen> {
 
   static const Color _complianceColor = Color(0xFFF7675E);
   static const Color _continuityColor = Color(0xFF3366FF);
-  static const Color _controlColor = Color(0xFFB0A7FF);
+  static const Color _controlColor = Brand.controlPurple;
 
   Future<void> _continue(BuildContext context) async {
     // Salva flag de que já viu a introdução
@@ -105,7 +105,7 @@ class _AssessmentIntroScreenState extends State<AssessmentIntroScreen> {
           ),
           Positioned.fill(
             child: Container(
-              color: Colors.white.withValues(alpha: 0.76),
+              color: const Color(0xFF4A4A4A).withValues(alpha: 0.72),
             ),
           ),
           SafeArea(
@@ -235,7 +235,7 @@ class _AssessmentIntroScreenState extends State<AssessmentIntroScreen> {
         style: baseStyle,
         children: _buildHighlightedSpans(text, baseStyle, onKeywordTap),
       ),
-      textAlign: textAlign ?? TextAlign.justify,
+      textAlign: textAlign ?? TextAlign.start,
       maxLines: maxLines,
       overflow: overflow,
     );
@@ -336,14 +336,14 @@ class _ContentColumnState extends State<_ContentColumn> {
     final titleStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(
       fontWeight: FontWeight.w900,
       color: Brand.black,
-      letterSpacing: -0.3,
+      letterSpacing: 0,
     );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
+          constraints: const BoxConstraints(maxWidth: 760),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -355,11 +355,13 @@ class _ContentColumnState extends State<_ContentColumn> {
                   border: Border.all(color: Brand.border),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     LayoutBuilder(
                       builder: (context, constraints) {
-                        final imageHeight = constraints.maxWidth < 700 ? 190.0 : 240.0;
+                        final imageHeight = constraints.maxWidth < 700
+                            ? 190.0
+                            : 220.0;
                         return ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: SizedBox(
@@ -373,158 +375,178 @@ class _ContentColumnState extends State<_ContentColumn> {
                         );
                       },
                     ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF4FF),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        l10n.t('intro_page_title'),
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: const Color(0xFF4169E1),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _AssessmentIntroScreenState.highlightedText(
-                      context,
-                      l10n.t('intro_assessment_card_title'),
-                      style: titleStyle,
-                      onKeywordTap: widget.onKeywordTap,
-                    ),
                     const SizedBox(height: 12),
-                    _AssessmentIntroScreenState.highlightedText(
-                      context,
-                      l10n.t('intro_assessment_card_body'),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Colors.black87,
-                        height: 1.6,
-                      ),
-                      onKeywordTap: widget.onKeywordTap,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF4FF),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            l10n.t('intro_page_title'),
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF4169E1),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _AssessmentIntroScreenState.highlightedText(
+                          context,
+                          l10n.t('intro_assessment_card_title'),
+                          style: titleStyle,
+                          onKeywordTap: widget.onKeywordTap,
+                        ),
+                        const SizedBox(height: 6),
+                        _AssessmentIntroScreenState.highlightedText(
+                          context,
+                          l10n.t('intro_assessment_card_body'),
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: Colors.black87, height: 1.5),
+                          onKeywordTap: widget.onKeywordTap,
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 28),
 
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _AssessmentIntroScreenState.highlightedText(
-                  context,
-                  l10n.t('intro_framework_title'),
-                  style: titleStyle,
-                  onKeywordTap: widget.onKeywordTap,
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Brand.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Brand.border),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _AssessmentIntroScreenState.highlightedText(
-                  context,
-                  l10n.t('intro_framework_intro'),
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.black87,
-                    height: 1.55,
-                  ),
-                  onKeywordTap: widget.onKeywordTap,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF4FF),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFD6E3FF)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.touch_app, size: 16, color: Color(0xFF4169E1)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _keywordHint(context),
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFF2C4A9A),
-                            height: 1.4,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _AssessmentIntroScreenState.highlightedText(
+                      context,
+                      l10n.t('intro_framework_title'),
+                      style: titleStyle,
+                      onKeywordTap: widget.onKeywordTap,
+                    ),
+                    const SizedBox(height: 6),
+                    _AssessmentIntroScreenState.highlightedText(
+                      context,
+                      l10n.t('intro_framework_intro'),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.black87,
+                        height: 1.5,
                       ),
-                    ],
-                  ),
+                      onKeywordTap: widget.onKeywordTap,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF4FF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFD6E3FF)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.touch_app,
+                            size: 16,
+                            color: Color(0xFF4169E1),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _keywordHint(context),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: const Color(0xFF2C4A9A),
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _AssessmentIntroScreenState._bulletList(context, [
+                      l10n.t('intro_framework_bullet_1'),
+                      l10n.t('intro_framework_bullet_2'),
+                      l10n.t('intro_framework_bullet_3'),
+                    ], onKeywordTap: widget.onKeywordTap),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _AssessmentIntroScreenState._bulletList(context, [
-                  l10n.t('intro_framework_bullet_1'),
-                  l10n.t('intro_framework_bullet_2'),
-                  l10n.t('intro_framework_bullet_3'),
-                ], onKeywordTap: widget.onKeywordTap),
               ),
               const SizedBox(height: 20),
 
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final isNarrow = constraints.maxWidth < 820;
+                  final isNarrow = constraints.maxWidth < 720;
+                  final gap = 12.0;
                   final itemWidth = isNarrow
                       ? constraints.maxWidth
-                      : (constraints.maxWidth - 32) / 3;
-                  return Wrap(
-                    spacing: 16,
-                    runSpacing: 16,
-                    children: [
-                      SizedBox(
-                        width: itemWidth,
-                        child: _PillarCard(
-                          title: l10n.t('intro_compliance_title'),
-                          imagePath:
-                              'assets/images/GettyImages-1207090508.jpg.jpeg',
-                          bullets: [
-                            l10n.t('intro_compliance_bullet_1'),
-                            l10n.t('intro_compliance_bullet_2'),
-                          ],
-                          onKeywordTap: widget.onKeywordTap,
+                      : ((constraints.maxWidth - gap * 2) / 3).clamp(
+                          200.0,
+                          236.0,
+                        );
+                  return Center(
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: gap,
+                      runSpacing: gap,
+                      children: [
+                        SizedBox(
+                          width: itemWidth,
+                          child: _PillarCard(
+                            title: l10n.t('intro_compliance_title'),
+                            imagePath:
+                                'assets/images/GettyImages-1207090508.jpg.jpeg',
+                            bullets: [
+                              l10n.t('intro_compliance_bullet_1'),
+                              l10n.t('intro_compliance_bullet_2'),
+                            ],
+                            onKeywordTap: widget.onKeywordTap,
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: itemWidth,
-                        child: _PillarCard(
-                          title: l10n.t('intro_control_title'),
-                          imagePath:
-                              'assets/images/GettyImages-1223115939.jpg.jpeg',
-                          bullets: [
-                            l10n.t('intro_control_bullet_1'),
-                            l10n.t('intro_control_bullet_2'),
-                          ],
-                          onKeywordTap: widget.onKeywordTap,
+                        SizedBox(
+                          width: itemWidth,
+                          child: _PillarCard(
+                            title: l10n.t('intro_control_title'),
+                            imagePath:
+                                'assets/images/GettyImages-1223115939.jpg.jpeg',
+                            bullets: [
+                              l10n.t('intro_control_bullet_1'),
+                              l10n.t('intro_control_bullet_2'),
+                            ],
+                            onKeywordTap: widget.onKeywordTap,
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: itemWidth,
-                        child: _PillarCard(
-                          title: l10n.t('intro_continuity_title'),
-                          imagePath:
-                              'assets/images/GettyImages-1254270100.jpg.jpeg',
-                          bullets: [
-                            l10n.t('intro_continuity_bullet_1'),
-                            l10n.t('intro_continuity_bullet_2'),
-                          ],
-                          onKeywordTap: widget.onKeywordTap,
+                        SizedBox(
+                          width: itemWidth,
+                          child: _PillarCard(
+                            title: l10n.t('intro_continuity_title'),
+                            imagePath:
+                                'assets/images/GettyImages-1254270100.jpg.jpeg',
+                            bullets: [
+                              l10n.t('intro_continuity_bullet_1'),
+                              l10n.t('intro_continuity_bullet_2'),
+                            ],
+                            onKeywordTap: widget.onKeywordTap,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   );
                 },
               ),
@@ -534,6 +556,7 @@ class _ContentColumnState extends State<_ContentColumn> {
                 title: l10n.t('intro_partnership_title'),
                 body: l10n.t('intro_partnership_body'),
                 imagePath: 'assets/images/GettyImages-1254770264.jpg.jpeg',
+                imageOnTheLeft: true,
                 onKeywordTap: widget.onKeywordTap,
               ),
               const SizedBox(height: 16),
@@ -541,6 +564,7 @@ class _ContentColumnState extends State<_ContentColumn> {
                 title: l10n.t('intro_about_card_title'),
                 body: l10n.t('intro_about_card_body'),
                 imagePath: 'assets/images/GettyImages-1293443512.jpg.jpeg',
+                imageOnTheLeft: false,
                 onKeywordTap: widget.onKeywordTap,
               ),
               const SizedBox(height: 16),
@@ -548,6 +572,7 @@ class _ContentColumnState extends State<_ContentColumn> {
                 title: l10n.t('intro_sov_title'),
                 body: l10n.t('intro_sov_body'),
                 imagePath: 'assets/images/GettyImages-1255349939.jpg.jpeg',
+                imageOnTheLeft: true,
                 onKeywordTap: widget.onKeywordTap,
               ),
               const SizedBox(height: 20),
@@ -556,6 +581,7 @@ class _ContentColumnState extends State<_ContentColumn> {
                 title: l10n.t('intro_assessment_card_title'),
                 body: l10n.t('intro_assessment_card_body'),
                 imagePath: 'assets/images/GettyImages-1316015053.jpg.jpeg',
+                imageOnTheLeft: false,
                 onKeywordTap: widget.onKeywordTap,
               ),
               const SizedBox(height: 24),
@@ -629,12 +655,15 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final String body;
   final String? imagePath;
+  /// Em telas largas: `true` = imagem à esquerda, texto à direita; `false` = o inverso.
+  final bool imageOnTheLeft;
   final ValueChanged<String>? onKeywordTap;
 
   const _SectionCard({
     required this.title,
     required this.body,
     this.imagePath,
+    this.imageOnTheLeft = true,
     this.onKeywordTap,
   });
 
@@ -650,7 +679,7 @@ class _SectionCard extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final hasImage = imagePath != null;
-          final isWide = hasImage && constraints.maxWidth >= 840;
+          final isWide = hasImage && constraints.maxWidth >= 560;
           final textContent = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -701,31 +730,36 @@ class _SectionCard extends StatelessWidget {
             );
           }
 
-          final imageWidth = (constraints.maxWidth * 0.42).clamp(280.0, 360.0);
+          const gap = 16.0;
+          final imageWidth = (constraints.maxWidth * 0.4).clamp(220.0, 340.0);
+          final imageBlock = SizedBox(
+            width: imageWidth,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox.expand(
+                child: Image.asset(
+                  imagePath!,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                ),
+              ),
+            ),
+          );
+          final textBlock = Expanded(child: textContent);
           return IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 14),
-                    child: textContent,
-                  ),
-                ),
-                SizedBox(
-                  width: imageWidth,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: SizedBox.expand(
-                      child: Image.asset(
-                        imagePath!,
-                        fit: BoxFit.cover,
-                        alignment: Alignment.center,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              children: imageOnTheLeft
+                  ? [
+                      imageBlock,
+                      const SizedBox(width: gap),
+                      textBlock,
+                    ]
+                  : [
+                      textBlock,
+                      const SizedBox(width: gap),
+                      imageBlock,
+                    ],
             ),
           );
         },
