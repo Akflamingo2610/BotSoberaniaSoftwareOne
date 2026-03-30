@@ -279,41 +279,28 @@ class _ResultsScreenState extends State<ResultsScreen> {
       _quickQuestion = question.trim();
       _quickQuestionNonce += 1;
     });
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(milliseconds: 1200),
-        content: Text(
-          _languageCode == 'en'
-              ? 'Question sent to the bot.'
-              : _languageCode == 'es'
-                  ? 'Pregunta enviada al bot.'
-                  : 'Pergunta enviada ao bot.',
-        ),
-      ),
-    );
   }
 
   String _buildPilarQuestion(String pilar, int score) {
     final localized = _localizedPilar(context, pilar);
     if (_languageCode == 'en') {
-      return 'Explain in a simple and concise way what $score% in $localized means for our current maturity, and list the next 3 practical actions to improve this pillar.';
+      return 'Explain, in a simple and concise way, what $score% in $localized means for our current maturity.';
     }
     if (_languageCode == 'es') {
-      return 'Explique de forma simple y breve qué significa $score% en $localized para nuestra madurez actual, e indique las próximas 3 acciones prácticas para mejorar este pilar.';
+      return 'Explique de forma simple y breve qué significa $score% en $localized para nuestra madurez actual.';
     }
-    return 'Explique de forma simples e objetiva o que significa $score% em $localized para nossa maturidade atual, e liste as próximas 3 ações práticas para melhorar este pilar.';
+    return 'Explique de forma simples e objetiva o que significa $score% em $localized para nossa maturidade atual.';
   }
 
   String _buildDomainQuestion(String domain, int score) {
     final localized = _localizedDominio(context, domain);
     if (_languageCode == 'en') {
-      return 'Explain what the domain "$localized" means and what our score of $score% indicates today. Then suggest 2 practical actions to improve this domain.';
+      return 'Explain what the domain "$localized" means and what our score of $score% indicates today.';
     }
     if (_languageCode == 'es') {
-      return 'Explique qué significa el dominio "$localized" y qué indica hoy nuestra puntuación de $score%. Luego sugiera 2 acciones prácticas para mejorar este dominio.';
+      return 'Explique qué significa el dominio "$localized" y qué indica hoy nuestra puntuación de $score%.';
     }
-    return 'Explique o que significa o domínio "$localized" e o que a nossa pontuação de $score% indica hoje. Em seguida, sugira 2 ações práticas para melhorar este domínio.';
+    return 'Explique o que significa o domínio "$localized" e o que a nossa pontuação de $score% indica hoje.';
   }
 
   Future<void> _exportResultsPdf() async {

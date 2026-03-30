@@ -22,7 +22,6 @@ class _PhasesScreenState extends State<PhasesScreen> {
   DateTime? _lastResultsGeneratedAt;
 
   final _api = XanoApi();
-  bool _loadingResults = true;
   bool _allQuestionsAnswered = false;
   static const List<String> _phaseValuesForValidation = <String>[
     'Compliance',
@@ -122,11 +121,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
       }
     } catch (_) {
       // Em erro (429, rede, etc.), não altera _allQuestionsAnswered para não esconder Resultados
-    } finally {
-      if (mounted) {
-        setState(() => _loadingResults = false);
-      }
-    }
+    } finally {}
   }
 
   @override
@@ -280,83 +275,98 @@ class _PhasesScreenState extends State<PhasesScreen> {
                                         ),
                                       ),
                                     ),
-                                    if (_allQuestionsAnswered) ...[
-                                      const SizedBox(height: 12),
-                                      Card(
-                                        margin: EdgeInsets.zero,
-                                        elevation: 0,
-                                        color: Brand.resultsBlue,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          side: const BorderSide(
-                                            color: Brand.border,
-                                          ),
-                                        ),
-                                        child: ListTile(
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 16,
-                                                vertical: 14,
-                                              ),
-                                          leading: const Icon(
-                                            Icons.bar_chart_rounded,
-                                            color: Brand.white,
-                                            size: 28,
-                                          ),
-                                          title: Text(
-                                            l10n.t('results_title'),
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              color: Brand.white,
-                                              fontSize: 18,
+                                    const SizedBox(height: 12),
+                                    Builder(
+                                      builder: (context) {
+                                        final enabled = _allQuestionsAnswered;
+                                        final cardColor = enabled
+                                            ? Brand.resultsBlue
+                                            : Brand.resultsBlue.withValues(
+                                                alpha: 0.45,
+                                              );
+                                        return Card(
+                                          margin: EdgeInsets.zero,
+                                          elevation: 0,
+                                          color: cardColor,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            side: BorderSide(
+                                              color: enabled
+                                                  ? Brand.border
+                                                  : Brand.border.withValues(
+                                                      alpha: 0.45,
+                                                    ),
                                             ),
                                           ),
-                                          subtitle: Text(
-                                            _lastResultsGeneratedAt != null
-                                                ? '${l10n.t('results_generated_at')}: ${_formatTimestamp(_lastResultsGeneratedAt!)}'
-                                                : l10n.t('results_view_scores'),
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          trailing: const Icon(
-                                            Icons.chevron_right,
-                                            color: Brand.white,
-                                            size: 28,
-                                          ),
-                                          onTap: () {
-                                            Navigator.of(context)
-                                                .push(
-                                                  MaterialPageRoute(
-                                                    builder: (_) =>
-                                                        const ResultsScreen(),
-                                                  ),
-                                                )
-                                                .then(
-                                                  (_) => _checkIfAllAnswered(),
-                                                );
-                                          },
-                                        ),
-                                      ),
-                                    ] else if (!_loadingResults) ...[
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        l10n.t('results_available_hint'),
-                                        textAlign: TextAlign.center,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
+                                          child: ListTile(
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 16,
+                                                  vertical: 14,
+                                                ),
+                                            leading: Icon(
+                                              Icons.bar_chart_rounded,
                                               color: Brand.white.withValues(
-                                                alpha: 0.82,
+                                                alpha: enabled ? 1 : 0.75,
                                               ),
-                                              fontStyle: FontStyle.italic,
+                                              size: 28,
                                             ),
-                                      ),
-                                    ],
+                                            title: Text(
+                                              l10n.t('results_title'),
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Brand.white.withValues(
+                                                  alpha: enabled ? 1 : 0.78,
+                                                ),
+                                                fontSize: 18,
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              enabled
+                                                  ? (_lastResultsGeneratedAt !=
+                                                          null
+                                                      ? '${l10n.t('results_generated_at')}: ${_formatTimestamp(_lastResultsGeneratedAt!)}'
+                                                      : l10n.t(
+                                                          'results_view_scores',
+                                                        ))
+                                                  : l10n.t(
+                                                      'results_available_hint',
+                                                    ),
+                                              style: TextStyle(
+                                                color: Brand.white.withValues(
+                                                  alpha: enabled ? 0.82 : 0.72,
+                                                ),
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            trailing: Icon(
+                                              Icons.chevron_right,
+                                              color: Brand.white.withValues(
+                                                alpha: enabled ? 1 : 0.7,
+                                              ),
+                                              size: 28,
+                                            ),
+                                            onTap: enabled
+                                                ? () {
+                                                    Navigator.of(context)
+                                                        .push(
+                                                          MaterialPageRoute(
+                                                            builder: (_) =>
+                                                                const ResultsScreen(),
+                                                          ),
+                                                        )
+                                                        .then(
+                                                          (_) =>
+                                                              _checkIfAllAnswered(),
+                                                        );
+                                                  }
+                                                : null,
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   ],
                                 ),
                               ),

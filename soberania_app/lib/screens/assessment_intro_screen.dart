@@ -120,12 +120,15 @@ class _AssessmentIntroScreenState extends State<AssessmentIntroScreen> {
                         child: _ContentColumn(
                           onContinue: () => _continue(context),
                           onLogout: () => _logout(context),
+                          onKeywordTap: _onKeywordTap,
                         ),
                       ),
                       SizedBox(
                         width: 420,
                         child: ChatPanel(
                           welcomeMessage: l10n.t('intro_chat_welcome'),
+                          quickQuestion: _quickQuestion,
+                          quickQuestionNonce: _quickQuestionNonce,
                         ),
                       ),
                     ],
@@ -134,6 +137,7 @@ class _AssessmentIntroScreenState extends State<AssessmentIntroScreen> {
                 return _ContentColumn(
                   onContinue: () => _continue(context),
                   onLogout: () => _logout(context),
+                  onKeywordTap: _onKeywordTap,
                 );
               },
             ),
@@ -167,11 +171,11 @@ class _AssessmentIntroScreenState extends State<AssessmentIntroScreen> {
         break;
       default:
         if (conceptKey == 'compliance') {
-          question = 'O que significa Compliance em soberania digital, de forma simples?';
+          question = 'O que significa Compliance (Conformidade) em soberania digital, de forma simples?';
         } else if (conceptKey == 'control') {
-          question = 'O que significa Control em soberania digital, de forma simples?';
+          question = 'O que significa Control (Controle) em soberania digital, de forma simples?';
         } else {
-          question = 'O que significa Continuity em soberania digital, de forma simples?';
+          question = 'O que significa Continuity (Continuidade) em soberania digital, de forma simples?';
         }
     }
 
@@ -327,7 +331,7 @@ class _ContentColumnState extends State<_ContentColumn> {
     if (code.startsWith('es')) {
       return 'Consejo: haga clic en Compliance, Control o Continuity para obtener una explicación rápida en el chat.';
     }
-    return 'Dica: clique em Compliance, Control ou Continuity para ver uma explicação rápida no chat.';
+    return 'Dica: clique em Conformidade, Controle ou Continuidade para ver uma explicação rápida no chat.';
   }
 
   @override

@@ -37,20 +37,20 @@ class AppLocalizations {
       'intro_framework_intro':
           'Ajuda a identificar prioridades e definir os próximos passos com clareza.',
       'intro_framework_bullet_1':
-          'A metodologia da SoftwareOne avalia a soberania digital a partir de três pilares: Compliance, Control e Continuity.',
+          'A metodologia da SoftwareOne avalia a soberania digital a partir de três pilares: Conformidade, Controle e Continuidade.',
       'intro_framework_bullet_2':
           'O framework oferece uma visão prática da maturidade da organização.',
       'intro_framework_bullet_3':
           'Ajuda a identificar prioridades de evolução e construção de um roadmap.',
-      'intro_compliance_title': 'Compliance',
+      'intro_compliance_title': 'Conformidade',
       'intro_compliance_bullet_1':
           'Garanta conformidade com leis, normas e padrões de segurança, com critérios claros para avaliação e decisão.',
       'intro_compliance_bullet_2': '',
-      'intro_control_title': 'Control',
+      'intro_control_title': 'Controle',
       'intro_control_bullet_1':
           'Tenha controle sobre infraestrutura, acessos e dados, fortalecendo a proteção de ativos críticos e a autonomia da operação.',
       'intro_control_bullet_2': '',
-      'intro_continuity_title': 'Continuity',
+      'intro_continuity_title': 'Continuidade',
       'intro_continuity_bullet_1':
           'Prepare sua operação para responder e se recuperar, assegurando a continuidade do negócio diante de falhas e crises.',
       'intro_continuity_bullet_2': '',
@@ -105,13 +105,13 @@ class AppLocalizations {
       'phases_title': 'Pilares da Soberania Digital',
       'phases_choose': 'Por onde você quer começar',
       'phases_choose_subtext': 'Escolha um dos pilares e avance no seu ritmo.',
-      'phase_compliance_label': 'Compliance',
+      'phase_compliance_label': 'Conformidade',
       'phase_compliance_subtitle':
           'Conformidade e requisitos regulatórios',
-      'phase_continuity_label': 'Continuity',
+      'phase_continuity_label': 'Continuidade',
       'phase_continuity_subtitle':
           'Continuidade de negócio e resiliência',
-      'phase_control_label': 'Control',
+      'phase_control_label': 'Controle',
       'phase_control_subtitle': 'Controles e governança',
       'phase_compliance_card_body':
           'As perguntas deste pilar avaliam leis, normas, auditoria e evidências de conformidade com requisitos regulatórios e de segurança aplicáveis à sua operação.',
