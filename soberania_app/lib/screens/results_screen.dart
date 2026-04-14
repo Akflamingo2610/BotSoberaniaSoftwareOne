@@ -9,7 +9,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../api/rag_api.dart';
-import '../api/xano_api.dart';
+import '../api/backend_api.dart';
 import '../models/models.dart';
 import '../storage/app_storage.dart';
 import '../l10n/app_localizations.dart';
@@ -41,7 +41,7 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class _ResultsScreenState extends State<ResultsScreen> {
-  final _api = XanoApi();
+  final _api = BackendApi();
   final _rag = RagApi();
   final _storage = AppStorage();
   final GlobalKey _pdfKey = GlobalKey();

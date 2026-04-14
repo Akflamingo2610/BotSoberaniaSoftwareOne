@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bot-soberania-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bot_soberania}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bot_soberania}
+      POSTGRES_DB: ${POSTGRES_DB:-bot_soberania}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bot_soberania} -d ${POSTGRES_DB:-bot_soberania}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bot-soberania-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env.dev
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-bot_soberania}:${POSTGRES_PASSWORD:-bot_soberania}@db:5432/${POSTGRES_DB:-bot_soberania}
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:

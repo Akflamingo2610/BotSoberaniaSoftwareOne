@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../api/xano_api.dart';
+import '../api/backend_api.dart';
 import '../l10n/app_localizations.dart';
 import '../models/models.dart' show Question, SavedAnswer, scoreOptions, normalizeScore, scoreToApiValue;
 import '../storage/app_storage.dart';
@@ -29,7 +29,7 @@ class QuestionsScreen extends StatefulWidget {
 }
 
 class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingObserver {
-  final _api = XanoApi();
+  final _api = BackendApi();
   final _storage = AppStorage();
 
   bool _loading = true;
@@ -716,7 +716,7 @@ class _QuestionsScreenState extends State<QuestionsScreen> with WidgetsBindingOb
 }
 
 class _ProgressBar extends StatelessWidget {
-  /// Valor do pilar vindo do Xano / [PhasesScreen], ex.: `Compliance`, `Continuity`, `Control`.
+  /// Valor do pilar vindo do backend / [PhasesScreen], ex.: `Compliance`, `Continuity`, `Control`.
   final String phaseValue;
   final int currentIndex;
   final int answered;

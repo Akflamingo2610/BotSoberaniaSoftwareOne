@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../api/xano_api.dart';
+import '../api/backend_api.dart';
 import '../l10n/app_localizations.dart';
 import '../ui/brand.dart';
 
@@ -41,7 +41,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     if (!_formKeyEmail.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final api = XanoApi();
+      final api = BackendApi();
       await api.forgotPassword(email: _email.text.trim());
       if (!mounted) return;
       setState(() {
@@ -68,7 +68,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     if (!_formKeyPassword.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final api = XanoApi();
+      final api = BackendApi();
       await api.resetPassword(
         email: _email.text.trim(),
         newPassword: _password1.text.trim(),

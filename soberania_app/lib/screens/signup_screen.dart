@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../api/xano_api.dart';
+import '../api/backend_api.dart';
 import '../storage/app_storage.dart';
 import '../l10n/app_localizations.dart';
 import '../ui/brand.dart';
 import 'assessment_intro_screen.dart';
 import 'login_screen.dart';
 
-/// Tela de cadastro (primeira vez) conectada ao endpoint signup_company do Xano.
+/// Tela de cadastro (primeira vez) conectada ao endpoint signup_company do backend.
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -49,7 +49,7 @@ class _SignupScreenState extends State<SignupScreen> {
     setState(() => _loading = true);
 
     try {
-      final api = XanoApi();
+      final api = BackendApi();
       final res = await api.signupCompany(
         name: _name.text.trim(),
         lastName: _lastName.text.trim(),

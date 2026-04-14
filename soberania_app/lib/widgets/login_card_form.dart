@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../api/xano_api.dart';
+import '../api/backend_api.dart';
 import '../l10n/app_localizations.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
@@ -85,7 +85,7 @@ class _LoginCardFormState extends State<LoginCardForm> {
     setState(() => _loading = true);
 
     try {
-      final api = XanoApi();
+      final api = BackendApi();
       final res = await api.login(
         email: _email.text.trim(),
         password: _password.text,

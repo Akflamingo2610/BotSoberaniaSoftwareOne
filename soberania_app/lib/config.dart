@@ -1,10 +1,14 @@
-/// Configure aqui a URL base do seu Xano.
+/// URL base do backend HTTP (FastAPI).
 ///
-/// Exemplo (não é real):
-/// const xanoBaseUrl = 'https://abcde-12345.xano.io/api:XYZ';
+/// Exemplo:
+/// const backendBaseUrl = 'http://localhost:8000';
 ///
-/// Você encontra isso no Xano em: Settings -> API (Base URL)
-const String xanoBaseUrl = 'https://x8ki-letl-twmt.n7.xano.io/api:oidAxaHw';
+/// Valor principal usado pela aplicacao.
+const String backendBaseUrl = 'http://localhost:8000';
+
+/// Compatibilidade com codigo legado.
+/// Manter enquanto `XanoApi` existir no app.
+const String xanoBaseUrl = backendBaseUrl;
 
 /// URL do servidor RAG (chatbot AWS + leis).
 /// Para testar local: use 'http://localhost:4000' (com RAG rodando em npm start).

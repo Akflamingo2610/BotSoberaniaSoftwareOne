@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../api/xano_api.dart';
+import '../api/backend_api.dart';
 import '../models/models.dart';
 import '../storage/app_storage.dart';
 import '../l10n/app_localizations.dart';
@@ -21,7 +21,7 @@ class PhasesScreen extends StatefulWidget {
 class _PhasesScreenState extends State<PhasesScreen> {
   DateTime? _lastResultsGeneratedAt;
 
-  final _api = XanoApi();
+  final _api = BackendApi();
   bool _allQuestionsAnswered = false;
   static const List<String> _phaseValuesForValidation = <String>[
     'Compliance',

@@ -1,0 +1,66 @@
+name: CI - Python API
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "python_api/**"
+      - ".github/workflows/ci-python-api.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "python_api/**"
+      - ".github/workflows/ci-python-api.yml"
+  workflow_dispatch:
+
+jobs:
+  python-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python_api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "python_api/requirements.txt"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Syntax check (app and scripts)
+        run: python -m compileall app scripts
+
+      - name: Import app module smoke test
+        env:
+          DATABASE_URL: sqlite:///./ci_smoke.db
+          AUTO_CREATE_SCHEMA: "0"
+        run: |
+          python -c "import app.main; print('ok', app.main.app.title)"
+
+      - name: Lambda handler smoke test (/health)
+        env:
+          DATABASE_URL: sqlite:///./ci_lambda.db
+          AUTO_CREATE_SCHEMA: "1"
+          PYTHONPATH: .
+        run: |
+          python scripts/lambda_smoke_test.py
+
+      - name: Alembic upgrade smoke test
+        env:
+          DATABASE_URL: sqlite:///./ci_alembic.db
+          PYTHONPATH: .
+        run: |
+          alembic upgrade head
+          alembic current
+
+      - name: Docker build smoke test
+        run: docker build -t bot-soberania-api:ci .
+
+      - name: Docker compose config validation
+        run: docker compose config

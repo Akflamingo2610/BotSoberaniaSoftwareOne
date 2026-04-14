@@ -615,11 +615,11 @@ app.post('/ask', async (req, res) => {
   if (!answer) {
     const llmHint = GROQ_API_KEY
       ? (USE_OLLAMA
-          ? `Não foi possível gerar a resposta com Groq e o fallback no Ollama também falhou. Verifique GROQ_API_KEY e o Ollama em ${OLLAMA_URL} (modelo ${OLLAMA_MODEL}).`
-          : 'Não foi possível gerar a resposta com o modelo configurado (Groq). Verifique GROQ_API_KEY e conectividade de rede.')
+        ? `Não foi possível gerar a resposta com Groq e o fallback no Ollama também falhou. Verifique GROQ_API_KEY e o Ollama em ${OLLAMA_URL} (modelo ${OLLAMA_MODEL}).`
+        : 'Não foi possível gerar a resposta com o modelo configurado (Groq). Verifique GROQ_API_KEY e conectividade de rede.')
       : (USE_OLLAMA
-          ? `Não foi possível gerar a resposta com o Ollama. Verifique se o serviço está ativo em ${OLLAMA_URL} e se o modelo ${OLLAMA_MODEL} está disponível.`
-          : 'Nenhum modelo de IA está configurado. Defina GROQ_API_KEY ou habilite o Ollama com USE_OLLAMA=1.');
+        ? `Não foi possível gerar a resposta com o Ollama. Verifique se o serviço está ativo em ${OLLAMA_URL} e se o modelo ${OLLAMA_MODEL} está disponível.`
+        : 'Nenhum modelo de IA está configurado. Defina GROQ_API_KEY ou habilite o Ollama com USE_OLLAMA=1.');
     answer = `Não consegui falar com o modelo de IA agora.\n\n${llmHint}`;
   }
 
