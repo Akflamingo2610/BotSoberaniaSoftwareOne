@@ -1,0 +1,309 @@
+ESPECIFICAÇÕES COMPLETAS DO RAG_SERVER
+======================================
+
+1) INFORMAÇÕES GERAIS
+---------------------
+- Nome do projeto (package.json): soberania-rag-server
+- Versão: 1.0.0
+- Descrição: RAG backend para chatbot de leis (LGPD, Marco Civil, etc.)
+- Linguagem: JavaScript (Node.js)
+- Arquivo principal (entrypoint): index.js
+
+
+2) RUNTIME / NODE.JS
+--------------------
+- Runtime: Node.js
+- Versão recomendada:
+  - Node.js 20 (conforme nixpacks.toml: nodejs_20)
+  - Pode rodar também em Node.js 18+, mas o ambiente padrão de deploy atual usa 20.
+
+
+3) SCRIPTS NPM (package.json)
+-----------------------------
+- "start": node index.js
+- "dev": node index.js
+
+Comandos usuais:
+- Instalar dependências: npm install
+- Rodar o servidor localmente: npm start
+
+
+4) DEPENDÊNCIAS (package.json)
+------------------------------
+Dependências de produção:
+- cors        ^2.8.5      → habilita CORS no Express
+- express     ^4.18.2     → servidor HTTP e rotas
+- minisearch  ^7.1.0      → índice de busca full-text em memória (RAG)
+- pdf-parse   ^1.1.1      → extração de texto de arquivos PDF
+
+Não há dependências de desenvolvimento declaradas.
+
+
+5) VARIÁVEIS DE AMBIENTE UTILIZADAS (index.js e .env.example)
+-------------------------------------------------------------
+
+5.1) PORT
+- Descrição: porta HTTP onde o servidor vai escutar.
+- Local no código:
+  - const PORT = process.env.PORT || 4000;
+- Comportamento:
+  - Se PORT estiver definida no ambiente, usa esse valor.
+  - Caso contrário, usa a porta 4000.
+
+5.2) OLLAMA_URL
+- Descrição: URL do servidor Ollama (para uso local, sem Groq).
+- Local no código:
+  - const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+- Padrão:
+  - http://localhost:11434
+- Uso:
+  - Endpoint /api/generate do Ollama é chamado quando não há GROQ_API_KEY definida ou se a chamada à Groq falhar.
+
+5.3) OLLAMA_MODEL
+- Descrição: modelo usado pelo Ollama local.
+- Local no código:
+  - const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:1b';
+- Padrão:
+  - gemma3:1b
+- Uso:
+  - Enviado no body dos requests para o Ollama em /api/generate.
+
+5.4) GROQ_API_KEY
+- Descrição: chave de API da Groq (necessária para usar o LLM na nuvem Groq).
+- Local no código:
+  - const GROQ_API_KEY = process.env.GROQ_API_KEY;
+- Definição de exemplo (.env.example):
+  - GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxx
+- Comportamento:
+  - Se for definida, o servidor tenta usar a Groq como LLM principal.
+  - Se não estiver definida, o servidor usa o Ollama local como fallback.
+
+5.5) GROQ_MODEL
+- Descrição: nome/id do modelo de LLM na Groq.
+- Local no código:
+  - const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+- Definição de exemplo (.env.example):
+  - GROQ_MODEL=llama-3.3-70b-versatile
+- Observações:
+  - Comentário no código: 70b gera respostas mais naturais.
+  - Sugestão no .env.example: para mais rápido/barato, usar: llama-3.1-8b-instant.
+
+5.6) DOCS_DIR
+- Descrição: caminho da pasta que contém os PDFs a serem indexados pelo RAG.
+- Local no código:
+  - const DOCS_DIR = process.env.DOCS_DIR
+      ? path.resolve(process.env.DOCS_DIR)
+      : path.join(__dirname, 'docs');
+- Comportamento:
+  - Se DOCS_DIR estiver definida, usa o caminho absoluto resolvido dessa variável.
+  - Caso contrário, usa a pasta ./docs relativa ao diretório do index.js (rag_server/docs).
+- Log na inicialização:
+  - Mostra no console o caminho usado para DOCS_DIR.
+
+
+6) PASTAS E ARQUIVOS IMPORTANTES
+--------------------------------
+
+6.1) Estrutura principal do rag_server
+- index.js                → código do servidor Express + lógica RAG + integração LLM
+- package.json            → metadados do projeto e dependências
+- package-lock.json       → lockfile das dependências
+- README.md               → instruções de uso local e endpoints
+- DEPLOY.md               → passo a passo de deploy no Railway/Render com Groq
+- nixpacks.toml           → configuração de build para Railway (Node 20, npm install, npm start)
+- railway.json            → configuração específica do Railway (NIXPACKS + startCommand)
+- .env.example            → exemplo de variáveis de ambiente (GROQ_API_KEY, GROQ_MODEL)
+- docs/                   → pasta onde ficam os PDFs indexados pelo RAG (se DOCS_DIR não for sobrescrita)
+- test-pdfs.js            → script para testar extração de texto dos PDFs de OneDrive_1_1-26-2026
+
+6.2) Pasta de documentos (RAG)
+- DOCS_DIR (se definida) OU ./docs (padrão em rag_server/docs)
+- Conteúdo esperado:
+  - Arquivos .pdf com leis brasileiras (LGPD, Marco Civil, ECA Digital, BCB, etc.)
+  - PDFs de documentação AWS (digital sovereignty, well-architected security, etc.)
+
+6.3) Padrões usados para identificar docs AWS
+- Array AWS_FILE_PATTERNS em index.js:
+  - ['aws-', 'aws_', 'sovereign', 'digital-sovereignty', 'wellarchitected-security']
+- Função getDocType(fileName):
+  - Se o nome do arquivo contiver algum desses padrões → docType = 'aws'
+  - Caso contrário → docType = 'lei'
+
+
+7) FUNCIONAMENTO DO RAG
+-----------------------
+
+7.1) Carregamento e indexação de PDFs (função loadDocs)
+- Verifica se a pasta DOCS_DIR existe:
+  - Se não existir, loga erro: "Pasta de documentos não encontrada" e retorna.
+- Lê todos os arquivos .pdf da pasta DOCS_DIR.
+- Para cada PDF:
+  - Usa pdf-parse para extrair texto.
+  - Converte para string e normaliza.
+  - Quebra o texto em chunks com a função chunkText(text, chunkSize = 800, overlap = 150).
+    - Substitui múltiplos espaços por um espaço.
+    - Ignora textos muito curtos (< 20 caracteres).
+    - Garante que os chunks tenham pelo menos 15 caracteres.
+  - Classifica o tipo de documento (aws ou lei) com getDocType.
+  - Cada chunk vira um item no array docs com campos:
+    - id, title, file, text, chunkIndex, docType.
+- Em seguida, cria um índice MiniSearch:
+  - Campos indexados: title, text.
+  - Campos armazenados: title, file, text, docType.
+  - searchOptions: boost para title, prefix = true, fuzzy = 0.2.
+- Loga no console:
+  - Quantidade de chunks indexados e quais arquivos foram processados.
+
+7.2) Busca RAG
+- Para uma query do usuário:
+  - Funções principais: isAwsQuery(query), expandQueryForAws(query), searchWithPriority(query, limit).
+  - isAwsQuery checa se a pergunta fala de temas AWS/nuvem/soberania digital (lista de tokens em PT e EN).
+  - expandQueryForAws adiciona termos em inglês relacionados para melhorar a busca nos PDFs AWS.
+  - searchWithPriority prioriza docs do tipo 'aws' quando a pergunta é de AWS/soberania, e faz busca geral caso contrário.
+- O resultado é:
+  - Uma lista de chunks relevantes (trechos dos PDFs).
+  - Uma string de contexto concatenando esses trechos.
+
+7.3) Prompt e chamada ao LLM
+- SYSTEM_PROMPT:
+  - Instrui o modelo a responder SEMPRE em português.
+  - Exige tradução de trechos em inglês para português.
+  - Proíbe citar empresas específicas (Amazon, AWS) ao falar de resultados de assessments.
+  - Foca em precisão, relevância dos trechos e linguagem acessível.
+- buildPrompt(query, context, questionContext, isAutoExplain = false):
+  - Monta o prompt final combinando SYSTEM_PROMPT, contexto dos documentos e pergunta do usuário.
+  - Tem tratamento especial para:
+    - Dúvidas sobre perguntas do assessment.
+    - Explicações automáticas de perguntas do assessment.
+
+7.4) Integração com LLM (Groq e Ollama)
+- askGroq(prompt, sources):
+  - Usa fetch para chamar: https://api.groq.com/openai/v1/chat/completions
+  - Método: POST
+  - Headers:
+    - Content-Type: application/json
+    - Authorization: Bearer GROQ_API_KEY
+  - Body:
+    - model: GROQ_MODEL
+    - messages: [{ role: 'user', content: prompt }]
+    - max_tokens: 1200
+    - temperature: 0.3
+  - Se der erro ou resposta vazia, retorna null.
+
+- askOllama(prompt, sources):
+  - Usa fetch para chamar: ${OLLAMA_URL}/api/generate
+  - Método: POST
+  - Headers: Content-Type: application/json
+  - Body:
+    - model: OLLAMA_MODEL
+    - prompt
+    - stream: false
+    - options: { num_predict: 450, num_ctx: 4096, temperature: 0.4 }
+
+- askLLM(query, context, sources, questionContext):
+  - Monta o prompt com buildPrompt.
+  - Se GROQ_API_KEY estiver definida:
+    - Tenta usar Groq (askGroq).
+  - Se Groq não responder ou não tiver GROQ_API_KEY:
+    - Usa Ollama (askOllama).
+
+
+8) ENDPOINTS HTTP (EXPRESS)
+---------------------------
+
+- Base: servidor Express configurado em index.js:
+  - const app = express();
+  - app.use(cors({ origin: true, credentials: false }));
+  - app.use(express.json());
+
+8.1) GET /health
+- Retorno:
+  - JSON: { status: 'ok', indexed: docs.length }
+- Uso:
+  - Verificar se o servidor está no ar e quantos chunks foram indexados.
+
+8.2) POST /ask
+- Body esperado:
+  - { "query": "sua pergunta", "questionContext": "texto opcional da pergunta do assessment" }
+- Validações:
+  - query obrigatória, string, mínimo de 3 caracteres.
+- Fluxo interno:
+  - Usa o índice de busca para encontrar chunks relevantes.
+  - Monta o contexto com esses trechos.
+  - Chama askLLM (Groq ou Ollama).
+  - Retorna JSON com:
+    - resposta (conteúdo gerado),
+    - fontes/trechos utilizados (dependendo do trecho do código).
+
+8.3) POST /ask/stream
+- Body esperado:
+  - Mesma estrutura de /ask.
+- Diferença:
+  - Resposta em streaming (linha a linha), com chunks de texto parciais.
+  - Implementa:
+    - Streaming via API da Groq (com stream: true).
+    - Streaming via Ollama (lendo linhas JSON com response).
+
+
+9) INICIALIZAÇÃO DO SERVIDOR
+----------------------------
+
+- Função start():
+  - await loadDocs();  // carrega e indexa os PDFs
+  - app.listen(PORT, () => {
+      console.log(`RAG Server rodando em http://localhost:${PORT}`);
+      if (GROQ_API_KEY) {
+        console.log('LLM: Groq (nuvem)');
+      } else {
+        console.log(`LLM: Ollama ${OLLAMA_URL} (modelo: ${OLLAMA_MODEL})`);
+      }
+      console.log(`Docs: ${DOCS_DIR}`);
+      console.log('POST /ask com { "query": "sua pergunta" }');
+    });
+
+- Tratamento de erro na inicialização:
+  - start().catch(err => {
+      console.error('Erro ao iniciar:', err);
+      process.exit(1);
+    });
+
+
+10) ESPECÍFICO PARA DEPLOY ATUAL (RAILWAY / NIXPACKS)
+-----------------------------------------------------
+
+10.1) nixpacks.toml
+- [phases.setup]
+  - nixPkgs = ["nodejs_20"]
+- [phases.install]
+  - cmds = ["npm install"]
+- [start]
+  - cmd = "npm start"
+
+10.2) railway.json
+- Build:
+  - builder: NIXPACKS
+- Deploy:
+  - startCommand: npm start
+  - restartPolicyType: ON_FAILURE
+  - restartPolicyMaxRetries: 10
+
+
+11) RESUMO TÉCNICO
+-------------------
+- Runtime: Node.js 20 recomendado (18+ compatível).
+- Servidor HTTP: Express em index.js, porta PORT (ou 4000 por padrão).
+- RAG:
+  - Indexa PDFs via pdf-parse.
+  - Usa MiniSearch como índice full-text em memória.
+- LLM:
+  - Groq (nuvem) com modelos configuráveis via GROQ_MODEL (padrão llama-3.3-70b-versatile).
+  - Fallback/local: Ollama via OLLAMA_URL e OLLAMA_MODEL.
+- Endpoints principais:
+  - GET /health
+  - POST /ask
+  - POST /ask/stream
+- Dependências:
+  - express, cors, minisearch, pdf-parse.
+- Configuração de deploy atual:
+  - Railway usando Nixpacks (Node.js 20, npm install, npm start).
+

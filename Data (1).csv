@@ -1,0 +1,95 @@
+﻿order_index,Unnamed: 0,Phase,Pilares,Dominio,Recommendation,"Associated 
+AWS Service",Guidance for assessments,How to check,SMM Link,Alignment to recommendation,Score,Comments,Normas Técnicas,Geral (Brasil),Finanças Públicas (BCB),Educação,Owner / Responsible
+1,1.1.1,Phase 1: Quick Wins,Compliance,Soberania de Dados,A empresa garante que os dados permaneçam na jurisdição exigida por regulamentações aplicáveis?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+2,1.1.2,Phase 1: Quick Wins,Compliance,Soberania de Infraestrutura,A empresa previne o provisionamento de recursos fora de regiões aprovadas?,,,,,100% Aligned - Coverage throughout the organization,1,,,,,,
+3,1.2.1,Phase 1: Quick Wins,Control,Soberania de Dados,A empresa possui controle efetivo sobre as chaves de criptografia de dados sensíveis?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+4,1.3.1,Phase 1: Quick Wins,Control,Soberania de Dados,A empresa consegue revogar acessos a dados de forma imediata quando necessário?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+5,1.3.2,Phase 1: Quick Wins,Control,Soberania de Infraestrutura,A empresa controla a localização física onde seus recursos são implantados?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+6,1.3.3,Phase 1: Quick Wins,Control,Soberania Operacional,A empresa controla quem pode executar operações administrativas?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+7,1.3.4,Phase 1: Quick Wins,Control,Soberania Operacional,A empresa consegue interromper processos ou acessos de forma imediata em incidentes?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+8,1.4.1,Phase 4: Optimized,Compliance,Soberania de Infraestrutura,A empresa atende requisitos de compliance relacionados a hardware soberano?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+9,1.4.2,Phase 4: Optimized,Compliance,Soberania Operacional,A empresa consegue demonstrar que operadores do provedor de nuvem não acessam seus dados?,,,,,100% Aligned - Coverage throughout the organization,1,,,,,,
+10,1.4.4,Phase 4: Optimized,Compliance,Continuidade e Portabilidade,A empresa garante compliance regulatória em cenários de portabilidade entre provedores de nuvem?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+11,1.6.1,Phase 4: Optimized,Continuity,Soberania de Dados,A empresa consegue recuperar dados sem dependência da internet global?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+12,1.7.1,Phase 4: Optimized,Continuity,Governança e Conformidade,O processo de atualização de compliance é resiliente a mudanças organizacionais?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+13,1.7.2,Phase 4: Optimized,Continuity,Continuidade e Portabilidade,A empresa possui acesso ao código-fonte e documentação de componentes críticos?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+14,1.8.1,Phase 4: Optimized,Continuity,Soberania Organizacional,A empresa consegue operar de forma independente em cenários de sanções ou restrições externas?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+15,1.9.1,Phase 2: Foundational,Compliance,Soberania de Dados,A empresa identifica e classifica dados sensíveis e regulados de forma consistente?,,"- Are security contacts defined for all accounts in your organization ?
+- Is the information is current and correct ? (i.e.: not pointing to an ex-employee contact information)
+- Are you using a distribution list as the email address to ensure it’s getting to more than one person ?",[Account.1] Security contact information should be provided for an AWS account,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+16,1.10.1,Phase 2: Foundational,Compliance,Soberania de Dados,A empresa possui mapeamento formal de requisitos regulatórios para controles técnicos na AWS?,,,,,100% Aligned - Coverage throughout the organization,1,,,,,,
+17,2.1.1,Phase 2: Foundational,Compliance,Soberania de Dados,A empresa possui certificações e/ou attestations relevantes e válidas para seu setor?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+18,2.1.2,Phase 2: Foundational,Compliance,Soberania de Infraestrutura,A empresa valida que sua infraestrutura de rede não permite tráfego para jurisdições não aprovadas?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+19,2.2.1,Phase 2: Foundational,Compliance,Soberania Operacional,A empresa possui políticas formais definindo quem pode operar infraestrutura crítica?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+20,2.3.1,Phase 2: Foundational,Compliance,Soberania Operacional,A empresa implementa segregação de funções para operações sensíveis?,,"- Are you allowing unrestricted ingress access to administration ports (22/3389) ? If you’re unsure you can leverage AWS Security Hub’s controls EC2.13 & EC2.14
+- How are you managing the administrative network access to your instances ?","- [EC2.13] Security groups should not allow ingress from 0.0.0.0/0 or ::/0 to port 22
+- [EC2.14] Security groups should not allow ingress from 0.0.0.0/0 or ::/0 to port 3389",,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+21,2.3.2,Phase 2: Foundational,Compliance,Governança e Conformidade,A empresa utiliza frameworks reconhecidos para avaliar conformidade e maturidade?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+22,2.3.3,Phase 2: Foundational,Compliance,Governança e Conformidade,A empresa possui processo estruturado para coleta de evidências de auditoria?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+23,2.4.1,Phase 2: Foundational,Compliance,Continuidade e Portabilidade,Os processos de backup e recuperação atendem requisitos regulatórios de residência de dados?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+24,2.5.1,Phase 2: Foundational,Compliance,Continuidade e Portabilidade,A empresa possui políticas de retenção de dados alinhadas a requisitos regulatórios?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+25,2.5.2,Phase 2: Foundational,Compliance,Soberania Organizacional,Os contratos com fornecedores incluem DPAs adequados e atualizados?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+26,2.6.1,Phase 2: Foundational,Compliance,Soberania Organizacional,A empresa assegura que sua equipe operacional atende requisitos regulatórios aplicáveis?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+27,2.6.2,Phase 2: Foundational,Control,Soberania de Dados,A empresa controla e monitora os fluxos de dados entre ambientes?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+28,2.6.3,Phase 2: Foundational,Control,Soberania de Dados,A empresa controla formalmente o compartilhamento de dados com terceiros?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+29,2.6.4,Phase 2: Foundational,Control,Soberania de Dados,A empresa possui visibilidade clara de onde cada tipo de dado está armazenado?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+30,2.7.1,Phase 2: Foundational,Control,Soberania de Infraestrutura,A empresa controla quais serviços de nuvem podem ser utilizados?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+31,2.7.2,Phase 2: Foundational,Control,Soberania de Infraestrutura,A empresa controla roteamento de rede e conectividade entre ambientes?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+32,2.7.3,Phase 2: Foundational,Control,Soberania de Infraestrutura,A empresa controla o acesso físico e lógico à sua infraestrutura?,,"- Are you leveraging roles (such as EC2 instance profiles or Lambda execution roles) for temporary access in your applications ' (which porcentage of your applications use roles vs durable credentials?)
+- Are your developers trained to understand that they should not be storing secrets in code ?
+- Are you controling that no secrets are stored in code ?
+- Are you leveraging AWS Secrets Manager to store & rotate secrets such as Database passwords ?",,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+33,2.8.1,Phase 2: Foundational,Control,Soberania Operacional,A empresa garante que apenas pessoal autorizado opere sistemas críticos?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+34,2.8.2,Phase 2: Foundational,Control,Governança e Conformidade,A empresa define e aplica políticas formais de governança?,,,,,100% Aligned - Coverage throughout the organization,1,,,,,,
+35,2.9.1,Phase 2: Foundational,Control,Governança e Conformidade,A empresa controla quem pode alterar políticas de compliance?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+36,2.10.1,Phase 2: Foundational,Control,Continuidade e Portabilidade,A empresa controla seus processos de backup e recuperação de dados?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+37,3.1.1,Phase 2: Foundational,Control,Continuidade e Portabilidade,A empresa controla retenção e descarte de dados de forma auditável?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+38,3.1.2,Phase 2: Foundational,Control,Continuidade e Portabilidade,A empresa controla o acesso a backups e dados arquivados?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+39,3.1.3,Phase 2: Foundational,Control,Soberania Organizacional,A empresa controla o processo de seleção e onboarding de fornecedores?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+40,3.2.1,Phase 2: Foundational,Control,Soberania Organizacional,A empresa controla o acesso de fornecedores e parceiros aos seus ambientes?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+41,3.3.1,Phase 2: Foundational,Continuity,Soberania de Dados,Dados críticos possuem redundância adequada dentro da jurisdição exigida?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+42,3.3.2,Phase 2: Foundational,Continuity,Soberania de Dados,A empresa possui RPO definido e atendido para dados críticos?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+43,3.4.1,Phase 2: Foundational,Continuity,Soberania de Dados,A empresa garante integridade dos dados durante todo o período de retenção?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+44,3.5.1,Phase 2: Foundational,Continuity,Soberania de Infraestrutura,A infraestrutura suporta a perda de uma zona de disponibilidade sem interrupção crítica?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+45,3.5.2,Phase 2: Foundational,Continuity,Soberania de Infraestrutura,A empresa possui RTO definido e atendido para sistemas críticos?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+46,3.6.1,Phase 2: Foundational,Continuity,Soberania Operacional,A empresa possui equipe local com as competências necessárias para operar ambientes críticos?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+47,3.6.2,Phase 2: Foundational,Continuity,Soberania Operacional,A empresa mantém conhecimento técnico crítico documentado e acessível?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+48,3.6.3,Phase 2: Foundational,Continuity,Continuidade e Portabilidade,A empresa possui plano para acesso a dados e aplicações se o provedor falhar?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+49,3.7.1,Phase 2: Foundational,Continuity,Soberania Organizacional,A empresa possui fornecedores alternativos definidos para serviços críticos?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+50,3.8.1,Phase 2: Foundational,Continuity,Soberania Organizacional,A empresa possui plano de continuidade caso um fornecedor se torne indisponível?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+51,3.8.2,Phase 2: Foundational,Continuity,Soberania Organizacional,Contratos com fornecedores incluem SLAs de continuidade adequados?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+52,3.8.3,Phase 3: Efficient,Compliance,Soberania de Infraestrutura,A empresa audita regularmente a localização geográfica de seus recursos de infraestrutura?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+53,3.9.1,Phase 3: Efficient,Compliance,Soberania Operacional,A empresa revisa e valida regularmente acessos privilegiados?,,"
+    Do you have Amazon S3 Block Public Access enabled at account level in all the accounts in your organization ?
+    If you need buckets to be public: What is your use case ? is that a public static website ? Why not protecting that data with an Amazon CloudFront distribution with AWS WAF rules enabled?
+    Are there any public buckets that you do not have identified that they absolutely need to be public?
+    If there are some public buckets: have you block public access at the bucket level for all other buckets in the account ?
+    Have you enabled SCPs to prevent the removal of the BPA ?","- [S3.1] S3 general purpose buckets should have block public access settings enabled (account-level)
+- [S3.2] S3 general purpose buckets should block public read access(bucket-level)",,100% Aligned - Coverage throughout the organization,1,,,,,,
+54,3.9.2,Phase 3: Efficient,Compliance,Governança e Conformidade,"A empresa mantém compliance contínua ao longo do tempo, e não apenas em auditorias pontuais?",,"- Is a WAF protecting all your applications ? which one ? how is it deployed ?
+- Have you deployed AWS WAF consistently across all applications in the organization ?
+- Are you using AWS Firewall Manager to ensure a default WebACL is defined for all Cloudfront distributions, Application Load balancers and API gateways?
+- Are the rules configured in Block? (or only count?)
+- Which managed rules are active ?",[WAF.10] AWS WAF web ACLs should have at least one rule or rule group,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+55,3.9.3,Phase 3: Efficient,Compliance,Governança e Conformidade,A empresa monitora mudanças regulatórias e adapta seus controles conforme necessário?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+56,3.10.1,Phase 3: Efficient,Compliance,Continuidade e Portabilidade,A empresa valida que dados exportados ou migrados mantêm conformidade regulatória?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+57,4.1.1,Phase 3: Efficient,Compliance,Soberania Organizacional,A empresa valida que sub-processadores atendem requisitos de soberania de dados?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+58,4.1.2,Phase 3: Efficient,Compliance,Soberania Organizacional,A empresa audita fornecedores quanto à conformidade com suas políticas internas?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+59,4.3.1,Phase 3: Efficient,Control,Soberania de Dados,A empresa controla a exportação de dados para fora da jurisdição permitida?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+60,4.3.2,Phase 3: Efficient,Control,Soberania Operacional,A empresa controla quando e como manutenções são realizadas?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+61,4.3.3,Phase 3: Efficient,Control,Soberania Operacional,A empresa audita todas as ações administrativas executadas em seus ambientes?,,,,,50% Aligned - Partial Coverage - Medium,0.5,,,,,,
+62,4.4.1,Phase 3: Efficient,Control,Soberania Operacional,A empresa controla deployments e mudanças em ambientes produtivos?,,,,,75% Aligned - Partial Coverage - Advanced,0.75,,,,,,
+63,4.4.2,Phase 3: Efficient,Control,Governança e Conformidade,A empresa garante que workloads permanecem em compliance continuamente?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+64,4.5.1,Phase 3: Efficient,Control,Governança e Conformidade,A empresa controla e documenta exceções às políticas de governança?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+65,4.6.1,Phase 3: Efficient,Control,Continuidade e Portabilidade,A empresa possui controle sobre a capacidade de migrar workloads entre regiões ou provedores?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+66,4.6.2,Phase 3: Efficient,Control,Soberania Organizacional,A empresa audita ações executadas por terceiros em seus sistemas?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+67,4.7.1,Phase 3: Efficient,Control,Soberania Organizacional,A empresa controla dependências de software e serviços de terceiros?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+68,4.8.2,Phase 3: Efficient,Continuity,Soberania de Infraestrutura,A empresa possui estratégia de DR que respeita requisitos de soberania?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+69,4.9.1,Phase 3: Efficient,Continuity,Soberania de Infraestrutura,A empresa garante alta disponibilidade da conectividade de rede crítica?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+70,4.9.2,Phase 3: Efficient,Continuity,Soberania Operacional,Operações críticas conseguem continuar sem dependência de indivíduos específicos?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+71,4.9.3,Phase 3: Efficient,Continuity,Soberania Operacional,Procedimentos de emergência e acesso privilegiado são testados regularmente?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+72,4.9.4,Phase 3: Efficient,Continuity,Governança e Conformidade,Controles de compliance permanecem ativos durante incidentes ou DR?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+73,4.10.1,Phase 3: Efficient,Continuity,Governança e Conformidade,A empresa consegue gerar evidências de compliance durante incidentes?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+74,4.10.2,Phase 3: Efficient,Continuity,Governança e Conformidade,A empresa mantém trilhas de auditoria mesmo em cenários de contingência?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+75,4.10.3,Phase 3: Efficient,Continuity,Continuidade e Portabilidade,A empresa consegue migrar workloads críticos mantendo soberania de dados?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,
+76,4.10.4,Phase 3: Efficient,Continuity,Continuidade e Portabilidade,A empresa testa regularmente sua capacidade de portabilidade?,,,,,25% Aligned - Partial Coverage - Starting,0.25,,,,,,

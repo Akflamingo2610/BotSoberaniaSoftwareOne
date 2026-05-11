@@ -1,0 +1,213 @@
+# Handoff AWS - Bot Soberania (para Kiro)
+
+Este arquivo resume o estado atual da migracao, o que ja foi implementado e o que falta para finalizar deploy em AWS.
+
+## 1) Estado atual do projeto
+
+Migracao do backend Xano para Python concluida ate a fase de preparacao para nuvem.
+
+Status por etapa:
+
+- Etapa 1 (inventario/contrato): concluida
+- Etapa 2 (FastAPI com paridade): concluida
+- Etapa 3 (SQL + importador CSV): concluida
+- Etapa 4 (hardening inicial): concluida
+- Etapa 5.1/5.2 (docker + envs): concluida
+- Etapa 5.3 (Alembic migrations): concluida
+- Etapa 5.4 (CI/CD base): concluida
+- Lambda-ready (FastAPI + Mangum): concluido
+
+Contexto adicional informado pelo time:
+
+- Bedrock e Knowledge Base ja estao criados na AWS.
+- Arquitetura final ainda sera fechada com seniors.
+- Diretriz recebida: React (frontend) + Lambda Python (backend) + Bedrock (RAG).
+
+## 2) Implementacoes tecnicas ja feitas
+
+### 2.1 Backend Python
+
+Pasta: `python_api`
+
+- API FastAPI com endpoints equivalentes ao fluxo do app:
+  - `POST /forgot_password`
+  - `POST /reset_password`
+  - `POST /login`
+  - `POST /signup_company`
+  - `POST /assessment/resume`
+  - `GET /questions`
+  - `GET /progress/assessment`
+  - `POST /assessment/save`
+  - `GET /health`
+
+- Persistencia SQLAlchemy com modelos:
+  - `companies`, `users`, `assessments`, `questions`, `answers`, `auth_tokens`
+
+- Seguranca/hardening (etapa 4):
+  - expiração de token por timestamp (`TOKEN_TTL_MINUTES`)
+  - rate limit in-memory por IP/endpoint
+  - politica de senha minima + letra + numero
+  - CORS por regex de ambiente (`ALLOWED_ORIGIN_REGEX`)
+  - bloqueio de login legado por `legacy_password_hash`
+
+- Controle de schema:
+  - `AUTO_CREATE_SCHEMA` para compatibilidade local
+  - Alembic como fonte oficial para staging/prod
+
+### 2.2 Importador de dados Xano
+
+Arquivo: `python_api/scripts/import_xano_csv.py`
+
+- Importa CSVs de users/companies/assessments/questions/answers.
+- Ajustado para:
+  - limpar `auth_tokens` antes (ordem FK correta)
+  - tolerar referencias inconsistentes de FK nos CSVs
+  - ajustar refs ausentes para `None` quando aplicavel
+  - ignorar answers com referencias invalidas
+  - imprimir resumo de ajustes no final
+
+### 2.3 Docker e ambiente local
+
+Arquivos:
+
+- `python_api/Dockerfile`
+- `python_api/docker-compose.yml`
+- `python_api/.dockerignore`
+- `python_api/.env.dev`
+- `python_api/.env.staging`
+- `python_api/.env.prod`
+- `python_api/.env.example`
+
+Stack local:
+
+- `api` (FastAPI)
+- `db` (Postgres 16)
+
+### 2.4 Alembic (migrations)
+
+Arquivos:
+
+- `python_api/alembic.ini`
+- `python_api/alembic/env.py`
+- `python_api/alembic/script.py.mako`
+- `python_api/alembic/versions/0001_initial_schema.py`
+
+Fluxo:
+
+- banco novo: `alembic upgrade head`
+- banco ja existente: `alembic stamp head`
+
+### 2.5 Lambda-ready
+
+Arquivos:
+
+- `python_api/app/lambda_handler.py` (Mangum handler)
+- `python_api/template.lambda.yaml` (SAM base)
+
+Dependencia:
+
+- `mangum==0.21.0`
+
+Smoke test local Lambda:
+
+- script: `python_api/scripts/lambda_smoke_test.py`
+- valida invocacao do handler no endpoint `/health`
+
+### 2.6 CI/CD base (GitHub Actions)
+
+Workflows:
+
+- `.github/workflows/ci-python-api.yml`
+  - compileall
+  - smoke import app
+  - smoke Lambda handler
+  - alembic upgrade smoke
+  - docker build smoke
+  - docker compose config
+
+- `.github/workflows/cd-python-api.yml`
+  - execucao manual (`workflow_dispatch`)
+  - build/push opcional de imagem no GHCR
+  - build/validate SAM
+  - artifacts de metadados e build SAM
+
+## 3) CD e deploy AWS: e obrigatorio?
+
+Nao. CD nao e obrigatorio para rodar em AWS.
+
+Opcoes:
+
+- Deploy manual (SAM/CLI/Console): funciona
+- Deploy automatizado via workflow: recomendado para repetibilidade, auditoria e rollback mais seguro
+
+Conclusao: tecnicamente opcional, operacionalmente recomendado.
+
+## 4) O que falta para concluir AWS
+
+Como Bedrock e KB ja existem, o foco restante e integracao/deploy:
+
+1. Definir conta/ambiente alvo (dev/staging/prod) e naming.
+2. Publicar backend Python (Lambda + API Gateway HTTP API).
+3. Definir e configurar `DATABASE_URL` para RDS PostgreSQL.
+4. Aplicar Alembic no banco alvo:
+   - `alembic upgrade head`
+5. Configurar secrets/env vars em AWS:
+   - `DATABASE_URL`
+   - `ALLOWED_ORIGIN_REGEX`
+   - `TOKEN_TTL_MINUTES`
+   - `PASSWORD_MIN_LENGTH`
+   - `RATE_LIMIT_WINDOW_SECONDS`
+   - `RATE_LIMIT_MAX_ATTEMPTS`
+   - `AUTO_CREATE_SCHEMA=0`
+6. Integrar endpoint de RAG backend com Bedrock/KB (separar de Railway/local).
+7. Validar CORS do frontend final (React).
+8. Executar smoke tests de login, questions, save, results e health.
+
+## 5) Comandos uteis (local)
+
+### API Docker + Postgres
+
+```powershell
+cd C:\Users\NATH\Downloads\Bot_Soberania\python_api
+docker compose --env-file .env.dev up --build -d
+docker compose ps
+Invoke-RestMethod http://localhost:8000/health
+```
+
+### Importacao CSV no Postgres Docker
+
+```powershell
+cd C:\Users\NATH\Downloads\Bot_Soberania\python_api
+$env:DATABASE_URL="postgresql+psycopg2://bot_soberania:bot_soberania@localhost:5432/bot_soberania"
+$env:PYTHONPATH="."
+.\.venv\Scripts\python scripts/import_xano_csv.py `
+  --user-csv "C:\Users\NATH\Downloads\dbo-user-696892-live.1775499714.csv" `
+  --company-csv "C:\Users\NATH\Downloads\dbo-company-708378-live.1775500435.csv" `
+  --assessment-csv "C:\Users\NATH\Downloads\dbo-assessment-709030-live.1775500678.csv" `
+  --question-csv "C:\Users\NATH\Downloads\dbo-question-709029-live.1775500313.csv" `
+  --answer-csv "C:\Users\NATH\Downloads\dbo-answer-709031-live.1775500678.csv"
+```
+
+### Alembic
+
+```powershell
+cd C:\Users\NATH\Downloads\Bot_Soberania\python_api
+$env:PYTHONPATH="."
+.\.venv\Scripts\alembic upgrade head
+```
+
+## 6) Riscos e observacoes para Kiro
+
+- Existem mudancas locais nao relacionadas no repo; evitar sobrescrever trabalho em andamento.
+- O importador lida com inconsistencias de CSV, mas o ideal e usar export consistente do Xano.
+- Rate limit atual e in-memory (bom para fase atual, nao ideal para distribuido em larga escala).
+- Para producao AWS, manter Alembic como fonte unica de schema (`AUTO_CREATE_SCHEMA=0`).
+- Se usar Lambda, considerar externalizar rate limit/state para camada adequada no futuro.
+
+## 7) Resultado esperado apos deploy AWS
+
+- Backend Python sem dependencia do Xano
+- Banco PostgreSQL gerenciado
+- RAG conectado ao Bedrock/KB
+- Pipeline pronto para build/test/package/deploy
+- Frontend (React) consumindo API estabilizada

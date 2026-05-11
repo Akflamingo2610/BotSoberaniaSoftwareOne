@@ -1,0 +1,29 @@
+# Node
+node_modules/
+npm-debug.log*
+*.log
+
+# Flutter/Dart
+.dart_tool/
+.pub-cache/
+.pub/
+build/
+*.iml
+.idea/
+
+# Firebase
+.firebase/
+
+# Ambiente / secrets
+.env
+.env.local
+*.env
+python_api/.venv/
+python_api/*.db
+
+# Sistema
+.DS_Store
+Thumbs.db
+assessment_save.xs
+__pycache__/
+*.pyc

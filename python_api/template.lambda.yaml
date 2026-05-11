@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Bot Soberania Python API on AWS Lambda
+
+Parameters:
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+  AllowedOriginRegex:
+    Type: String
+    Default: "^https://app\\.seu-dominio\\.com$"
+  TokenTtlMinutes:
+    Type: Number
+    Default: 120
+  PasswordMinLength:
+    Type: Number
+    Default: 12
+  RateLimitWindowSeconds:
+    Type: Number
+    Default: 60
+  RateLimitMaxAttempts:
+    Type: Number
+    Default: 10
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 512
+    Architectures:
+      - x86_64
+
+Resources:
+  PythonApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.lambda_handler.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          ALLOWED_ORIGIN_REGEX: !Ref AllowedOriginRegex
+          TOKEN_TTL_MINUTES: !Ref TokenTtlMinutes
+          PASSWORD_MIN_LENGTH: !Ref PasswordMinLength
+          RATE_LIMIT_WINDOW_SECONDS: !Ref RateLimitWindowSeconds
+          RATE_LIMIT_MAX_ATTEMPTS: !Ref RateLimitMaxAttempts
+          AUTO_CREATE_SCHEMA: "0"
+
+Outputs:
+  ApiUrl:
+    Description: HTTP API endpoint
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
