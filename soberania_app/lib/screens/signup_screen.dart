@@ -6,7 +6,7 @@ import '../storage/app_storage.dart';
 import '../l10n/app_localizations.dart';
 import '../ui/brand.dart';
 import 'assessment_intro_screen.dart';
-import 'login_screen.dart';
+import 'welcome_screen.dart';
 
 /// Tela de cadastro (primeira vez) conectada ao endpoint signup_company do backend.
 class SignupScreen extends StatefulWidget {
@@ -96,14 +96,14 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  /// Mesmo padrão do [LoginScreen]: volta na pilha ou abre o login se não houver rota anterior.
+  /// Volta na pilha ou abre a tela inicial (com opção Área Admin).
   void _handleBack() {
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.pop();
     } else {
       nav.pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+        MaterialPageRoute<void>(builder: (_) => const WelcomeScreen()),
       );
     }
   }
@@ -518,7 +518,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                                     ).pushReplacement(
                                                       MaterialPageRoute(
                                                         builder: (_) =>
-                                                            const LoginScreen(),
+                                                            const WelcomeScreen(),
                                                       ),
                                                     );
                                                   },

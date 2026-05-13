@@ -7,6 +7,7 @@ class AppStorage {
   static const _kAssessmentId = 'assessmentId';
   static const _kUserEmail = 'userEmail';
   static const _kUserName = 'userName';
+  static const _kUserRole = 'userRole';
   static const _kLastResultsGeneratedAt = 'lastResultsGeneratedAt';
   static const _kLastQuestionIndexPrefix = 'lastQuestionIndex_';
   static const _kLastViewedPhase = 'lastViewedPhase';
@@ -58,6 +59,16 @@ class AppStorage {
   Future<void> setUserName(String name) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kUserName, name);
+  }
+
+  Future<String> getUserRole() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kUserRole) ?? 'user';
+  }
+
+  Future<void> setUserRole(String role) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kUserRole, role);
   }
 
   Future<DateTime?> getLastResultsGeneratedAt() async {
@@ -126,6 +137,7 @@ class AppStorage {
     await sp.remove(_kAssessmentId);
     await sp.remove(_kUserEmail);
     await sp.remove(_kUserName);
+    await sp.remove(_kUserRole);
     await sp.remove(_kLastResultsGeneratedAt);
     await sp.remove(_kLastViewedPhase);
     await sp.remove(_kIntroSeen);

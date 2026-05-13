@@ -4,6 +4,7 @@ import '../api/backend_api.dart';
 import '../l10n/app_localizations.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
+import '../screens/admin_screen.dart';
 import '../screens/assessment_intro_screen.dart';
 import '../screens/phases_screen.dart';
 import '../screens/reset_password_screen.dart';
@@ -16,10 +17,12 @@ class LoginCardForm extends StatefulWidget {
     super.key,
     required this.variant,
     required this.secondaryLabel,
+    this.initialAdminMode = false,
   });
 
   final LoginCardVariant variant;
   final String secondaryLabel;
+  final bool initialAdminMode;
 
   @override
   State<LoginCardForm> createState() => _LoginCardFormState();
@@ -33,6 +36,13 @@ class _LoginCardFormState extends State<LoginCardForm> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   bool _obscurePassword = true;
+  late bool _isAdminMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _isAdminMode = widget.initialAdminMode;
+  }
 
   static const _pillButtonHeight = 38.0;
 
@@ -96,6 +106,14 @@ class _LoginCardFormState extends State<LoginCardForm> {
         throw StateError('authToken não retornou no /login');
       }
 
+      final role = (res['user'] as Map?)?['role']?.toString() ??
+          res['role']?.toString() ?? 'user';
+
+      // Aba Admin: valida que a conta tem permissão
+      if (_isAdminMode && role != 'admin') {
+        throw StateError('Esta conta não tem acesso de administrador.');
+      }
+
       final storage = AppStorage();
       await storage.setAuthToken(authToken);
       await storage.setUserEmail(_email.text.trim());
@@ -103,7 +121,19 @@ class _LoginCardFormState extends State<LoginCardForm> {
           (res['admin_name'] ?? res['name'])?.toString() ??
           _email.text.split('@').first;
       await storage.setUserName(name);
+      await storage.setUserRole(role);
 
+      if (!mounted) return;
+
+      // Aba Admin → painel admin
+      if (_isAdminMode) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AdminScreen()),
+        );
+        return;
+      }
+
+      // Aba Usuário → fluxo normal de assessment (mesmo para conta admin)
       final assessment = await api.resumeAssessment(authToken: authToken);
       final assessmentId = (assessment['id'] as num).toInt();
       await storage.setAssessmentId(assessmentId);
@@ -133,6 +163,7 @@ class _LoginCardFormState extends State<LoginCardForm> {
     final isWelcome = widget.variant == LoginCardVariant.welcome;
     final logoSize = isWelcome ? 56.0 : 52.0;
     final dividerH = isWelcome ? 40.0 : 36.0;
+    final isAdmin = _isAdminMode;
 
     return Form(
       key: _formKey,
@@ -140,6 +171,7 @@ class _LoginCardFormState extends State<LoginCardForm> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Logos
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -150,37 +182,73 @@ class _LoginCardFormState extends State<LoginCardForm> {
               AwsMark(size: logoSize),
             ],
           ),
-          SizedBox(height: isWelcome ? 20 : 14),
-          Text(
-            l10n.t('login_welcome_title'),
-            textAlign: TextAlign.center,
-            style: isWelcome
-                ? Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: Brand.black,
-                    )
-                : Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: Brand.black,
+          SizedBox(height: isWelcome ? 16 : 12),
+
+          // Título adaptado por modo
+          if (isAdmin) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              decoration: BoxDecoration(
+                color: Brand.black.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: Brand.black.withValues(alpha: 0.12)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.shield_outlined,
+                      size: 18, color: Brand.black),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Acesso restrito — apenas administradores',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Brand.black.withValues(alpha: 0.75),
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
-          ),
-          if (!isWelcome) ...[
-            const SizedBox(height: 6),
-            Text(
-              l10n.t('login_subtitle'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.black54,
                   ),
+                ],
+              ),
             ),
+            const SizedBox(height: 14),
+          ] else ...[
+            Text(
+              l10n.t('login_welcome_title'),
+              textAlign: TextAlign.center,
+              style: isWelcome
+                  ? Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Brand.black,
+                      )
+                  : Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: Brand.black,
+                      ),
+            ),
+            if (!isWelcome) ...[
+              const SizedBox(height: 6),
+              Text(
+                l10n.t('login_subtitle'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.black54,
+                    ),
+              ),
+            ],
+            const SizedBox(height: 14),
           ],
-          SizedBox(height: isWelcome ? 18 : 18),
+
+          // Campo e-mail
           TextFormField(
             controller: _email,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
               labelText: l10n.t('login_email_label'),
               border: const OutlineInputBorder(),
+              prefixIcon: isAdmin
+                  ? const Icon(Icons.alternate_email, size: 18)
+                  : null,
             ),
             validator: (v) {
               final t = (v ?? '').trim();
@@ -190,11 +258,16 @@ class _LoginCardFormState extends State<LoginCardForm> {
             },
           ),
           const SizedBox(height: 12),
+
+          // Campo senha
           TextFormField(
             controller: _password,
             obscureText: _obscurePassword,
             decoration: InputDecoration(
               labelText: l10n.t('login_password_label'),
+              prefixIcon: isAdmin
+                  ? const Icon(Icons.lock_outline, size: 18)
+                  : null,
               suffixIcon: IconButton(
                 tooltip: _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
                 icon: Icon(
@@ -214,12 +287,15 @@ class _LoginCardFormState extends State<LoginCardForm> {
             },
           ),
           const SizedBox(height: 16),
+
+          // Botão entrar (cor muda no modo admin)
           SizedBox(
             width: double.infinity,
             height: _pillButtonHeight,
             child: FilledButton(
               style: _pillButtonStyle(
-                backgroundColor: Brand.primaryCtaBlue,
+                backgroundColor:
+                    isAdmin ? Brand.black : Brand.primaryCtaBlue,
                 foregroundColor: Brand.white,
               ),
               onPressed: _loading ? null : _submit,
@@ -227,30 +303,48 @@ class _LoginCardFormState extends State<LoginCardForm> {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Brand.white),
                     )
-                  : Text(l10n.t('btn_login')),
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isAdmin) ...[
+                          const Icon(Icons.admin_panel_settings,
+                              size: 16),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(isAdmin
+                            ? 'Entrar como Administrador'
+                            : l10n.t('btn_login')),
+                      ],
+                    ),
             ),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            height: _pillButtonHeight,
-            child: FilledButton(
-              style: _pillButtonStyle(
-                backgroundColor: Brand.black,
-                foregroundColor: Brand.white,
+
+          // Ações secundárias só no modo usuário
+          if (!isAdmin) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: _pillButtonHeight,
+              child: FilledButton(
+                style: _pillButtonStyle(
+                  backgroundColor: Brand.black,
+                  foregroundColor: Brand.white,
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SignupScreen(),
+                    ),
+                  );
+                },
+                child:
+                    Text(widget.secondaryLabel, textAlign: TextAlign.center),
               ),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const SignupScreen(),
-                  ),
-                );
-              },
-              child: Text(widget.secondaryLabel, textAlign: TextAlign.center),
             ),
-          ),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,

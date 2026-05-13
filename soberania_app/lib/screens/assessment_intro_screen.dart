@@ -5,7 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
-import 'login_screen.dart';
+import 'welcome_screen.dart';
 import 'phases_screen.dart';
 
 class AssessmentIntroScreen extends StatefulWidget {
@@ -36,7 +36,7 @@ class _AssessmentIntroScreenState extends State<AssessmentIntroScreen> {
     await AppStorage().clear();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       (_) => false,
     );
   }

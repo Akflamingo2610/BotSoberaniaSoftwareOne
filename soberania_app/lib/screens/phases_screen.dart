@@ -6,8 +6,9 @@ import '../storage/app_storage.dart';
 import '../l10n/app_localizations.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
+import 'admin_screen.dart';
 import 'assessment_intro_screen.dart';
-import 'login_screen.dart';
+import 'welcome_screen.dart';
 import 'questions_screen.dart';
 import 'results_screen.dart';
 
@@ -23,6 +24,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
 
   final _api = BackendApi();
   bool _allQuestionsAnswered = false;
+  bool _isAdmin = false;
   static const List<String> _phaseValuesForValidation = <String>[
     'Compliance',
     'Continuity',
@@ -130,7 +132,13 @@ class _PhasesScreenState extends State<PhasesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _checkIfAllAnswered();
+      _checkAdminRole();
     });
+  }
+
+  Future<void> _checkAdminRole() async {
+    final role = await AppStorage().getUserRole();
+    if (mounted) setState(() => _isAdmin = role == 'admin');
   }
 
   static String _formatTimestamp(DateTime dt) {
@@ -145,7 +153,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
     await AppStorage().clearAll();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       (_) => false,
     );
   }
@@ -170,13 +178,28 @@ class _PhasesScreenState extends State<PhasesScreen> {
           },
           tooltip: l10n.t('go_to_intro'),
         ),
-        trailing: TextButton.icon(
-          onPressed: () => _logout(context),
-          icon: const Icon(Icons.logout, size: 18, color: Brand.black),
-          label: Text(
-            l10n.t('btn_logout'),
-            style: const TextStyle(color: Brand.black),
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_isAdmin)
+              TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AdminScreen()),
+                ),
+                icon: const Icon(Icons.admin_panel_settings,
+                    size: 18, color: Brand.black),
+                label: const Text('Admin',
+                    style: TextStyle(color: Brand.black)),
+              ),
+            TextButton.icon(
+              onPressed: () => _logout(context),
+              icon: const Icon(Icons.logout, size: 18, color: Brand.black),
+              label: Text(
+                l10n.t('btn_logout'),
+                style: const TextStyle(color: Brand.black),
+              ),
+            ),
+          ],
         ),
       ),
       body: SizedBox.expand(

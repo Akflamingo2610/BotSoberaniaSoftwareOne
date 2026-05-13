@@ -46,3 +46,13 @@ class SaveAssessmentRequest(BaseModel):
     assessment_id: int
     answers: List[SaveAnswerItem]
 
+
+class UpdateUserProfileRequest(BaseModel):
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    company_name: Optional[str] = None
+    cnpj: Optional[str] = None
+    segment: Optional[str] = None
+

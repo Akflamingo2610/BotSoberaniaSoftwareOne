@@ -8,7 +8,7 @@ import 'welcome_screen.dart';
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
-  /// Volta na pilha ou vai à tela inicial — após logout [LoginScreen] é a única rota e [maybePop] não faz nada.
+  /// Volta na pilha ou vai à tela inicial — após logout a pilha fica só na [WelcomeScreen] e [maybePop] não faz nada.
   static void handleBackOrHome(BuildContext context) {
     final nav = Navigator.of(context);
     if (nav.canPop()) {

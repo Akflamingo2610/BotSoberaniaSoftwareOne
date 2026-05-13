@@ -297,6 +297,67 @@ class BackendApi {
     throw ApiException(res.statusCode, body);
   }
 
+  Future<List<dynamic>> adminListUsers({required String authToken}) async {
+    final res = await _client.get(
+      _uri('/admin/users'),
+      headers: _headers(authToken: authToken),
+    );
+    final body = _tryJson(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return body as List<dynamic>;
+    }
+    throw ApiException(res.statusCode, body);
+  }
+
+  Future<Map<String, dynamic>> adminUserProgress({
+    required String authToken,
+    required int userId,
+  }) async {
+    final res = await _client.get(
+      _uri('/admin/users/$userId/progress'),
+      headers: _headers(authToken: authToken),
+    );
+    final body = _tryJson(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return (body as Map).cast<String, dynamic>();
+    }
+    throw ApiException(res.statusCode, body);
+  }
+
+  /// Atualiza dados de perfil de um usuário (admin only).
+  /// Endpoint: PUT /admin/users/{user_id}
+  Future<Map<String, dynamic>> adminUpdateUserProfile({
+    required String authToken,
+    required int userId,
+    String? name,
+    String? lastName,
+    String? phone,
+    String? role,
+    String? companyName,
+    String? cnpj,
+    String? segment,
+  }) async {
+    final payload = <String, dynamic>{
+      if (name != null) 'name': name,
+      if (lastName != null) 'last_name': lastName,
+      if (phone != null) 'phone': phone,
+      if (role != null) 'role': role,
+      if (companyName != null) 'company_name': companyName,
+      if (cnpj != null) 'cnpj': cnpj,
+      if (segment != null) 'segment': segment,
+    };
+    final res = await _client.put(
+      _uri('/admin/users/$userId'),
+      headers: _headers(authToken: authToken),
+      body: jsonEncode(payload),
+    );
+    final body = _tryJson(res.body);
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return (body as Map).cast<String, dynamic>();
+    }
+    throw ApiException(res.statusCode, body);
+  }
+
   dynamic _tryJson(String raw) {
     try {
       return jsonDecode(raw);

@@ -4,54 +4,37 @@ import '../l10n/app_localizations.dart';
 import '../storage/app_storage.dart';
 import '../ui/brand.dart';
 import '../widgets/login_card_form.dart';
-import 'assessment_intro_screen.dart';
-import 'phases_screen.dart';
 
 /// Primeira tela do app: boas-vindas + Entrar ou Cadastre-se.
-/// Se o usuário já estiver logado, vai direto para a introdução ou pilares.
+/// Sempre exibe o formulário de login; qualquer sessão antiga é descartada
+/// para que o usuário sempre faça login explicitamente.
+///
+/// [initialAdminMode] — quando `true` (ex.: após sair do painel admin), o chip
+/// "Área Admin" já vem ativo para facilitar novo login de administrador.
 class WelcomeScreen extends StatefulWidget {
-  const WelcomeScreen({super.key});
+  const WelcomeScreen({super.key, this.initialAdminMode = false});
+
+  /// Se `true`, abre já no fluxo de administrador (chip ativo + formulário admin).
+  final bool initialAdminMode;
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  bool _checkingAuth = true;
+  late bool _adminMode;
 
   @override
   void initState() {
     super.initState();
-    _checkLoggedIn();
-  }
-
-  Future<void> _checkLoggedIn() async {
-    final token = await AppStorage().getAuthToken();
-    if (!mounted) return;
-    setState(() => _checkingAuth = false);
-    if (token != null && token.isNotEmpty) {
-      final introSeen = await AppStorage().getIntroSeen();
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) =>
-              introSeen ? const PhasesScreen() : const AssessmentIntroScreen(),
-        ),
-      );
-    }
+    _adminMode = widget.initialAdminMode;
+    AppStorage().clearAll();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final isWide = MediaQuery.sizeOf(context).width >= 980;
-
-    if (_checkingAuth) {
-      return const Scaffold(
-        backgroundColor: Brand.surface,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
 
     return Scaffold(
       body: Stack(
@@ -80,14 +63,70 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Align(
-                          alignment: Alignment.topLeft,
-                          child: Text(
-                            'Soberania Digital',
-                            style: TextStyle(
-                              color: Brand.white,
-                              fontWeight: FontWeight.w700,
-                            ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Soberania Digital',
+                                style: TextStyle(
+                                  color: Brand.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              GestureDetector(
+                                onTap: () => setState(
+                                    () => _adminMode = !_adminMode),
+                                child: AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: _adminMode
+                                        ? Brand.white
+                                        : Colors.white
+                                            .withValues(alpha: 0.15),
+                                    borderRadius:
+                                        BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: _adminMode
+                                          ? Brand.white
+                                          : Colors.white
+                                              .withValues(alpha: 0.35),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons
+                                            .admin_panel_settings_outlined,
+                                        size: 13,
+                                        color: _adminMode
+                                            ? Brand.black
+                                            : Colors.white,
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        _adminMode
+                                            ? 'Administrador'
+                                            : 'Área Admin',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: _adminMode
+                                              ? Brand.black
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const Spacer(),
@@ -109,8 +148,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                 ],
                               ),
                               child: LoginCardForm(
+                                key: ValueKey('admin_$_adminMode'),
                                 variant: LoginCardVariant.welcome,
                                 secondaryLabel: l10n.t('btn_signup'),
+                                initialAdminMode: _adminMode,
                               ),
                             ),
                           ),

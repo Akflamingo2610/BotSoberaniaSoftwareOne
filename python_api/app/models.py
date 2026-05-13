@@ -71,6 +71,7 @@ class Question(Base):
     how_to_check: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     aws_service: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     pilar_tecnico: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    norms: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
 class Answer(Base):
