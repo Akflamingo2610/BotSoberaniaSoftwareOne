@@ -16,3 +16,12 @@ const String xanoBaseUrl = backendBaseUrl;
 
 const String ragBaseUrl = //'http://localhost:4000';
     'https://botsoberaniasoftwareone-production.up.railway.app';
+
+/// Valores de `questions.phase` no banco (API `GET /questions?phase=...`).
+/// Deve coincidir com o Postgres / migrations; senao listas de perguntas ficam vazias.
+const List<String> kAssessmentPhaseValues = [
+  'Quick_Wins',
+  'Foundational',
+  'Efficient',
+  'Optimized',
+];

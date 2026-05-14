@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from .database import Base, SessionLocal, engine
@@ -39,7 +39,8 @@ RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv("RATE_LIMIT_MAX_ATTEMPTS", "15"))
 RATE_LIMITED_PATHS = {"/login", "/forgot_password", "/reset_password", "/signup_company"}
 ALLOWED_ORIGIN_REGEX = os.getenv(
     "ALLOWED_ORIGIN_REGEX",
-    r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    # Inclui [::1] porque alguns browsers usam IPv6 no Origin mesmo com "localhost" na barra.
+    r"^https?://(\[::1\](:\d+)?|(localhost|127\.0\.0\.1)(:\d+)?)$",
 )
 
 # key: "<ip>:<path>" -> [timestamps]
@@ -366,6 +367,64 @@ def _require_admin(current_user: User) -> User:
     return current_user
 
 
+_ADMIN_PROGRESS_TEXT_MAX = 768
+
+
+def _truncate_admin_field(value: Optional[str], max_len: int = _ADMIN_PROGRESS_TEXT_MAX) -> Optional[str]:
+    """Limita tamanho de Text no JSON admin (evita respostas de vários MB no browser)."""
+    if value is None:
+        return None
+    s = str(value)
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 3] + "..."
+
+
+def _admin_answer_count(db: Session, assessment_id: int) -> int:
+    n = db.scalar(
+        select(func.count(distinct(Answer.question_id))).where(
+            Answer.assessment_id == assessment_id
+        )
+    )
+    return int(n or 0)
+
+
+def _admin_answers_payload(
+    db: Session,
+    assessment_id: int,
+    *,
+    offset: int = 0,
+    limit: Optional[int] = None,
+) -> list[dict]:
+    stmt = (
+        select(Answer, Question)
+        .select_from(Answer)
+        .outerjoin(Question, Answer.question_id == Question.id)
+        .where(Answer.assessment_id == assessment_id)
+        .order_by(Answer.id.asc())
+    )
+    if limit is not None:
+        stmt = stmt.offset(offset).limit(limit)
+    rows = db.execute(stmt).all()
+    answer_details: list[dict] = []
+    for a, q in rows:
+        answer_details.append(
+            {
+                "question_id": a.question_id,
+                "question_code": q.question_code if q else None,
+                "pilar": q.pilar if q else None,
+                "dominio": q.dominio if q else None,
+                "pilar_tecnico": q.pilar_tecnico if q else None,
+                "recommendation": _truncate_admin_field(q.recommendation if q else None),
+                "aws_service": _truncate_admin_field(q.aws_service if q else None),
+                "norms": _truncate_admin_field(q.norms if q else None),
+                "score": a.score,
+                "justification": _truncate_admin_field(a.justification),
+            }
+        )
+    return answer_details
+
+
 @app.get("/admin/users")
 def admin_list_users(
     current_user: User = Depends(get_current_user),
@@ -383,16 +442,13 @@ def admin_list_users(
         )
         answered_count = 0
         if assessment:
-            answered_count = db.scalar(
-                select(Answer).where(Answer.assessment_id == assessment.id)
-                .__class__.count()
-                if False else
-                select(Answer.id).where(Answer.assessment_id == assessment.id)
-            )
-            answered_count = len(
-                db.scalars(
-                    select(Answer.id).where(Answer.assessment_id == assessment.id)
-                ).all()
+            answered_count = int(
+                db.scalar(
+                    select(func.count(distinct(Answer.question_id))).where(
+                        Answer.assessment_id == assessment.id
+                    )
+                )
+                or 0
             )
         result.append({
             "id": u.id,
@@ -425,6 +481,12 @@ def admin_user_progress(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Retorna perfil + lista de assessments (sem `answers`).
+
+    O payload de respostas quebra o browser (Failed to fetch) em usuarios com
+    muitas respostas. Sempre use GET /admin/assessments/{id}/answers apos carregar
+    esta rota (o app Flutter ja faz isso).
+    """
     _require_admin(current_user)
     user = db.get(User, user_id)
     if not user:
@@ -438,33 +500,20 @@ def admin_user_progress(
 
     result = []
     for assessment in assessments:
-        answers = db.scalars(
-            select(Answer).where(Answer.assessment_id == assessment.id)
-        ).all()
-        answer_details = []
-        for a in answers:
-            q = db.get(Question, a.question_id)
-            answer_details.append({
-                "question_id": a.question_id,
-                "question_code": q.question_code if q else None,
-                "pilar": q.pilar if q else None,
-                "dominio": q.dominio if q else None,
-                "pilar_tecnico": q.pilar_tecnico if q else None,
-                "recommendation": q.recommendation if q else None,
-                "aws_service": q.aws_service if q else None,
-                "norms": q.norms if q else None,
-                "score": a.score,
-                "justification": a.justification,
-                "evidence": a.evidence,
-            })
-        result.append({
-            "id": assessment.id,
-            "status": assessment.status,
-            "current_phase": assessment.current_phase,
-            "progress_percent": assessment.progress_percent,
-            "created_at": assessment.created_at.isoformat() if assessment.created_at else None,
-            "answers": answer_details,
-        })
+        cnt = _admin_answer_count(db, assessment.id)
+        result.append(
+            {
+                "id": assessment.id,
+                "status": assessment.status,
+                "current_phase": assessment.current_phase,
+                "progress_percent": assessment.progress_percent,
+                "created_at": assessment.created_at.isoformat()
+                if assessment.created_at
+                else None,
+                "answers": [],
+                "answer_count": cnt,
+            }
+        )
 
     company = db.get(Company, user.company_id) if user.company_id else None
     return {
@@ -485,6 +534,29 @@ def admin_user_progress(
             } if company else None,
         },
         "assessments": result,
+    }
+
+
+@app.get("/admin/assessments/{assessment_id}/answers")
+def admin_assessment_answers(
+    assessment_id: int,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(60, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_admin(current_user)
+    if not db.get(Assessment, assessment_id):
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    total = _admin_answer_count(db, assessment_id)
+    answer_details = _admin_answers_payload(
+        db, assessment_id, offset=offset, limit=limit
+    )
+    return {
+        "answers": answer_details,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
     }
 
 

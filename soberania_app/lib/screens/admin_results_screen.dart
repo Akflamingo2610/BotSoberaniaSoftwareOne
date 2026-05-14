@@ -4,6 +4,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../data/aws_norm_correlation.dart';
 import '../models/models.dart';
 import '../ui/brand.dart';
 import '../widgets/custom_radar_chart.dart';
@@ -83,6 +84,11 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
   /// cada item pelo peso do gap (5 - score/25). Domínios já maduros (sem
   /// perguntas-problema) recebem os serviços/normas mais comuns do domínio
   /// rotulados como "manutenção".
+  ///
+  /// As normas vindas do banco (`norms` / evidências da pergunta) são somadas
+  /// às normas inferidas pela correlação serviço AWS → legislação/normas do
+  /// protótipo (CSV matriz), para a coluna "Normas / Leis" refletir o mesmo
+  /// racional do material de referência do projeto.
   List<Map<String, String>> _buildTraceability(List<dynamic> answers) {
     final byDomain = <String, List<Map<String, dynamic>>>{};
     for (final a in answers) {
@@ -120,6 +126,9 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
 
         for (final svc in _splitItems(m['aws_service']?.toString())) {
           svcWeights[svc] = (svcWeights[svc] ?? 0) + w;
+          for (final n in normsInferredFromAwsServiceToken(svc)) {
+            normWeights[n] = (normWeights[n] ?? 0) + w;
+          }
         }
         for (final n in _splitItems(m['norms']?.toString())) {
           normWeights[n] = (normWeights[n] ?? 0) + w;
@@ -227,6 +236,7 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
     if (_exportingPdf) return;
     setState(() => _exportingPdf = true);
     try {
+      await ensureAwsNormTruthLoaded();
       final doc = pw.Document();
       final userName = widget.userName;
       final now = DateTime.now();
@@ -790,8 +800,8 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
       // ════════════════════════════════════════════════════════════════════
       // FOLHA 5 — Matriz de Rastreabilidade AWS (domínio → serviço → norma)
       // Construída dinamicamente a partir das respostas reais do cliente:
-      // para cada domínio, agrega aws_service e norms das perguntas onde
-      // o score está abaixo do limiar (gaps), ponderando pelo tamanho do gap.
+      // para cada domínio, agrega aws_service e norms (banco + correlação
+      // CSV protótipo) das perguntas onde o score está abaixo do limiar (gaps).
       // ════════════════════════════════════════════════════════════════════
       final traceability = _buildTraceability(answers);
       doc.addPage(pw.Page(
@@ -1099,12 +1109,34 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
                   child: pw.Row(
                     mainAxisAlignment:
                         pw.MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
-                      pw.Text(
-                          'Soberania Digital — Matriz AWS'
-                          '${userName.isNotEmpty ? "  |  $userName" : ""}',
-                          style: const pw.TextStyle(
-                              fontSize: 8, color: PdfColors.grey500)),
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          mainAxisAlignment: pw.MainAxisAlignment.center,
+                          mainAxisSize: pw.MainAxisSize.min,
+                          children: [
+                            pw.Text(
+                                'Soberania Digital — Matriz AWS'
+                                '${userName.isNotEmpty ? "  |  $userName" : ""}',
+                                style: const pw.TextStyle(
+                                    fontSize: 8, color: PdfColors.grey500)),
+                            if (awsNormTruthPdfFooterLine != null &&
+                                awsNormTruthPdfFooterLine!.trim().isNotEmpty)
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.only(top: 2),
+                                child: pw.Text(
+                                  awsNormTruthPdfFooterLine!.trim(),
+                                  maxLines: 2,
+                                  style: const pw.TextStyle(
+                                      fontSize: 7,
+                                      color: PdfColors.grey600),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                       pw.Text('Página 5 de 5',
                           style: const pw.TextStyle(
                               fontSize: 8, color: PdfColors.grey500)),

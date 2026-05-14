@@ -10,6 +10,7 @@ import 'package:printing/printing.dart';
 
 import '../api/rag_api.dart';
 import '../api/backend_api.dart';
+import '../config.dart';
 import '../models/models.dart';
 import '../storage/app_storage.dart';
 import '../l10n/app_localizations.dart';
@@ -56,8 +57,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
   bool _exportingPdf = false;
   String? _quickQuestion;
   int _quickQuestionNonce = 0;
-
-  static const _phaseOrder = ['Original', 'Lens Soberania', 'Sec Assessment'];
 
   String get _languageCode {
     final code = Localizations.localeOf(context).languageCode.toLowerCase();
@@ -143,7 +142,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
 
       final questionMap = <int, Question>{};
-      for (final phase in _phaseOrder) {
+      for (final phase in kAssessmentPhaseValues) {
         final raw = await _api.listQuestions(authToken: token, phase: phase);
         for (final e in raw) {
           if (e is Map) {

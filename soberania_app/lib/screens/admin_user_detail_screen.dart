@@ -17,6 +17,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   final _api = BackendApi();
   Map<String, dynamic>? _data;
   bool _loading = true;
+  bool _answersLoading = false;
   String? _error;
   int _selectedAssessmentIndex = 0;
 
@@ -43,9 +44,55 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
         authToken: token,
         userId: widget.userId,
       );
-      if (mounted) setState(() { _data = data; _loading = false; });
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _loading = false;
+      });
+      await _ensureAnswersForSelectedIndex();
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  /// Carrega `answers` sob demanda (API envia só o assessment mais recente completo).
+  Future<void> _ensureAnswersForSelectedIndex() async {
+    if (_data == null) return;
+    final assessments = (_data!['assessments'] as List<dynamic>?) ?? [];
+    final i = _selectedAssessmentIndex;
+    if (i < 0 || i >= assessments.length) return;
+    final m = Map<String, dynamic>.from(assessments[i] as Map);
+    final answers = (m['answers'] as List<dynamic>?) ?? [];
+    final count = (m['answer_count'] as num?)?.toInt() ?? answers.length;
+    if (answers.isNotEmpty || count == 0) return;
+
+    setState(() => _answersLoading = true);
+    try {
+      final token = await AppStorage().getAuthToken();
+      if (token == null || !mounted) {
+        if (mounted) setState(() => _answersLoading = false);
+        return;
+      }
+      final aid = (m['id'] as num).toInt();
+      final loaded = await _api.adminAssessmentAnswers(
+        authToken: token,
+        assessmentId: aid,
+      );
+      if (!mounted) return;
+      final newList = List<dynamic>.from(assessments);
+      m['answers'] = loaded['answers'] as List<dynamic>;
+      newList[i] = m;
+      setState(() {
+        _data!['assessments'] = newList;
+        _answersLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _answersLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar respostas: $e')),
+        );
+      }
     }
   }
 
@@ -99,9 +146,15 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
               _AssessmentSelector(
                 assessments: assessments,
                 selectedIndex: _selectedAssessmentIndex,
-                onSelect: (i) =>
-                    setState(() => _selectedAssessmentIndex = i),
+                onSelect: (i) {
+                  setState(() => _selectedAssessmentIndex = i);
+                  _ensureAnswersForSelectedIndex();
+                },
               ),
+            if (_answersLoading) ...[
+              const SizedBox(height: 8),
+              const LinearProgressIndicator(),
+            ],
             const SizedBox(height: 12),
             _AssessmentDetailCard(
               assessment:
@@ -683,11 +736,13 @@ class _AssessmentDetailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final answers = (assessment['answers'] as List<dynamic>?) ?? [];
+    final answerCount =
+        (assessment['answer_count'] as num?)?.toInt() ?? answers.length;
     final createdAt = assessment['created_at'] != null
         ? _formatDate(assessment['created_at'].toString())
         : '—';
 
-    final isCompleted = answers.length >= _totalQuestions;
+    final isCompleted = answerCount >= _totalQuestions;
 
     final byPilar = <String, List<Map<String, dynamic>>>{};
     for (final pilar in pilars) {

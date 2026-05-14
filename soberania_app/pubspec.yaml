@@ -67,6 +67,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/data/aws_norms_truth.json
     - assets/images/
     - assets/images/aws_preta_semfundo.png
     - assets/images/softwareone_logo_semfundo.png

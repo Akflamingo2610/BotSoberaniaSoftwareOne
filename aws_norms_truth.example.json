@@ -1,0 +1,24 @@
+{
+  "versao": 1,
+  "revisado_em": "2026-05-20",
+  "revisor": "Nome ou área responsável pela revisão jurídica",
+  "pdfs_referencia": [
+    "OneDrive_1_1-26-2026/LEI N 13.709 LGPD.pdf",
+    "OneDrive_1_1-26-2026/LEI N 12.965 MARCO CIVIL DA INTERNET.pdf"
+  ],
+  "nota_rodape_pdf": "Normas conferidas com base nos PDFs listados em pdfs_referencia (cópia no repositório).",
+  "servicos": {
+    "AWS Config": {
+      "normas": [
+        "LGPD (controles e registro de operações)",
+        "ISO/IEC 27001 — gestão de mudanças"
+      ]
+    },
+    "AWS CloudTrail": {
+      "normas": [
+        "LGPD Art. 37 e 41",
+        "MCI Art. 10 (registros)"
+      ]
+    }
+  }
+}

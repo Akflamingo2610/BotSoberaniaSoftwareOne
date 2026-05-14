@@ -166,8 +166,6 @@ class BackendApi {
     throw ApiException(res.statusCode, body);
   }
 
-  static const _allPhases = ['Original', 'Lens Soberania', 'Sec Assessment'];
-
   Future<List<dynamic>> listQuestions({
     required String authToken,
     required String phase,
@@ -199,12 +197,12 @@ class BackendApi {
     required String authToken,
     required String pilar,
   }) async {
-    final key = 'q_pilar_$pilar';
+    final key = 'q_pilar_v2_$pilar';
     final cached = _cache[key];
     if (cached != null && cached.isValid) return cached.value as List<dynamic>;
 
     final all = <Map<String, dynamic>>[];
-    for (final phase in _allPhases) {
+    for (final phase in kAssessmentPhaseValues) {
       final raw = await listQuestions(authToken: authToken, phase: phase);
       for (final e in raw) {
         if (e is Map) {
@@ -322,6 +320,39 @@ class BackendApi {
       return (body as Map).cast<String, dynamic>();
     }
     throw ApiException(res.statusCode, body);
+  }
+
+  /// Respostas de um assessment (admin), com paginação no servidor.
+  Future<Map<String, dynamic>> adminAssessmentAnswers({
+    required String authToken,
+    required int assessmentId,
+  }) async {
+    final all = <dynamic>[];
+    var offset = 0;
+    const pageSize = 50;
+    int? total;
+    while (true) {
+      final res = await _client.get(
+        _uri('/admin/assessments/$assessmentId/answers', {
+          'offset': '$offset',
+          'limit': '$pageSize',
+        }),
+        headers: _headers(authToken: authToken),
+      );
+      final body = _tryJson(res.body);
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        throw ApiException(res.statusCode, body);
+      }
+      final map = (body as Map).cast<String, dynamic>();
+      final chunk = (map['answers'] as List<dynamic>?) ?? [];
+      total = (map['total'] as num?)?.toInt();
+      all.addAll(chunk);
+      offset += chunk.length;
+      if (chunk.isEmpty || (total != null && offset >= total)) {
+        break;
+      }
+    }
+    return {'answers': all, 'total': total ?? all.length};
   }
 
   /// Atualiza dados de perfil de um usuário (admin only).
