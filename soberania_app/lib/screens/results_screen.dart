@@ -34,6 +34,26 @@ class ResultsData {
   });
 }
 
+class _RoadmapStep {
+  final String period;
+  final String title;
+  final String description;
+  final String impact;
+  final List<String> services;
+  final List<String> actions;
+  final String performanceNote;
+
+  const _RoadmapStep({
+    required this.period,
+    required this.title,
+    required this.description,
+    required this.impact,
+    required this.services,
+    required this.actions,
+    required this.performanceNote,
+  });
+}
+
 class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key});
 
@@ -45,11 +65,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
   final _api = BackendApi();
   final _rag = RagApi();
   final _storage = AppStorage();
-  final GlobalKey _pdfKey = GlobalKey();
+  final GlobalKey _pdfSummaryKey = GlobalKey();
+  final GlobalKey _pdfRoadmapKey = GlobalKey();
 
   bool _loading = true;
   String? _error;
   ResultsData? _data;
+  Map<String, double> _scoreByTechnical = {};
+  List<String> _technicalPilars = [];
   String? _userName;
   String? _userEmail;
   String? _botOverview;
@@ -116,6 +139,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
       _loading = true;
       _error = null;
       _data = null;
+      _scoreByTechnical = {};
+      _technicalPilars = [];
     });
 
     try {
@@ -142,18 +167,25 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
 
       final questionMap = <int, Question>{};
+      final questionTechnical = <int, String>{};
       for (final phase in kAssessmentPhaseValues) {
         final raw = await _api.listQuestions(authToken: token, phase: phase);
         for (final e in raw) {
           if (e is Map) {
-            final q = Question.fromJson(e.cast<String, dynamic>());
+            final map = e.cast<String, dynamic>();
+            final q = Question.fromJson(map);
             questionMap[q.id] = q;
+            final t = (map['pilar_tecnico'] ?? '').toString().trim();
+            if (t.isNotEmpty) {
+              questionTechnical[q.id] = t;
+            }
           }
         }
       }
 
       final byPilar = <String, List<int>>{};
       final byDominio = <String, List<int>>{};
+      final byTechnical = <String, List<int>>{};
       for (final a in answers) {
         final q = questionMap[a.questionId];
         if (q == null || a.score == null) continue;
@@ -162,6 +194,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final dom = (q.dominio ?? '').trim();
         if (dom.isNotEmpty) {
           byDominio.putIfAbsent(dom, () => []).add(pct);
+        }
+        final tech = (questionTechnical[a.questionId] ?? '').trim();
+        if (tech.isNotEmpty) {
+          byTechnical.putIfAbsent(tech, () => []).add(pct);
         }
       }
 
@@ -172,8 +208,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       for (final e in byPilar.entries) {
         scoreByPilar[e.key] = avg(e.value).roundToDouble();
       }
-      final pilars = scoreByPilar.keys.toList()
-        ..sort((a, b) => a.compareTo(b));
+      final pilars = scoreByPilar.keys.toList()..sort((a, b) => a.compareTo(b));
 
       final scoreByDominio = <String, double>{};
       for (final e in byDominio.entries) {
@@ -182,12 +217,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
       final dominios = scoreByDominio.keys.toList()
         ..sort((a, b) => a.compareTo(b));
 
+      final scoreByTechnical = <String, double>{};
+      for (final e in byTechnical.entries) {
+        scoreByTechnical[e.key] = avg(e.value).roundToDouble();
+      }
+      final technicalPilars = scoreByTechnical.keys.toList()
+        ..sort((a, b) => a.compareTo(b));
+
       _data = ResultsData(
         scoreByPilar: scoreByPilar,
         pilars: pilars,
         scoreByDominio: scoreByDominio,
         dominios: dominios,
       );
+      _scoreByTechnical = scoreByTechnical;
+      _technicalPilars = technicalPilars;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -212,8 +256,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         _languageCode == 'en'
             ? 'Write one short and clear paragraph in English summarizing these digital sovereignty assessment results. Use simple language, 3 to 4 complete sentences, and explain what the scores mean in practice. Mention the strongest point and the main opportunity for improvement. End with a direct recommendation in one sentence.'
             : _languageCode == 'es'
-                ? 'Escriba un párrafo breve y claro en español resumiendo estos resultados del assessment de soberanía digital. Use lenguaje simple, de 3 a 4 frases completas, y explique qué significan los puntajes en la práctica. Mencione el punto más fuerte y la principal oportunidad de mejora. Termine con una recomendación directa en una frase.'
-                : 'Escreva um parágrafo curto e claro, em português, resumindo os resultados deste assessment de soberania digital. Use linguagem simples, de 3 a 4 frases completas, e explique o que os percentuais significam na prática. Destaque o ponto mais forte e a principal oportunidade de melhoria. Termine com uma recomendação direta em uma frase.',
+            ? 'Escriba un párrafo breve y claro en español resumiendo estos resultados del assessment de soberanía digital. Use lenguaje simple, de 3 a 4 frases completas, y explique qué significan los puntajes en la práctica. Mencione el punto más fuerte y la principal oportunidad de mejora. Termine con una recomendación directa en una frase.'
+            : 'Escreva um parágrafo curto e claro, em português, resumindo os resultados deste assessment de soberania digital. Use linguagem simples, de 3 a 4 frases completas, e explique o que os percentuais significam na prática. Destaque o ponto mais forte e a principal oportunidade de melhoria. Termine com uma recomendação direta em uma frase.',
         questionContext: ctx,
         languageCode: _languageCode,
       );
@@ -248,7 +292,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         text = clipped.substring(0, boundary + 1).trim();
       } else {
         final lastSpace = clipped.lastIndexOf(' ');
-        text = (lastSpace > 0 ? clipped.substring(0, lastSpace) : clipped).trim();
+        text = (lastSpace > 0 ? clipped.substring(0, lastSpace) : clipped)
+            .trim();
       }
     }
 
@@ -308,45 +353,373 @@ class _ResultsScreenState extends State<ResultsScreen> {
     try {
       await WidgetsBinding.instance.endOfFrame;
 
-      final boundary =
-          _pdfKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
+      Future<Uint8List?> capture(
+        GlobalKey key, {
+        double pixelRatio = 3.0,
+      }) async {
+        final boundary =
+            key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+        if (boundary == null) return null;
+        final ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData == null) return null;
+        return byteData.buffer.asUint8List();
+      }
 
-      // Aumenta nitidez para gráficos e textos no PDF final.
-      final ui.Image image = await boundary.toImage(pixelRatio: 2.4);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final roadmapBytes = await capture(_pdfRoadmapKey, pixelRatio: 3.4);
 
       final doc = pw.Document();
-      final pw.MemoryImage chartImage = pw.MemoryImage(pngBytes);
+      final roadmapImage = roadmapBytes != null
+          ? pw.MemoryImage(roadmapBytes)
+          : null;
 
-      final title = _languageCode == 'en'
-          ? 'Digital Sovereignty Assessment Results'
-          : _languageCode == 'es'
-              ? 'Resultados del Assessment de Soberanía Digital'
-              : 'Resultados do Assessment de Soberania Digital';
+      PdfColor pilarColor(String pilar) {
+        switch (pilar.trim().toLowerCase()) {
+          case 'compliance':
+            return const PdfColor(0.98, 0.40, 0.38);
+          case 'continuity':
+            return const PdfColor(0.29, 0.49, 0.70);
+          case 'control':
+            return const PdfColor(0.53, 0.39, 0.84);
+          default:
+            return const PdfColor(0.29, 0.49, 0.70);
+        }
+      }
+
+      PdfColor bandColor(int pct) {
+        if (pct >= 70) return const PdfColor(0.29, 0.49, 0.70);
+        return const PdfColor(0.95, 0.56, 0.17);
+      }
 
       doc.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(20),
+          margin: pw.EdgeInsets.zero,
           build: (context) {
+            final now = DateTime.now();
+            final dateStr =
+                '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+            final userName = (_userName ?? '').trim();
+            final pilarOrder = const ['Compliance', 'Continuity', 'Control'];
+            final domainList =
+                _data!.dominios
+                    .map(
+                      (d) =>
+                          MapEntry(d, (_data!.scoreByDominio[d] ?? 0).round()),
+                    )
+                    .toList()
+                  ..sort((a, b) => b.value.compareTo(a.value));
+            final technicalList =
+                _technicalPilars
+                    .map(
+                      (t) => MapEntry(t, (_scoreByTechnical[t] ?? 0).round()),
+                    )
+                    .toList()
+                  ..sort((a, b) => b.value.compareTo(a.value));
+
+            pw.Widget linearItem({required String label, required int pct}) {
+              final clamped = pct.clamp(0, 100);
+              final c = bandColor(clamped);
+              return pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 8),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Expanded(
+                          child: pw.Text(
+                            label,
+                            maxLines: 1,
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.grey800,
+                            ),
+                          ),
+                        ),
+                        pw.Text(
+                          '$clamped%',
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                            color: c,
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Container(
+                      height: 8,
+                      color: const PdfColor(0.90, 0.90, 0.90),
+                      child: pw.Row(
+                        children: [
+                          if (clamped > 0)
+                            pw.Expanded(
+                              flex: clamped,
+                              child: pw.Container(color: c),
+                            ),
+                          if (clamped < 100)
+                            pw.Expanded(
+                              flex: (100 - clamped).clamp(1, 100),
+                              child: pw.SizedBox(),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
             return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                pw.Text(
-                  title,
-                  style: pw.TextStyle(
-                    fontSize: 16,
-                    fontWeight: pw.FontWeight.bold,
+                pw.Container(
+                  height: 75,
+                  color: const PdfColor(0.06, 0.06, 0.08),
+                  padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 14,
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        children: [
+                          pw.Text(
+                            'Assessment de Soberania Digital',
+                            style: pw.TextStyle(
+                              fontSize: 18,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.white,
+                            ),
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            userName.isNotEmpty
+                                ? 'Cliente: $userName'
+                                : 'Relatório de Resultados',
+                            style: const pw.TextStyle(
+                              fontSize: 11,
+                              color: PdfColors.grey400,
+                            ),
+                          ),
+                        ],
+                      ),
+                      pw.Text(
+                        dateStr,
+                        style: const pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                pw.SizedBox(height: 12),
-                pw.Expanded(
-                  child: pw.Container(
-                    width: double.infinity,
-                    child: pw.Image(chartImage, fit: pw.BoxFit.contain),
+                pw.Container(
+                  height: 110,
+                  color: const PdfColor(0.95, 0.95, 0.97),
+                  padding: const pw.EdgeInsets.fromLTRB(20, 14, 20, 14),
+                  child: pw.Row(
+                    children: pilarOrder.map((p) {
+                      final score = (_data!.scoreByPilar[p] ?? 0).round();
+                      final c = pilarColor(p);
+                      final label = _localizedPilar(this.context, p);
+                      return pw.Expanded(
+                        child: pw.Container(
+                          margin: const pw.EdgeInsets.symmetric(horizontal: 6),
+                          color: PdfColors.white,
+                          child: pw.Row(
+                            children: [
+                              pw.Container(width: 5, color: c),
+                              pw.Expanded(
+                                child: pw.Padding(
+                                  padding: const pw.EdgeInsets.all(10),
+                                  child: pw.Column(
+                                    crossAxisAlignment:
+                                        pw.CrossAxisAlignment.start,
+                                    mainAxisAlignment:
+                                        pw.MainAxisAlignment.center,
+                                    children: [
+                                      pw.Text(
+                                        label,
+                                        style: pw.TextStyle(
+                                          fontSize: 10,
+                                          color: c,
+                                          fontWeight: pw.FontWeight.bold,
+                                        ),
+                                      ),
+                                      pw.SizedBox(height: 4),
+                                      pw.Text(
+                                        '$score%',
+                                        style: pw.TextStyle(
+                                          fontSize: 28,
+                                          color: c,
+                                          fontWeight: pw.FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                pw.Container(
+                  height: 260,
+                  color: PdfColors.white,
+                  padding: const pw.EdgeInsets.fromLTRB(48, 18, 48, 12),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      pw.Text(
+                        'Score por Pilar',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.grey800,
+                        ),
+                      ),
+                      pw.SizedBox(height: 14),
+                      pw.SizedBox(
+                        height: 180,
+                        child: pw.Row(
+                          crossAxisAlignment: pw.CrossAxisAlignment.end,
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                          children: pilarOrder.map((p) {
+                            final score = (_data!.scoreByPilar[p] ?? 0).round();
+                            final c = pilarColor(p);
+                            final label = _localizedPilar(this.context, p);
+                            final barH = 130 * (score / 100);
+                            return pw.Column(
+                              mainAxisAlignment: pw.MainAxisAlignment.end,
+                              children: [
+                                pw.Container(
+                                  padding: const pw.EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  color: const PdfColor(0, 0, 0),
+                                  child: pw.Text(
+                                    '$score%',
+                                    style: pw.TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: pw.FontWeight.bold,
+                                      color: PdfColors.white,
+                                    ),
+                                  ),
+                                ),
+                                pw.SizedBox(height: 4),
+                                pw.Container(width: 70, height: barH, color: c),
+                                pw.SizedBox(height: 6),
+                                pw.Text(
+                                  label,
+                                  style: pw.TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: c,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Container(
+                  height: 368,
+                  color: const PdfColor(0.95, 0.95, 0.97),
+                  padding: const pw.EdgeInsets.fromLTRB(32, 16, 32, 16),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Score por Domínio',
+                              style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.grey800,
+                              ),
+                            ),
+                            pw.SizedBox(height: 12),
+                            if (domainList.isEmpty)
+                              pw.Text('Sem dados de domínio')
+                            else
+                              ...domainList
+                                  .take(6)
+                                  .map(
+                                    (e) =>
+                                        linearItem(label: e.key, pct: e.value),
+                                  ),
+                          ],
+                        ),
+                      ),
+                      pw.SizedBox(width: 16),
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Score por Pilar Técnico',
+                              style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.grey800,
+                              ),
+                            ),
+                            pw.SizedBox(height: 12),
+                            if (technicalList.isEmpty)
+                              pw.Text('Sem dados de pilar técnico')
+                            else
+                              ...technicalList
+                                  .take(6)
+                                  .map(
+                                    (e) =>
+                                        linearItem(label: e.key, pct: e.value),
+                                  ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Container(
+                  height: 28,
+                  color: const PdfColor(0.06, 0.06, 0.08),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 32),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'Soberania Digital — Assessment Report'
+                        '${userName.isNotEmpty ? "  |  $userName" : ""}',
+                        style: const pw.TextStyle(
+                          fontSize: 8,
+                          color: PdfColors.grey500,
+                        ),
+                      ),
+                      pw.Text(
+                        'Página 1 de 2',
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          color: PdfColors.grey500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -354,6 +727,52 @@ class _ResultsScreenState extends State<ResultsScreen> {
           },
         ),
       );
+
+      if (roadmapImage != null) {
+        final roadmapTitle = _languageCode == 'en'
+            ? 'Digital Sovereignty Roadmap'
+            : _languageCode == 'es'
+            ? 'Cronograma de Soberanía Digital'
+            : 'Cronograma de Soberania Digital';
+        doc.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.fromLTRB(10, 10, 10, 10),
+            build: (context) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    roadmapTitle,
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Expanded(
+                    child: pw.Container(
+                      width: double.infinity,
+                      child: pw.Image(roadmapImage, fit: pw.BoxFit.contain),
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text(
+                      'Página 2 de 2',
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        color: PdfColors.grey600,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      }
 
       final bytes = await doc.save();
       await Printing.sharePdf(
@@ -368,8 +787,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
             _languageCode == 'en'
                 ? 'Could not generate the PDF. Please try again.'
                 : _languageCode == 'es'
-                    ? 'No fue posible generar el PDF. Inténtelo nuevamente.'
-                    : 'Nao foi possivel gerar o PDF. Tente novamente.',
+                ? 'No fue posible generar el PDF. Inténtelo nuevamente.'
+                : 'Nao foi possivel gerar o PDF. Tente novamente.',
           ),
         ),
       );
@@ -382,10 +801,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
     if (_data == null) return '';
     final l10n = AppLocalizations.of(context);
     final pilarScores = _data!.pilars
-        .map((p) => '${_localizedPilar(context, p)}: ${_data!.scoreByPilar[p]?.toInt() ?? 0}%')
+        .map(
+          (p) =>
+              '${_localizedPilar(context, p)}: ${_data!.scoreByPilar[p]?.toInt() ?? 0}%',
+        )
         .join(', ');
     final dominioScores = _data!.dominios
-        .map((d) => '${_localizedDominio(context, d)}: ${_data!.scoreByDominio[d]?.toInt() ?? 0}%')
+        .map(
+          (d) =>
+              '${_localizedDominio(context, d)}: ${_data!.scoreByDominio[d]?.toInt() ?? 0}%',
+        )
         .join(', ');
     if (_languageCode == 'en') {
       return 'RESULTS BY PILLAR: $pilarScores. RESULTS BY DOMAIN: $dominioScores.';
@@ -394,6 +819,285 @@ class _ResultsScreenState extends State<ResultsScreen> {
       return 'RESULTADOS POR PILAR: $pilarScores. RESULTADOS POR DOMINIO: $dominioScores.';
     }
     return '${l10n.t('results_score_by_pillar').toUpperCase()}: $pilarScores. ${l10n.t('results_score_by_domain').toUpperCase()}: $dominioScores.';
+  }
+
+  List<_RoadmapStep> _buildRoadmapSteps() {
+    if (_data == null) return const [];
+
+    final pilarEntries = _data!.scoreByPilar.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    final domainEntries = _data!.scoreByDominio.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+
+    final weakestPilar = pilarEntries.isNotEmpty ? pilarEntries[0] : null;
+    final secondPilar = pilarEntries.length > 1
+        ? pilarEntries[1]
+        : weakestPilar;
+    final strongestPilar = pilarEntries.isNotEmpty ? pilarEntries.last : null;
+    final weakestDomain = domainEntries.isNotEmpty ? domainEntries[0] : null;
+
+    String period(int i) {
+      if (_languageCode == 'en')
+        return ['0-30 days', '31-60 days', '61-90 days'][i];
+      if (_languageCode == 'es')
+        return ['0-30 días', '31-60 días', '61-90 días'][i];
+      return ['0-30 dias', '31-60 dias', '61-90 dias'][i];
+    }
+
+    String impactLabel(int currentScore) {
+      final gain = ((75 - currentScore).clamp(5, 30) / 3).round();
+      if (_languageCode == 'en') return 'Potential gain: +$gain pts';
+      if (_languageCode == 'es') return 'Ganancia potencial: +$gain pts';
+      return 'Ganho potencial: +$gain pts';
+    }
+
+    final weakestPilarName = weakestPilar != null
+        ? _localizedPilar(context, weakestPilar.key)
+        : (_languageCode == 'en'
+              ? 'Priority pillar'
+              : _languageCode == 'es'
+              ? 'Pilar prioritario'
+              : 'Pilar prioritário');
+    final secondPilarName = secondPilar != null
+        ? _localizedPilar(context, secondPilar.key)
+        : weakestPilarName;
+    final strongestPilarName = strongestPilar != null
+        ? _localizedPilar(context, strongestPilar.key)
+        : weakestPilarName;
+    final weakestDomainName = weakestDomain != null
+        ? _localizedDominio(context, weakestDomain.key)
+        : (_languageCode == 'en'
+              ? 'key domain'
+              : _languageCode == 'es'
+              ? 'dominio clave'
+              : 'domínio-chave');
+
+    final weakestScore = (weakestPilar?.value ?? 50).round();
+    final secondScore = (secondPilar?.value ?? weakestPilar?.value ?? 55)
+        .round();
+    final strongestScore = (strongestPilar?.value ?? secondPilar?.value ?? 60)
+        .round();
+
+    List<String> servicesForPilar(String pilar) {
+      final k = pilar.toLowerCase();
+      if (k.contains('compliance') || k.contains('conform')) {
+        return const [
+          'AWS Config',
+          'AWS Security Hub',
+          'AWS Audit Manager',
+          'AWS CloudTrail',
+        ];
+      }
+      if (k.contains('continuity') || k.contains('contin')) {
+        return const [
+          'AWS Backup',
+          'AWS Resilience Hub',
+          'Amazon CloudWatch',
+          'Elastic Disaster Recovery',
+        ];
+      }
+      return const [
+        'AWS IAM / IAM Identity Center',
+        'AWS KMS',
+        'AWS Organizations (SCP)',
+        'Amazon GuardDuty',
+      ];
+    }
+
+    List<String> actionsForStep(int stepIndex, String pilar, String domain) {
+      if (_languageCode == 'en') {
+        if (stepIndex == 0) {
+          return [
+            'Create a prioritized backlog for $domain with clear owners.',
+            'Enable base controls and alerts in ${servicesForPilar(pilar).take(2).join(' + ')}.',
+            'Define weekly governance checkpoints with executive visibility.',
+          ];
+        }
+        if (stepIndex == 1) {
+          return [
+            'Automate evidence collection and compliance reports.',
+            'Integrate alerts with incident workflow and response playbooks.',
+            'Track lead time, rework and critical incident reduction KPIs.',
+          ];
+        }
+        return [
+          'Scale proven controls to other domains and business units.',
+          'Standardize architecture patterns and operating runbooks.',
+          'Link score evolution to business KPIs (SLA, cost, risk, productivity).',
+        ];
+      }
+      if (_languageCode == 'es') {
+        if (stepIndex == 0) {
+          return [
+            'Crear backlog priorizado para $domain con responsables claros.',
+            'Activar controles y alertas base en ${servicesForPilar(pilar).take(2).join(' + ')}.',
+            'Definir ritual semanal de gobernanza con visibilidad ejecutiva.',
+          ];
+        }
+        if (stepIndex == 1) {
+          return [
+            'Automatizar recolección de evidencias e informes de cumplimiento.',
+            'Integrar alertas al flujo de incidentes y playbooks de respuesta.',
+            'Medir KPIs de tiempo de entrega, retrabajo e incidentes críticos.',
+          ];
+        }
+        return [
+          'Escalar controles exitosos a otros dominios y áreas.',
+          'Estandarizar patrones de arquitectura y runbooks operativos.',
+          'Vincular evolución del score con KPIs del negocio.',
+        ];
+      }
+      if (stepIndex == 0) {
+        return [
+          'Criar backlog priorizado para $domain com responsáveis claros.',
+          'Ativar controles e alertas base em ${servicesForPilar(pilar).take(2).join(' + ')}.',
+          'Definir rito semanal de governança com visibilidade executiva.',
+        ];
+      }
+      if (stepIndex == 1) {
+        return [
+          'Automatizar coleta de evidências e relatórios de conformidade.',
+          'Integrar alertas ao fluxo de incidentes e playbooks de resposta.',
+          'Medir KPIs de lead time, retrabalho e queda de incidentes críticos.',
+        ];
+      }
+      return [
+        'Escalar controles comprovados para outros domínios e áreas.',
+        'Padronizar arquitetura alvo e runbooks operacionais.',
+        'Conectar evolução do score com KPIs de negócio.',
+      ];
+    }
+
+    String performanceNote(String pilar, int stepIndex) {
+      if (_languageCode == 'en') {
+        if (stepIndex == 0) {
+          return 'Expected effect: faster response to incidents, lower operational interruption and immediate reduction of compliance risk.';
+        }
+        if (stepIndex == 1) {
+          return 'Expected effect: more predictable delivery, higher team productivity and reduction of manual effort in audits and operations.';
+        }
+        return 'Expected effect: stronger resilience, safer scaling and better business performance through reliability, cost control and trust.';
+      }
+      if (_languageCode == 'es') {
+        if (stepIndex == 0) {
+          return 'Efecto esperado: respuesta más rápida a incidentes, menor interrupción operativa y reducción inmediata del riesgo.';
+        }
+        if (stepIndex == 1) {
+          return 'Efecto esperado: mayor previsibilidad, más productividad del equipo y menos esfuerzo manual en auditorías y operación.';
+        }
+        return 'Efecto esperado: más resiliencia, escalado seguro y mejor desempeño del negocio con confiabilidad y control de costos.';
+      }
+      if (stepIndex == 0) {
+        return 'Efeito esperado: resposta mais rápida a incidentes, menor interrupção operacional e redução imediata do risco de conformidade.';
+      }
+      if (stepIndex == 1) {
+        return 'Efeito esperado: maior previsibilidade de entrega, mais produtividade do time e menos esforço manual em auditorias e operação.';
+      }
+      return 'Efeito esperado: maior resiliência, escala segura e aumento de desempenho do negócio com confiabilidade, controle de custo e confiança do cliente.';
+    }
+
+    if (_languageCode == 'en') {
+      return [
+        _RoadmapStep(
+          period: period(0),
+          title: 'Immediate stabilization in $weakestPilarName',
+          description:
+              'Prioritize the lowest score and close critical gaps in $weakestDomainName to reduce risk and create operational confidence.',
+          impact: impactLabel(weakestScore),
+          services: servicesForPilar(weakestPilarName),
+          actions: actionsForStep(0, weakestPilarName, weakestDomainName),
+          performanceNote: performanceNote(weakestPilarName, 0),
+        ),
+        _RoadmapStep(
+          period: period(1),
+          title: 'Scale controls in $secondPilarName',
+          description:
+              'Automate evidence, governance routines and monitoring to increase predictability and improve execution speed.',
+          impact: impactLabel(secondScore),
+          services: servicesForPilar(secondPilarName),
+          actions: actionsForStep(1, secondPilarName, weakestDomainName),
+          performanceNote: performanceNote(secondPilarName, 1),
+        ),
+        _RoadmapStep(
+          period: period(2),
+          title: 'Optimize and expand business value',
+          description:
+              'Use strengths in $strongestPilarName to accelerate innovation, resilience and strategic decision making.',
+          impact: impactLabel(strongestScore),
+          services: servicesForPilar(strongestPilarName),
+          actions: actionsForStep(2, strongestPilarName, weakestDomainName),
+          performanceNote: performanceNote(strongestPilarName, 2),
+        ),
+      ];
+    }
+
+    if (_languageCode == 'es') {
+      return [
+        _RoadmapStep(
+          period: period(0),
+          title: 'Estabilización inmediata en $weakestPilarName',
+          description:
+              'Priorice la menor puntuación y cierre brechas críticas en $weakestDomainName para reducir riesgos y aumentar la confianza operativa.',
+          impact: impactLabel(weakestScore),
+          services: servicesForPilar(weakestPilarName),
+          actions: actionsForStep(0, weakestPilarName, weakestDomainName),
+          performanceNote: performanceNote(weakestPilarName, 0),
+        ),
+        _RoadmapStep(
+          period: period(1),
+          title: 'Escalar controles en $secondPilarName',
+          description:
+              'Automatice evidencias, rutinas de gobernanza y monitoreo para ganar previsibilidad y velocidad de ejecución.',
+          impact: impactLabel(secondScore),
+          services: servicesForPilar(secondPilarName),
+          actions: actionsForStep(1, secondPilarName, weakestDomainName),
+          performanceNote: performanceNote(secondPilarName, 1),
+        ),
+        _RoadmapStep(
+          period: period(2),
+          title: 'Optimizar y ampliar valor del negocio',
+          description:
+              'Use las fortalezas en $strongestPilarName para acelerar innovación, resiliencia y decisiones estratégicas.',
+          impact: impactLabel(strongestScore),
+          services: servicesForPilar(strongestPilarName),
+          actions: actionsForStep(2, strongestPilarName, weakestDomainName),
+          performanceNote: performanceNote(strongestPilarName, 2),
+        ),
+      ];
+    }
+
+    return [
+      _RoadmapStep(
+        period: period(0),
+        title: 'Estabilização imediata em $weakestPilarName',
+        description:
+            'Priorize o menor score e feche lacunas críticas em $weakestDomainName para reduzir risco e aumentar a confiança operacional.',
+        impact: impactLabel(weakestScore),
+        services: servicesForPilar(weakestPilarName),
+        actions: actionsForStep(0, weakestPilarName, weakestDomainName),
+        performanceNote: performanceNote(weakestPilarName, 0),
+      ),
+      _RoadmapStep(
+        period: period(1),
+        title: 'Escalar controles em $secondPilarName',
+        description:
+            'Automatize evidências, rotinas de governança e monitoramento para ganhar previsibilidade e velocidade de execução.',
+        impact: impactLabel(secondScore),
+        services: servicesForPilar(secondPilarName),
+        actions: actionsForStep(1, secondPilarName, weakestDomainName),
+        performanceNote: performanceNote(secondPilarName, 1),
+      ),
+      _RoadmapStep(
+        period: period(2),
+        title: 'Otimizar e expandir valor do negócio',
+        description:
+            'Use as forças em $strongestPilarName para acelerar inovação, resiliência e decisões estratégicas.',
+        impact: impactLabel(strongestScore),
+        services: servicesForPilar(strongestPilarName),
+        actions: actionsForStep(2, strongestPilarName, weakestDomainName),
+        performanceNote: performanceNote(strongestPilarName, 2),
+      ),
+    ];
   }
 
   @override
@@ -405,8 +1109,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final roadmapSteps = _buildRoadmapSteps();
     String? subtitle;
-    if ((_userName != null && _userName!.isNotEmpty) || (_userEmail != null && _userEmail!.isNotEmpty)) {
+    if ((_userName != null && _userName!.isNotEmpty) ||
+        (_userEmail != null && _userEmail!.isNotEmpty)) {
       final parts = <String>[];
       if (_userName != null && _userName!.isNotEmpty) parts.add(_userName!);
       if (_userEmail != null && _userEmail!.isNotEmpty) parts.add(_userEmail!);
@@ -480,7 +1186,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
               icon: const Icon(Icons.home_rounded),
               onPressed: () {
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const AssessmentIntroScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const AssessmentIntroScreen(),
+                  ),
                   (_) => false,
                 );
               },
@@ -494,103 +1202,50 @@ class _ResultsScreenState extends State<ResultsScreen> {
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? _ErrorView(error: _error!, onRetry: _load)
-                : _data == null
-                    ? Center(child: Text(l10n.t('results_no_data')))
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          final showPanel = constraints.maxWidth > 1100;
-                          final contentWidth = showPanel
-                              ? (constraints.maxWidth - 360).clamp(0, constraints.maxWidth)
-                              : constraints.maxWidth;
-                          final sideBySideCharts = contentWidth >= 980;
-                          final resultsContent = RepaintBoundary(
-                            key: _pdfKey,
-                            child: Column(
+            ? _ErrorView(error: _error!, onRetry: _load)
+            : _data == null
+            ? Center(child: Text(l10n.t('results_no_data')))
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final showPanel = constraints.maxWidth > 1100;
+                  final contentWidth = showPanel
+                      ? (constraints.maxWidth - 360).clamp(
+                          0,
+                          constraints.maxWidth,
+                        )
+                      : constraints.maxWidth;
+                  final sideBySideCharts = contentWidth >= 980;
+                  final summaryContent = RepaintBoundary(
+                    key: _pdfSummaryKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 8),
+                        _BotOverviewCard(
+                          overview: _botOverview,
+                          loading: _overviewLoading,
+                        ),
+                        const SizedBox(height: 24),
+                        if (_data!.dominios.isNotEmpty && sideBySideCharts) ...[
+                          // Altura fixa para a linha: os dois cartões ficam iguais (scroll tem altura ilimitada).
+                          SizedBox(
+                            height: 528,
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const SizedBox(height: 8),
-                                _BotOverviewCard(
-                                  overview: _botOverview,
-                                  loading: _overviewLoading,
-                                ),
-                                const SizedBox(height: 24),
-                                if (_data!.dominios.isNotEmpty && sideBySideCharts) ...[
-                                  // Altura fixa para a linha: os dois cartões ficam iguais (scroll tem altura ilimitada).
-                                  SizedBox(
-                                    height: 528,
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        Expanded(
-                                          child: _ChartCard(
-                                            title: l10n
-                                                .t('results_score_by_pillar'),
-                                            subtitle: _languageCode == 'en'
-                                                ? 'Tap a bar or percentage to ask the bot for an explanation.'
-                                                : _languageCode == 'es'
-                                                    ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
-                                                    : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
-                                            fillChartHeight: true,
-                                            child: _PilarBarChart(
-                                              data: _data!,
-                                              labelBuilder: (p) =>
-                                                  _localizedPilar(context, p),
-                                              onPilarTap: (pilar, score) {
-                                                _triggerQuickQuestion(
-                                                  _buildPilarQuestion(
-                                                    pilar,
-                                                    score,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: _ChartCard(
-                                            title: l10n
-                                                .t('results_score_by_domain'),
-                                            subtitle: _languageCode == 'en'
-                                                ? 'Tap a domain label or point on the radar to see what your percentage means.'
-                                                : _languageCode == 'es'
-                                                    ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
-                                                    : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
-                                            fillChartHeight: true,
-                                            child: _DominioRadarChart(
-                                              data: _data!,
-                                              labelBuilder: (d) =>
-                                                  _localizedDominio(
-                                                context,
-                                                d,
-                                              ),
-                                              onDomainTap: (domain, score) {
-                                                _triggerQuickQuestion(
-                                                  _buildDomainQuestion(
-                                                    domain,
-                                                    score,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ] else ...[
-                                  _ChartCard(
+                                Expanded(
+                                  child: _ChartCard(
                                     title: l10n.t('results_score_by_pillar'),
                                     subtitle: _languageCode == 'en'
                                         ? 'Tap a bar or percentage to ask the bot for an explanation.'
                                         : _languageCode == 'es'
-                                            ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
-                                            : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
+                                        ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
+                                        : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
+                                    fillChartHeight: true,
                                     child: _PilarBarChart(
                                       data: _data!,
-                                      labelBuilder: (p) => _localizedPilar(context, p),
+                                      labelBuilder: (p) =>
+                                          _localizedPilar(context, p),
                                       onPilarTap: (pilar, score) {
                                         _triggerQuickQuestion(
                                           _buildPilarQuestion(pilar, score),
@@ -598,20 +1253,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                       },
                                     ),
                                   ),
-                                ],
-                                if (_data!.dominios.isNotEmpty && !sideBySideCharts) ...[
-                                  const SizedBox(height: 24),
-                                  _ChartCard(
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _ChartCard(
                                     title: l10n.t('results_score_by_domain'),
                                     subtitle: _languageCode == 'en'
                                         ? 'Tap a domain label or point on the radar to see what your percentage means.'
                                         : _languageCode == 'es'
-                                            ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
-                                            : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
-                                    height: 400,
+                                        ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
+                                        : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
+                                    fillChartHeight: true,
                                     child: _DominioRadarChart(
                                       data: _data!,
-                                      labelBuilder: (d) => _localizedDominio(context, d),
+                                      labelBuilder: (d) =>
+                                          _localizedDominio(context, d),
                                       onDomainTap: (domain, score) {
                                         _triggerQuickQuestion(
                                           _buildDomainQuestion(domain, score),
@@ -619,61 +1275,136 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                       },
                                     ),
                                   ),
-                                ],
-                                const SizedBox(height: 32),
+                                ),
                               ],
                             ),
-                          );
-                          if (showPanel) {
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.all(16),
-                                    child: resultsContent,
-                                  ),
-                                ),
-                                ChatPanel(
-                                  resultsContext: _buildResultsContext(),
-                                  quickQuestion: _quickQuestion,
-                                  quickQuestionNonce: _quickQuestionNonce,
-                                ),
-                              ],
-                            );
-                          }
-                          return SingleChildScrollView(
+                          ),
+                        ] else ...[
+                          _ChartCard(
+                            title: l10n.t('results_score_by_pillar'),
+                            subtitle: _languageCode == 'en'
+                                ? 'Tap a bar or percentage to ask the bot for an explanation.'
+                                : _languageCode == 'es'
+                                ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
+                                : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
+                            child: _PilarBarChart(
+                              data: _data!,
+                              labelBuilder: (p) => _localizedPilar(context, p),
+                              onPilarTap: (pilar, score) {
+                                _triggerQuickQuestion(
+                                  _buildPilarQuestion(pilar, score),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                        if (_data!.dominios.isNotEmpty &&
+                            !sideBySideCharts) ...[
+                          const SizedBox(height: 24),
+                          _ChartCard(
+                            title: l10n.t('results_score_by_domain'),
+                            subtitle: _languageCode == 'en'
+                                ? 'Tap a domain label or point on the radar to see what your percentage means.'
+                                : _languageCode == 'es'
+                                ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
+                                : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
+                            height: 400,
+                            child: _DominioRadarChart(
+                              data: _data!,
+                              labelBuilder: (d) =>
+                                  _localizedDominio(context, d),
+                              onDomainTap: (domain, score) {
+                                _triggerQuickQuestion(
+                                  _buildDomainQuestion(domain, score),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  );
+                  final roadmapCard = roadmapSteps.isNotEmpty
+                      ? RepaintBoundary(
+                          key: _pdfRoadmapKey,
+                          child: _RoadmapTimelineCard(
+                            title: _languageCode == 'en'
+                                ? 'Digital Sovereignty Roadmap'
+                                : _languageCode == 'es'
+                                ? 'Cronograma de Soberanía Digital'
+                                : 'Cronograma de Soberania Digital',
+                            subtitle: _languageCode == 'en'
+                                ? 'Plan to increase business potential over the next 90 days based on your current scores.'
+                                : _languageCode == 'es'
+                                ? 'Plan para aumentar el potencial del negocio en los próximos 90 días según sus puntuaciones actuales.'
+                                : 'Plano para aumentar o potencial do negócio nos próximos 90 dias com base nos seus scores atuais.',
+                            steps: roadmapSteps,
+                          ),
+                        )
+                      : const SizedBox.shrink();
+
+                  final resultsContent = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      summaryContent,
+                      if (roadmapSteps.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        roadmapCard,
+                      ],
+                      const SizedBox(height: 32),
+                    ],
+                  );
+                  if (showPanel) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
                             padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                resultsContent,
-                                const SizedBox(height: 24),
-                                SizedBox(
-                                  height: 400,
-                                  child: Card(
-                                    elevation: 0,
-                                    color: Brand.white,
-                                    margin: const EdgeInsets.only(bottom: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      side: const BorderSide(color: Brand.border),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(16),
-                                      child: ChatPanel(
-                                        resultsContext: _buildResultsContext(),
-                                        quickQuestion: _quickQuestion,
-                                        quickQuestionNonce: _quickQuestionNonce,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            child: resultsContent,
+                          ),
+                        ),
+                        ChatPanel(
+                          resultsContext: _buildResultsContext(),
+                          quickQuestion: _quickQuestion,
+                          quickQuestionNonce: _quickQuestionNonce,
+                        ),
+                      ],
+                    );
+                  }
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        resultsContent,
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 400,
+                          child: Card(
+                            elevation: 0,
+                            color: Brand.white,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: const BorderSide(color: Brand.border),
                             ),
-                          );
-                        },
-                      ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: ChatPanel(
+                                resultsContext: _buildResultsContext(),
+                                quickQuestion: _quickQuestion,
+                                quickQuestionNonce: _quickQuestionNonce,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -717,21 +1448,21 @@ class _BotOverviewCard extends StatelessWidget {
                         const SizedBox(width: 12),
                         Text(
                           l10n.t('results_overview_loading'),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Brand.black,
-                              ),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(color: Brand.black),
                         ),
                       ],
                     )
                   : overview != null && overview!.isNotEmpty
-                      ? SelectableText(
-                          overview!,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                height: 1.5,
-                                color: Brand.black,
-                              ),
-                        )
-                      : const SizedBox.shrink(),
+                  ? SelectableText(
+                      overview!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        height: 1.5,
+                        color: Brand.black,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ],
         ),
@@ -745,6 +1476,7 @@ class _ChartCard extends StatelessWidget {
   final String? subtitle;
   final Widget child;
   final double height;
+
   /// Em [Row] lado a lado: gráfico preenche a altura para igualar o cartão vizinho.
   final bool fillChartHeight;
 
@@ -778,21 +1510,251 @@ class _ChartCard extends StatelessWidget {
             Text(
               title,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: Brand.black,
-                  ),
+                fontWeight: FontWeight.w800,
+                color: Brand.black,
+              ),
             ),
             if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(
                 subtitle!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.black54),
               ),
             ],
             const SizedBox(height: 16),
             chartSlot,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoadmapTimelineCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<_RoadmapStep> steps;
+
+  const _RoadmapTimelineCard({
+    required this.title,
+    required this.subtitle,
+    required this.steps,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: Brand.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Brand.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: Brand.black,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+            ...steps.asMap().entries.map((entry) {
+              final i = entry.key;
+              final step = entry.value;
+              final isLast = i == steps.length - 1;
+              return Padding(
+                padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 42,
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: const BoxDecoration(
+                              color: Brand.assessmentCtaBlue,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${i + 1}',
+                              style: const TextStyle(
+                                color: Brand.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                          if (!isLast)
+                            Container(
+                              width: 2,
+                              height: 56,
+                              margin: const EdgeInsets.only(top: 4),
+                              color: Brand.border,
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                        decoration: BoxDecoration(
+                          color: Brand.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Brand.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              step.period,
+                              style: const TextStyle(
+                                color: Brand.assessmentCtaBlue,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              step.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: Brand.black,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              step.description,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                height: 1.35,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Serviços AWS recomendados',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Brand.black,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: step.services
+                                  .map(
+                                    (svc) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Brand.white,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        border: Border.all(color: Brand.border),
+                                      ),
+                                      child: Text(
+                                        svc,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: Brand.black,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Ações prioritárias',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Brand.black,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            ...step.actions.map(
+                              (act) => Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 6),
+                                      child: Icon(
+                                        Icons.circle,
+                                        size: 6,
+                                        color: Brand.assessmentCtaBlue,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        act,
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          color: Colors.black87,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEAF2FF),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                step.performanceNote,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Brand.black,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -815,7 +1777,9 @@ class _DominioRadarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (data.dominios.isEmpty) {
-      return Center(child: Text(AppLocalizations.of(context).t('results_radar_empty')));
+      return Center(
+        child: Text(AppLocalizations.of(context).t('results_radar_empty')),
+      );
     }
 
     final values = data.dominios
@@ -886,7 +1850,9 @@ class _PilarBarChart extends StatelessWidget {
             BarChartRodData(
               toY: (data.scoreByPilar[p] ?? 0).toDouble(),
               width: 28,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(6),
+              ),
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
@@ -963,17 +1929,19 @@ class _PilarBarChart extends StatelessWidget {
                   ),
                 ),
               ),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
             ),
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
               horizontalInterval: 25,
-              getDrawingHorizontalLine: (value) => FlLine(
-                color: Brand.border,
-                strokeWidth: 1,
-              ),
+              getDrawingHorizontalLine: (value) =>
+                  FlLine(color: Brand.border, strokeWidth: 1),
             ),
             borderData: FlBorderData(show: false),
             barGroups: items,

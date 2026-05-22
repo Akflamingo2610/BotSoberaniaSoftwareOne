@@ -27,14 +27,25 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final token = await AppStorage().getAuthToken();
       if (token == null) throw StateError('Sem token');
       final users = await _api.adminListUsers(authToken: token);
-      if (mounted) setState(() { _users = users; _loading = false; });
+      if (mounted)
+        setState(() {
+          _users = users;
+          _loading = false;
+        });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted)
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
     }
   }
 
@@ -87,7 +98,9 @@ class _AdminScreenState extends State<AdminScreen> {
                       hintText: 'Buscar por nome, e-mail ou empresa...',
                       prefixIcon: const Icon(Icons.search, size: 20),
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(color: Brand.border),
@@ -115,31 +128,36 @@ class _AdminScreenState extends State<AdminScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.error_outline,
-                                size: 40, color: Brand.accentRed),
-                            const SizedBox(height: 8),
-                            Text('Erro ao carregar: $_error',
-                                textAlign: TextAlign.center),
-                            const SizedBox(height: 12),
-                            FilledButton(
-                              onPressed: _load,
-                              child: const Text('Tentar novamente'),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 40,
+                          color: Brand.accentRed,
                         ),
-                      )
-                    : _filteredUsers.isEmpty
-                        ? const Center(child: Text('Nenhum usuário encontrado.'))
-                        : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-                            itemCount: _filteredUsers.length,
-                            itemBuilder: (_, i) =>
-                                _UserCard(user: _filteredUsers[i], api: _api),
-                          ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Erro ao carregar: $_error',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: _load,
+                          child: const Text('Tentar novamente'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _filteredUsers.isEmpty
+                ? const Center(child: Text('Nenhum usuário encontrado.'))
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                    itemCount: _filteredUsers.length,
+                    itemBuilder: (_, i) =>
+                        _UserCard(user: _filteredUsers[i], api: _api),
+                  ),
           ),
         ],
       ),
@@ -153,15 +171,16 @@ class _AdminSummaryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const int totalQuestions = 72;
     final total = users.length;
-    final withAssessment =
-        users.where((u) => u['assessment'] != null).length;
+    final withAssessment = users.where((u) => u['assessment'] != null).length;
     final completed = users.where((u) {
       final a = u['assessment'];
       if (a == null) return false;
-      final answered = (a['answered_count'] as int?) ?? 0;
-      return answered >= totalQuestions;
+      final status = (a['status'] ?? '').toString().toUpperCase();
+      if (status == 'COMPLETED') return true;
+      final answered = (a['answered_count'] as num?)?.toInt() ?? 0;
+      final totalQuestions = (a['total_questions'] as num?)?.toInt() ?? 72;
+      return totalQuestions > 0 && answered >= totalQuestions;
     }).length;
 
     return Container(
@@ -172,14 +191,16 @@ class _AdminSummaryHeader extends StatelessWidget {
           _StatChip(label: 'Usuários', value: '$total', icon: Icons.people),
           const SizedBox(width: 12),
           _StatChip(
-              label: 'Com Assessment',
-              value: '$withAssessment',
-              icon: Icons.assignment),
+            label: 'Com Assessment',
+            value: '$withAssessment',
+            icon: Icons.assignment,
+          ),
           const SizedBox(width: 12),
           _StatChip(
-              label: 'Concluídos',
-              value: '$completed',
-              icon: Icons.check_circle_outline),
+            label: 'Concluídos',
+            value: '$completed',
+            icon: Icons.check_circle_outline,
+          ),
         ],
       ),
     );
@@ -214,15 +235,21 @@ class _StatChip extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(value,
-                  style: const TextStyle(
-                      color: Brand.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16)),
-              Text(label,
-                  style: TextStyle(
-                      color: Brand.white.withValues(alpha: 0.65),
-                      fontSize: 11)),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Brand.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Brand.white.withValues(alpha: 0.65),
+                  fontSize: 11,
+                ),
+              ),
             ],
           ),
         ],
@@ -243,7 +270,9 @@ class _UserCard extends StatelessWidget {
     final company = user['company']?['name'] ?? '—';
     final role = user['role'] ?? 'user';
     final assessment = user['assessment'];
-    final answeredCount = assessment?['answered_count'] ?? 0;
+    final answeredCount = (assessment?['answered_count'] as num?)?.toInt() ?? 0;
+    final totalQuestions =
+        (assessment?['total_questions'] as num?)?.toInt() ?? 72;
     final createdAt = user['created_at'] != null
         ? _formatDate(user['created_at'].toString())
         : '—';
@@ -270,14 +299,16 @@ class _UserCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor:
-                    role == 'admin' ? Brand.black : Brand.accentBlue,
+                backgroundColor: role == 'admin'
+                    ? Brand.black
+                    : Brand.accentBlue,
                 child: Text(
                   name.isNotEmpty ? name[0].toUpperCase() : '?',
                   style: const TextStyle(
-                      color: Brand.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18),
+                    color: Brand.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -291,7 +322,9 @@ class _UserCard extends StatelessWidget {
                           child: Text(
                             name.isNotEmpty ? name : email,
                             style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 15),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -299,68 +332,97 @@ class _UserCard extends StatelessWidget {
                         if (role == 'admin')
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Brand.black,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text('Admin',
-                                style: TextStyle(
-                                    color: Brand.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700)),
+                            child: const Text(
+                              'Admin',
+                              style: TextStyle(
+                                color: Brand.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(email,
-                        style: TextStyle(
-                            color: Colors.black54,
-                            fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      email,
+                      style: TextStyle(color: Colors.black54, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.business,
-                            size: 13, color: Colors.black45),
+                        const Icon(
+                          Icons.business,
+                          size: 13,
+                          color: Colors.black45,
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
-                          child: Text(company,
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.black54),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            company,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         const SizedBox(width: 8),
-                        const Icon(Icons.calendar_today,
-                            size: 13, color: Colors.black45),
+                        const Icon(
+                          Icons.calendar_today,
+                          size: 13,
+                          color: Colors.black45,
+                        ),
                         const SizedBox(width: 4),
-                        Text(createdAt,
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.black54)),
+                        Text(
+                          createdAt,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Icon(Icons.phone_outlined,
-                            size: 13, color: Colors.black45),
+                        const Icon(
+                          Icons.phone_outlined,
+                          size: 13,
+                          color: Colors.black45,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           _fmtPhone(user['phone']),
                           style: const TextStyle(
-                              fontSize: 12, color: Colors.black54),
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
                         ),
                         const SizedBox(width: 16),
-                        const Icon(Icons.email_outlined,
-                            size: 13, color: Colors.black45),
+                        const Icon(
+                          Icons.email_outlined,
+                          size: 13,
+                          color: Colors.black45,
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             email,
                             style: const TextStyle(
-                                fontSize: 12, color: Colors.black54),
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -370,21 +432,24 @@ class _UserCard extends StatelessWidget {
                     if (assessment != null) ...[
                       const SizedBox(height: 8),
                       _AssessmentProgressBar(
-                          answeredCount: answeredCount as int,
-                          totalQuestions: 72),
+                        answeredCount: answeredCount,
+                        totalQuestions: totalQuestions,
+                      ),
                     ] else ...[
                       const SizedBox(height: 6),
-                      Text('Sem assessment iniciado',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black38,
-                              fontStyle: FontStyle.italic)),
+                      Text(
+                        'Sem assessment iniciado',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black38,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
                     ],
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right,
-                  color: Colors.black26, size: 22),
+              const Icon(Icons.chevron_right, color: Colors.black26, size: 22),
             ],
           ),
         ),
@@ -424,8 +489,8 @@ class _AssessmentProgressBar extends StatelessWidget {
     final color = pct >= 1.0
         ? const Color(0xFF2E9E5B)
         : pct >= 0.5
-            ? Brand.accentBlue
-            : Brand.accentOrange;
+        ? Brand.accentBlue
+        : Brand.accentOrange;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,13 +498,18 @@ class _AssessmentProgressBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Progresso do Assessment',
-                style: TextStyle(fontSize: 11, color: Colors.black54)),
-            Text('$answeredCount/$totalQuestions',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: color)),
+            Text(
+              'Progresso do Assessment',
+              style: TextStyle(fontSize: 11, color: Colors.black54),
+            ),
+            Text(
+              '$answeredCount/$totalQuestions',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 4),

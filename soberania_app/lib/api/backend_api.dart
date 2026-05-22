@@ -60,9 +60,7 @@ class BackendApi {
     return headers;
   }
 
-  Future<void> forgotPassword({
-    required String email,
-  }) async {
+  Future<void> forgotPassword({required String email}) async {
     final res = await _client.post(
       _uri('/forgot_password'),
       headers: _headers(),
@@ -100,11 +98,20 @@ class BackendApi {
     required String email,
     required String password,
   }) async {
-    final res = await _client.post(
-      _uri('/login'),
-      headers: _headers(),
-      body: jsonEncode({'email': email, 'password': password}),
-    );
+    http.Response res;
+    try {
+      res = await _client.post(
+        _uri('/login'),
+        headers: _headers(),
+        body: jsonEncode({'email': email, 'password': password}),
+      );
+    } on http.ClientException catch (_) {
+      throw StateError(
+        'Não foi possível conectar ao backend em $backendBaseUrl. '
+        'Inicie a API em python_api com "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000" '
+        'ou execute ".\\start-local.ps1" na raiz do projeto.',
+      );
+    }
     final body = _tryJson(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return (body as Map).cast<String, dynamic>();
@@ -212,7 +219,11 @@ class BackendApi {
         }
       }
     }
-    all.sort((a, b) => ((a['order_index'] ?? 0) as num).toInt().compareTo(((b['order_index'] ?? 0) as num).toInt()));
+    all.sort(
+      (a, b) => ((a['order_index'] ?? 0) as num).toInt().compareTo(
+        ((b['order_index'] ?? 0) as num).toInt(),
+      ),
+    );
     _cache[key] = _CacheEntry(
       all,
       DateTime.now().add(const Duration(seconds: _questionsTtlSeconds)),
@@ -226,7 +237,8 @@ class BackendApi {
   }) async {
     final key = 'p_$assessmentId';
     final cached = _cache[key];
-    if (cached != null && cached.isValid) return cached.value as Map<String, dynamic>;
+    if (cached != null && cached.isValid)
+      return cached.value as Map<String, dynamic>;
 
     final res = await _client.get(
       _uri('/progress/assessment', {'assessment_id': assessmentId.toString()}),
@@ -282,10 +294,7 @@ class BackendApi {
     final res = await _client.post(
       _uri('/assessment/save'),
       headers: _headers(authToken: authToken),
-      body: jsonEncode({
-        'assessment_id': assessmentId,
-        'answers': answers,
-      }),
+      body: jsonEncode({'assessment_id': assessmentId, 'answers': answers}),
     );
     final body = _tryJson(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {

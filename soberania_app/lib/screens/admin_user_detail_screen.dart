@@ -36,7 +36,10 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   }
 
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final token = await AppStorage().getAuthToken();
       if (token == null) throw StateError('Sem token');
@@ -51,7 +54,11 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
       });
       await _ensureAnswersForSelectedIndex();
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted)
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
     }
   }
 
@@ -108,23 +115,26 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error_outline,
-                          size: 40, color: Brand.accentRed),
-                      const SizedBox(height: 8),
-                      Text('Erro: $_error', textAlign: TextAlign.center),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: _load,
-                        child: const Text('Tentar novamente'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 40,
+                    color: Brand.accentRed,
                   ),
-                )
-              : _buildBody(),
+                  const SizedBox(height: 8),
+                  Text('Erro: $_error', textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _load,
+                    child: const Text('Tentar novamente'),
+                  ),
+                ],
+              ),
+            )
+          : _buildBody(),
     );
   }
 
@@ -219,14 +229,16 @@ class _UserProfileCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 28,
-                  backgroundColor:
-                      role == 'admin' ? Brand.black : Brand.primaryCtaBlue,
+                  backgroundColor: role == 'admin'
+                      ? Brand.black
+                      : Brand.primaryCtaBlue,
                   child: Text(
                     fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
                     style: const TextStyle(
-                        color: Brand.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 22),
+                      color: Brand.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 22,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -237,20 +249,26 @@ class _UserProfileCard extends StatelessWidget {
                       Text(
                         fullName.isNotEmpty ? fullName : email,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 17),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                        ),
                       ),
                       if (lastName.isNotEmpty && firstName.isNotEmpty)
                         Text(
                           'Nome: $firstName · Sobrenome: $lastName',
                           style: const TextStyle(
-                              fontSize: 12, color: Colors.black45),
+                            fontSize: 12,
+                            color: Colors.black45,
+                          ),
                         ),
                     ],
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 3),
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: role == 'admin'
                         ? Brand.black
@@ -260,9 +278,7 @@ class _UserProfileCard extends StatelessWidget {
                   child: Text(
                     role == 'admin' ? 'Admin' : 'Usuário',
                     style: TextStyle(
-                      color: role == 'admin'
-                          ? Brand.white
-                          : Brand.accentBlue,
+                      color: role == 'admin' ? Brand.white : Brand.accentBlue,
                       fontWeight: FontWeight.w700,
                       fontSize: 12,
                     ),
@@ -276,7 +292,9 @@ class _UserProfileCard extends StatelessWidget {
                       foregroundColor: Brand.black,
                       side: const BorderSide(color: Brand.border),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -284,8 +302,10 @@ class _UserProfileCard extends StatelessWidget {
                     icon: const Icon(Icons.edit_outlined, size: 16),
                     label: const Text(
                       'Editar perfil',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -300,17 +320,16 @@ class _UserProfileCard extends StatelessWidget {
             const SizedBox(height: 8),
             _InfoRow(icon: Icons.email_outlined, label: 'E-mail', text: email),
             _InfoRow(
-                icon: Icons.phone_outlined,
-                label: 'Telefone',
-                text: phone),
+              icon: Icons.phone_outlined,
+              label: 'Telefone',
+              text: phone,
+            ),
             _InfoRow(
-                icon: Icons.business_outlined,
-                label: 'Empresa',
-                text: companyName),
-            _InfoRow(
-                icon: Icons.work_outline,
-                label: 'Cargo',
-                text: cargo),
+              icon: Icons.business_outlined,
+              label: 'Empresa',
+              text: companyName,
+            ),
+            _InfoRow(icon: Icons.work_outline, label: 'Cargo', text: cargo),
           ],
         ),
       ),
@@ -368,8 +387,7 @@ class _EditUserProfileDialogState extends State<_EditUserProfileDialog> {
 
   String _str(dynamic v) => v == null ? '' : v.toString();
 
-  bool get _isAdmin =>
-      _str(widget.user['role']).toLowerCase() == 'admin';
+  bool get _isAdmin => _str(widget.user['role']).toLowerCase() == 'admin';
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -427,7 +445,9 @@ class _EditUserProfileDialogState extends State<_EditUserProfileDialog> {
                         child: Text(
                           'Editar perfil do usuário',
                           style: TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w800),
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                       IconButton(
@@ -441,8 +461,7 @@ class _EditUserProfileDialogState extends State<_EditUserProfileDialog> {
                   const SizedBox(height: 4),
                   Text(
                     'E-mail: ${widget.user['email'] ?? ''}',
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.black54),
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                   const SizedBox(height: 14),
                   _SectionTitle(title: 'Dados pessoais'),
@@ -518,14 +537,19 @@ class _EditUserProfileDialogState extends State<_EditUserProfileDialog> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.error_outline,
-                              color: Brand.accentRed, size: 18),
+                          const Icon(
+                            Icons.error_outline,
+                            color: Brand.accentRed,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _error!,
                               style: const TextStyle(
-                                  fontSize: 12, color: Brand.accentRed),
+                                fontSize: 12,
+                                color: Brand.accentRed,
+                              ),
                             ),
                           ),
                         ],
@@ -549,7 +573,9 @@ class _EditUserProfileDialogState extends State<_EditUserProfileDialog> {
                           backgroundColor: Brand.assessmentCtaBlue,
                           foregroundColor: Brand.white,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 12),
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -560,8 +586,9 @@ class _EditUserProfileDialogState extends State<_EditUserProfileDialog> {
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor:
-                                      AlwaysStoppedAnimation(Brand.white),
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Brand.white,
+                                  ),
                                 ),
                               )
                             : const Icon(Icons.save_outlined, size: 18),
@@ -598,11 +625,7 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.text,
-    this.label,
-  });
+  const _InfoRow({required this.icon, required this.text, this.label});
   final IconData icon;
   final String text;
   final String? label;
@@ -622,9 +645,10 @@ class _InfoRow extends StatelessWidget {
               child: Text(
                 label!,
                 style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black45,
-                    fontWeight: FontWeight.w600),
+                  fontSize: 12,
+                  color: Colors.black45,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -659,12 +683,13 @@ class _EmptyAssessmentCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.assignment_outlined,
-                size: 40, color: Colors.black26),
+            Icon(Icons.assignment_outlined, size: 40, color: Colors.black26),
             const SizedBox(height: 10),
-            const Text('Este usuário ainda não iniciou nenhum assessment.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black45, fontSize: 14)),
+            const Text(
+              'Este usuário ainda não iniciou nenhum assessment.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black45, fontSize: 14),
+            ),
           ],
         ),
       ),
@@ -731,8 +756,6 @@ class _AssessmentDetailCard extends StatelessWidget {
     'Não alinhado': 1,
   };
 
-  static const int _totalQuestions = 72;
-
   @override
   Widget build(BuildContext context) {
     final answers = (assessment['answers'] as List<dynamic>?) ?? [];
@@ -742,8 +765,6 @@ class _AssessmentDetailCard extends StatelessWidget {
         ? _formatDate(assessment['created_at'].toString())
         : '—';
 
-    final isCompleted = answerCount >= _totalQuestions;
-
     final byPilar = <String, List<Map<String, dynamic>>>{};
     for (final pilar in pilars) {
       byPilar[pilar] = answers
@@ -751,6 +772,31 @@ class _AssessmentDetailCard extends StatelessWidget {
           .map((a) => Map<String, dynamic>.from(a as Map))
           .toList();
     }
+    final totalQuestions =
+        (assessment['total_questions'] as num?)?.toInt() ?? 72;
+    final rawByPilar = assessment['questions_by_pilar'];
+    final questionsByPilar = <String, int>{};
+    if (rawByPilar is Map) {
+      rawByPilar.forEach((k, v) {
+        final key = k.toString().trim();
+        if (key.isEmpty) return;
+        final n = v is num ? v.toInt() : int.tryParse(v.toString());
+        if (n != null && n > 0) {
+          questionsByPilar[key] = n;
+        }
+      });
+    }
+
+    // Status concluído passa a seguir o total real do catálogo do backend.
+    final isCompletedByTotal =
+        totalQuestions > 0 && answerCount >= totalQuestions;
+    // Fallback por pilar caso o total não esteja disponível.
+    final isCompleted = pilars.every(
+      (p) =>
+          (byPilar[p]?.length ?? 0) >=
+          (questionsByPilar[p] ?? byPilar[p]?.length ?? 0),
+    );
+    final showCompleted = isCompletedByTotal || isCompleted;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -767,8 +813,8 @@ class _AssessmentDetailCard extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  isCompleted ? Icons.check_circle : Icons.hourglass_empty,
-                  color: isCompleted
+                  showCompleted ? Icons.check_circle : Icons.hourglass_empty,
+                  color: showCompleted
                       ? const Color(0xFF2E9E5B)
                       : Brand.accentOrange,
                   size: 22,
@@ -777,10 +823,12 @@ class _AssessmentDetailCard extends StatelessWidget {
                 Text(
                   'Assessment #${assessment['id']} · $createdAt',
                   style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 14),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
                 ),
                 const Spacer(),
-                _StatusBadge(isCompleted: isCompleted),
+                _StatusBadge(isCompleted: showCompleted),
               ],
             ),
           ),
@@ -791,7 +839,7 @@ class _AssessmentDetailCard extends StatelessWidget {
             pilar: pilar,
             color: pilarColors[pilar] ?? Brand.accentBlue,
             answers: byPilar[pilar] ?? [],
-            totalInPilar: 24,
+            totalInPilar: questionsByPilar[pilar] ?? 24,
             scoreLabels: _scoreLabels,
           ),
         ),
@@ -800,18 +848,22 @@ class _AssessmentDetailCard extends StatelessWidget {
           builder: (ctx) => Center(
             child: FilledButton.icon(
               onPressed: () {
-                Navigator.of(ctx).push(MaterialPageRoute(
-                  builder: (_) => AdminResultsScreen(
-                    assessment: assessment,
-                    userName: userName,
+                Navigator.of(ctx).push(
+                  MaterialPageRoute(
+                    builder: (_) => AdminResultsScreen(
+                      assessment: assessment,
+                      userName: userName,
+                    ),
                   ),
-                ));
+                );
               },
               style: FilledButton.styleFrom(
                 backgroundColor: Brand.assessmentCtaBlue,
                 foregroundColor: Brand.white,
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 16),
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -861,9 +913,7 @@ class _StatusBadge extends StatelessWidget {
       child: Text(
         isCompleted ? 'Concluído' : 'Em progresso',
         style: TextStyle(
-          color: isCompleted
-              ? const Color(0xFF2E9E5B)
-              : Brand.accentOrange,
+          color: isCompleted ? const Color(0xFF2E9E5B) : Brand.accentOrange,
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
@@ -952,7 +1002,9 @@ class _PilarAnswersCardState extends State<_PilarAnswersCard> {
                       Text(
                         '$answered/${widget.totalInPilar} respondidas',
                         style: const TextStyle(
-                            fontSize: 12, color: Colors.black54),
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Icon(
@@ -970,8 +1022,7 @@ class _PilarAnswersCardState extends State<_PilarAnswersCard> {
                     child: LinearProgressIndicator(
                       value: pct,
                       minHeight: 6,
-                      backgroundColor:
-                          widget.color.withValues(alpha: 0.12),
+                      backgroundColor: widget.color.withValues(alpha: 0.12),
                       valueColor: AlwaysStoppedAnimation<Color>(widget.color),
                     ),
                   ),
@@ -979,16 +1030,20 @@ class _PilarAnswersCardState extends State<_PilarAnswersCard> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Text('Média de alinhamento: ',
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.black54)),
+                        const Text(
+                          'Média de alinhamento: ',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                         _ScoreStars(score: avg, color: widget.color),
                         const SizedBox(width: 6),
-                        Text(avg.toStringAsFixed(1),
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: widget.color)),
+                        Text(
+                          avg.toStringAsFixed(1),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: widget.color,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -1005,10 +1060,11 @@ class _PilarAnswersCardState extends State<_PilarAnswersCard> {
           if (_expanded && widget.answers.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('Nenhuma resposta neste pilar ainda.',
-                  style: const TextStyle(
-                      fontSize: 13, color: Colors.black38),
-                  textAlign: TextAlign.center),
+              child: Text(
+                'Nenhuma resposta neste pilar ainda.',
+                style: const TextStyle(fontSize: 13, color: Colors.black38),
+                textAlign: TextAlign.center,
+              ),
             ),
         ],
       ),
@@ -1099,9 +1155,10 @@ class _AnswerRow extends StatelessWidget {
                   Text(
                     'Justificativa: $justification',
                     style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.black45,
-                        fontStyle: FontStyle.italic),
+                      fontSize: 11,
+                      color: Colors.black45,
+                      fontStyle: FontStyle.italic,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1115,15 +1172,15 @@ class _AnswerRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: scoreColor.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                  color: scoreColor.withValues(alpha: 0.35)),
+              border: Border.all(color: scoreColor.withValues(alpha: 0.35)),
             ),
             child: Text(
               score,
               style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: scoreColor),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: scoreColor,
+              ),
               textAlign: TextAlign.center,
             ),
           ),

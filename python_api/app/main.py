@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import csv
 from datetime import datetime
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import secrets
 import time
+import unicodedata
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
@@ -37,6 +40,8 @@ PASSWORD_MIN_LENGTH = int(os.getenv("PASSWORD_MIN_LENGTH", "8"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_MAX_ATTEMPTS = int(os.getenv("RATE_LIMIT_MAX_ATTEMPTS", "15"))
 RATE_LIMITED_PATHS = {"/login", "/forgot_password", "/reset_password", "/signup_company"}
+ALLOW_DEV_BOOTSTRAP_LOGIN = os.getenv("ALLOW_DEV_BOOTSTRAP_LOGIN", "1") == "1"
+ALLOW_LEGACY_PASSWORD_LOGIN = os.getenv("ALLOW_LEGACY_PASSWORD_LOGIN", "1") == "1"
 ALLOWED_ORIGIN_REGEX = os.getenv(
     "ALLOWED_ORIGIN_REGEX",
     # Inclui [::1] porque alguns browsers usam IPv6 no Origin mesmo com "localhost" na barra.
@@ -45,6 +50,251 @@ ALLOWED_ORIGIN_REGEX = os.getenv(
 
 # key: "<ip>:<path>" -> [timestamps]
 RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
+
+
+def _norm_text(value: object) -> str:
+    s = str(value or "").strip().lower()
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    return s
+
+
+def _load_technical_pilar_maps() -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    xlsx_candidates = [
+        os.getenv("DEFAULT_TECH_PILAR_XLSX", "").strip(),
+        str(Path(__file__).resolve().parents[2] / "Assessment_OTIMIZADO_176_Perguntas_v4 1 (2).xlsx"),
+        str(Path(__file__).resolve().parents[3] / "Assessment_OTIMIZADO_176_Perguntas_v4 1 (2).xlsx"),
+        r"C:\Users\user\Downloads\Assessment_OTIMIZADO_176_Perguntas_v4 1 (2).xlsx",
+    ]
+    xlsx_path = next((p for p in xlsx_candidates if p and Path(p).is_file()), "")
+    if not xlsx_path:
+        logger.warning("Arquivo XLSX de pilares tecnicos nao encontrado.")
+        return {}, {}, {}
+
+    try:
+        import openpyxl
+    except ImportError:
+        logger.warning("openpyxl nao instalado; backfill de pilar_tecnico ignorado.")
+        return {}, {}, {}
+
+    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+    ws = wb["Assessment"] if "Assessment" in wb.sheetnames else wb[wb.sheetnames[0]]
+
+    header_idx = None
+    header_vals: list[str] = []
+    for i, row in enumerate(ws.iter_rows(min_row=1, max_row=60, values_only=True), start=1):
+        vals = [str(c).strip() if c is not None else "" for c in row]
+        norm_vals = [_norm_text(v) for v in vals]
+        if any(("pilar" in v and "tecn" in v and "aws" in v) for v in norm_vals):
+            header_idx = i
+            header_vals = vals
+            break
+
+    if header_idx is None:
+        wb.close()
+        logger.warning("Cabecalho do XLSX com pilar tecnico nao encontrado: %s", xlsx_path)
+        return {}, {}, {}
+
+    def _find_col(pred) -> Optional[int]:
+        for idx, v in enumerate(header_vals):
+            if pred(_norm_text(v)):
+                return idx
+        return None
+
+    col_code = _find_col(lambda v: "codigo" in v)
+    col_question = _find_col(lambda v: "pergunta" in v)
+    col_tech = _find_col(lambda v: ("pilar" in v and "tecn" in v and "aws" in v))
+    col_visual = _find_col(lambda v: ("visualizar" in v and "soberania" in v))
+    col_domain = _find_col(lambda v: ("dominio" in v and "soberania" in v))
+    if col_tech is None:
+        wb.close()
+        return {}, {}
+
+    by_code: dict[str, str] = {}
+    by_recommendation: dict[str, str] = {}
+    domain_counts: dict[str, dict[str, int]] = {}
+    for row in ws.iter_rows(min_row=header_idx + 1, values_only=True):
+        vals = [str(c).strip() if c is not None else "" for c in row]
+        if col_visual is not None:
+            visual = vals[col_visual] if col_visual < len(vals) else ""
+            if _norm_text(visual) not in {"ok"}:
+                continue
+        tech = vals[col_tech] if col_tech < len(vals) else ""
+        if not tech:
+            continue
+        domain = ""
+        if col_domain is not None and col_domain < len(vals):
+            domain = vals[col_domain].strip()
+        if col_code is not None and col_code < len(vals):
+            code = vals[col_code].strip()
+            if code and code not in by_code:
+                by_code[code] = tech
+        if col_question is not None and col_question < len(vals):
+            question = vals[col_question].strip()
+            if question and question not in by_recommendation:
+                by_recommendation[question] = tech
+        if domain:
+            dk = _norm_text(domain)
+            bucket = domain_counts.setdefault(dk, {})
+            bucket[tech] = int(bucket.get(tech, 0) + 1)
+
+    wb.close()
+    by_domain: dict[str, str] = {}
+    for dk, counts in domain_counts.items():
+        if not counts:
+            continue
+        best = sorted(counts.items(), key=lambda x: x[1], reverse=True)[0][0]
+        by_domain[dk] = best
+    return by_code, by_recommendation, by_domain
+
+
+def _backfill_question_technical_pilar(db: Session) -> int:
+    by_code, by_recommendation, by_domain = _load_technical_pilar_maps()
+    if not by_code and not by_recommendation and not by_domain:
+        return 0
+
+    updated = 0
+    questions = db.scalars(select(Question)).all()
+    for q in questions:
+        if (q.pilar_tecnico or "").strip():
+            continue
+        tech = None
+        code = (q.question_code or "").strip()
+        if code:
+            tech = by_code.get(code)
+        if not tech:
+            tech = by_recommendation.get((q.recommendation or "").strip())
+        if not tech:
+            tech = by_domain.get(_norm_text(q.dominio or ""))
+        if tech:
+            q.pilar_tecnico = tech
+            db.add(q)
+            updated += 1
+    if updated:
+        db.commit()
+    return updated
+
+
+def _load_domain_map_from_csv() -> tuple[dict[str, str], dict[str, str]]:
+    csv_path = Path(
+        os.getenv(
+            "DEFAULT_DOMAINS_CSV",
+            str(Path(__file__).resolve().parents[2] / "Data (1).csv"),
+        )
+    )
+    if not csv_path.is_file():
+        logger.warning("Arquivo de domínio não encontrado: %s", csv_path)
+        return {}, {}
+
+    by_code: dict[str, str] = {}
+    by_recommendation: dict[str, str] = {}
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            domain = (row.get("Dominio") or "").strip()
+            if not domain:
+                continue
+            code = (row.get("Unnamed: 0") or "").strip()
+            recommendation = (row.get("Recommendation") or "").strip()
+            if code and code not in by_code:
+                by_code[code] = domain
+            if recommendation and recommendation not in by_recommendation:
+                by_recommendation[recommendation] = domain
+    return by_code, by_recommendation
+
+
+def _backfill_question_domains(db: Session) -> int:
+    by_code, by_recommendation = _load_domain_map_from_csv()
+    if not by_code and not by_recommendation:
+        return 0
+
+    updated = 0
+    questions = db.scalars(select(Question)).all()
+    for q in questions:
+        if (q.dominio or "").strip():
+            continue
+        domain = None
+        code = (q.question_code or "").strip()
+        if code:
+            domain = by_code.get(code)
+        if not domain:
+            domain = by_recommendation.get((q.recommendation or "").strip())
+        if domain:
+            q.dominio = domain
+            db.add(q)
+            updated += 1
+    if updated:
+        db.commit()
+    return updated
+
+
+def _load_default_questions(db: Session) -> int:
+    csv_path = Path(
+        os.getenv(
+            "DEFAULT_QUESTIONS_CSV",
+            str(Path(__file__).resolve().parents[2] / "Prototipo_Assessment_Tool_Maturidade_Soberania_v1_with_order_index.csv"),
+        )
+    )
+    if not csv_path.is_file():
+        logger.warning("Arquivo de perguntas padrão não encontrado: %s", csv_path)
+        return 0
+
+    rows: list[Question] = []
+    encodings = ("utf-8-sig", "cp1252", "latin-1")
+    for enc in encodings:
+        try:
+            with csv_path.open("r", encoding=enc, newline="") as f:
+                reader = csv.DictReader(f, delimiter=";")
+                for i, row in enumerate(reader, start=1):
+                    recommendation = (row.get("Recommendation") or "").strip()
+                    phase = (row.get("Phase") or "").strip()
+                    pilar = (row.get("Pilares") or "").strip()
+                    if not recommendation or not phase or not pilar:
+                        continue
+                    rows.append(
+                        Question(
+                            created_at=datetime.utcnow(),
+                            phase=phase,
+                            pilar=pilar,
+                            recommendation=recommendation,
+                            weight=None,
+                            order_index=i,
+                            question_code=(row.get("Unnamed: 0") or "").strip() or None,
+                            dominio=None,
+                            recommendation_en=None,
+                            recommendation_es=None,
+                            guidance=(row.get("Guidance for assessments") or "").strip() or None,
+                            how_to_check=(row.get("How to check") or "").strip() or None,
+                            aws_service=(row.get("Associated \nAWS Service") or "").strip() or None,
+                            pilar_tecnico=None,
+                            norms=" · ".join(
+                                [
+                                    x
+                                    for x in (
+                                        (row.get("Normas Técnicas") or "").strip(),
+                                        (row.get("Geral (Brasil)") or "").strip(),
+                                        (row.get("Finanças Públicas (BCB)") or "").strip(),
+                                        (row.get("Educação") or "").strip(),
+                                    )
+                                    if x
+                                ]
+                            )
+                            or None,
+                        )
+                    )
+            break
+        except UnicodeDecodeError:
+            rows = []
+            continue
+
+    if not rows:
+        logger.warning("Nenhuma pergunta válida encontrada no CSV padrão: %s", csv_path)
+        return 0
+
+    db.add_all(rows)
+    db.commit()
+    return len(rows)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,6 +311,18 @@ def startup() -> None:
     # Mantem compatibilidade local. Em ambientes com Alembic, use AUTO_CREATE_SCHEMA=0.
     if AUTO_CREATE_SCHEMA:
         Base.metadata.create_all(bind=engine)
+        with SessionLocal() as db:
+            has_questions = int(db.scalar(select(func.count(Question.id))) or 0)
+            if has_questions == 0:
+                inserted = _load_default_questions(db)
+                if inserted:
+                    logger.info("Bootstrap local: %s perguntas importadas automaticamente.", inserted)
+            updated_domains = _backfill_question_domains(db)
+            if updated_domains:
+                logger.info("Backfill local: %s perguntas atualizadas com domínio.", updated_domains)
+            updated_tech = _backfill_question_technical_pilar(db)
+            if updated_tech:
+                logger.info("Backfill local: %s perguntas atualizadas com pilar técnico.", updated_tech)
 
 
 def get_db():
@@ -210,11 +472,42 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     email = payload.email.lower()
     user = db.scalar(select(User).where(User.email == email))
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        # Bootstrap local: em ambiente de desenvolvimento, se nao houver usuarios
+        # ainda, cria o primeiro usuario a partir do proprio login.
+        if ALLOW_DEV_BOOTSTRAP_LOGIN and AUTO_CREATE_SCHEMA:
+            total_users = int(db.scalar(select(func.count(User.id))) or 0)
+            if total_users == 0:
+                _validate_password_policy(payload.password)
+                display_name = email.split("@")[0]
+                user = User(
+                    name=display_name,
+                    email=email,
+                    password_hash=pwd_context.hash(payload.password),
+                    role="admin",
+                    created_at=datetime.utcnow(),
+                )
+                db.add(user)
+                db.flush()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
     valid = False
     if user.password_hash:
         valid = pwd_context.verify(payload.password, user.password_hash)
+    elif ALLOW_LEGACY_PASSWORD_LOGIN and user.legacy_password_hash:
+        legacy = (user.legacy_password_hash or "").strip()
+        if legacy:
+            if legacy.startswith("$"):
+                try:
+                    valid = pwd_context.verify(payload.password, legacy)
+                except (ValueError, TypeError):
+                    valid = False
+            else:
+                valid = secrets.compare_digest(payload.password, legacy)
+            if valid:
+                user.password_hash = pwd_context.hash(payload.password)
+                user.legacy_password_hash = None
+                db.add(user)
 
     if not valid:
         logger.warning("Invalid login attempt for email=%s", email)
@@ -389,6 +682,19 @@ def _admin_answer_count(db: Session, assessment_id: int) -> int:
     return int(n or 0)
 
 
+def _question_catalog_stats(db: Session) -> tuple[int, dict[str, int]]:
+    total = int(db.scalar(select(func.count(Question.id))) or 0)
+    rows = db.execute(
+        select(Question.pilar, func.count(Question.id)).group_by(Question.pilar)
+    ).all()
+    by_pilar: dict[str, int] = {}
+    for pilar, count in rows:
+        key = (pilar or "").strip()
+        if key:
+            by_pilar[key] = int(count or 0)
+    return total, by_pilar
+
+
 def _admin_answers_payload(
     db: Session,
     assessment_id: int,
@@ -431,6 +737,7 @@ def admin_list_users(
     db: Session = Depends(get_db),
 ):
     _require_admin(current_user)
+    total_questions, questions_by_pilar = _question_catalog_stats(db)
     users = db.scalars(select(User).order_by(User.created_at.desc())).all()
     result = []
     for u in users:
@@ -470,6 +777,8 @@ def admin_list_users(
                 "current_phase": assessment.current_phase,
                 "progress_percent": assessment.progress_percent,
                 "answered_count": answered_count,
+                "total_questions": total_questions,
+                "questions_by_pilar": questions_by_pilar,
             } if assessment else None,
         })
     return result
@@ -488,6 +797,7 @@ def admin_user_progress(
     esta rota (o app Flutter ja faz isso).
     """
     _require_admin(current_user)
+    total_questions, questions_by_pilar = _question_catalog_stats(db)
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -512,6 +822,8 @@ def admin_user_progress(
                 else None,
                 "answers": [],
                 "answer_count": cnt,
+                "total_questions": total_questions,
+                "questions_by_pilar": questions_by_pilar,
             }
         )
 
@@ -651,9 +963,6 @@ def admin_update_user(
     }
 
 
-TOTAL_QUESTIONS = 72
-
-
 @app.post("/assessment/save")
 def save_assessment(
     payload: SaveAssessmentRequest,
@@ -685,18 +994,21 @@ def save_assessment(
 
     assessment = db.get(Assessment, payload.assessment_id)
     if assessment is not None:
+        total_questions, _ = _question_catalog_stats(db)
         answered_total = len(
             db.scalars(
                 select(Answer.id).where(Answer.assessment_id == payload.assessment_id)
             ).all()
         )
-        if answered_total >= TOTAL_QUESTIONS:
+        if total_questions > 0 and answered_total >= total_questions:
             assessment.status = "COMPLETED"
             assessment.progress_percent = 100.0
         else:
             assessment.status = "IN_PROGRESS"
             assessment.progress_percent = round(
-                (answered_total / TOTAL_QUESTIONS) * 100, 2
+                (answered_total / total_questions) * 100, 2
+                if total_questions > 0
+                else 0.0,
             )
         assessment.updated_at = datetime.utcnow()
         db.add(assessment)

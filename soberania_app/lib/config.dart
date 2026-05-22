@@ -1,10 +1,10 @@
 /// URL base do backend HTTP (FastAPI).
 ///
 /// Exemplo:
-/// const backendBaseUrl = 'http://localhost:8000';
+/// const backendBaseUrl = 'http://127.0.0.1:8000';
 ///
 /// Valor principal usado pela aplicacao.
-const String backendBaseUrl = 'http://localhost:8000';
+const String backendBaseUrl = 'http://127.0.0.1:8000';
 
 /// Compatibilidade com codigo legado.
 /// Manter enquanto `XanoApi` existir no app.
