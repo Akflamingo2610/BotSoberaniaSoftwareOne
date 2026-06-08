@@ -1,10 +1,13 @@
 /// URL base do backend HTTP (FastAPI).
 ///
-/// Exemplo:
-/// const backendBaseUrl = 'http://127.0.0.1:8000';
+/// **Produção (web/Firebase):** Railway `triumphant-trust` (default abaixo).
 ///
-/// Valor principal usado pela aplicacao.
-const String backendBaseUrl = 'http://127.0.0.1:8000';
+/// **Local:** rode com override, por exemplo:
+/// `flutter run -d chrome --dart-define=BACKEND_BASE_URL=http://127.0.0.1:8000`
+const String backendBaseUrl = String.fromEnvironment(
+  'BACKEND_BASE_URL',
+  defaultValue: 'https://triumphant-trust-production-477b.up.railway.app',
+);
 
 /// Compatibilidade com codigo legado.
 /// Manter enquanto `XanoApi` existir no app.

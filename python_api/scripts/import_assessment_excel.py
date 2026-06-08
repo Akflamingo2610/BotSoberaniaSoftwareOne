@@ -39,104 +39,10 @@ if str(_ROOT) not in sys.path:
 from sqlalchemy import delete, func, select
 
 from app.models import Answer, Question
+from app.question_catalog import load_rows_from_excel
 
 
 DEFAULT_XLSX = _ROOT.parent / "Assessment_OTIMIZADO_176_Perguntas_v4 1.xlsx"
-
-ORIGEM_TO_PHASE = {
-    "original": "Quick_Wins",
-    "lens soberania": "Foundational",
-    "sec assessment": "Efficient",
-}
-
-PHASE_ORDER = ["Quick_Wins", "Foundational", "Efficient", "Optimized"]
-PILAR_ORDER = ["Compliance", "Continuity", "Control"]
-
-
-def _norm(s: object) -> str:
-    if s is None:
-        return ""
-    return str(s).strip()
-
-
-def _cell_ok(val: object) -> bool:
-    s = _norm(val).lower()
-    return s == "ok"
-
-
-def _phase_from_origem(origem: str) -> str:
-    key = _norm(origem).lower()
-    if key not in ORIGEM_TO_PHASE:
-        raise ValueError(f"Origem desconhecida: {origem!r} (esperado uma de {list(ORIGEM_TO_PHASE)})")
-    return ORIGEM_TO_PHASE[key]
-
-
-def _sort_key(row: dict) -> tuple[int, int, str]:
-    phase = row["phase"]
-    pilar = row["pilar"]
-    code = row["question_code"] or ""
-    pi = PHASE_ORDER.index(phase) if phase in PHASE_ORDER else 99
-    qi = PILAR_ORDER.index(pilar) if pilar in PILAR_ORDER else 99
-    return (pi, qi, code)
-
-
-def load_rows_from_excel(path: Path) -> list[dict]:
-    try:
-        import openpyxl
-    except ImportError as e:
-        raise SystemExit("Instale openpyxl: pip install openpyxl") from e
-
-    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    if "Assessment" not in wb.sheetnames:
-        raise SystemExit(f"Planilha 'Assessment' nao encontrada. Abas: {wb.sheetnames}")
-    ws = wb["Assessment"]
-
-    header_row_idx = None
-    for i, row in enumerate(ws.iter_rows(min_row=1, max_row=40, values_only=True), start=1):
-        if not row or len(row) < 3:
-            continue
-        h2 = _norm(row[2]).lower()
-        if "visualizar" in h2 and "soberania" in h2:
-            header_row_idx = i
-            break
-    if header_row_idx is None:
-        wb.close()
-        raise SystemExit("Cabecalho com coluna 'Codigo' nao encontrado.")
-
-    out: list[dict] = []
-    for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
-        if not row or row[1] is None:
-            continue
-        if not _cell_ok(row[2]):
-            continue
-        code = _norm(row[1])
-        pilar = _norm(row[4])
-        origem = _norm(row[5])
-        pergunta = _norm(row[6])
-        dominio = _norm(row[7]) or None
-        pilar_tec = _norm(row[8]) or None
-        aws = _norm(row[9]) or None
-        evid = _norm(row[11]) or None
-        if not pergunta:
-            continue
-        if pilar not in PILAR_ORDER:
-            raise ValueError(f"Pilar invalido na linha {code}: {pilar!r}")
-        phase = _phase_from_origem(origem)
-        out.append(
-            {
-                "question_code": code,
-                "phase": phase,
-                "pilar": pilar,
-                "recommendation": pergunta,
-                "dominio": dominio,
-                "pilar_tecnico": pilar_tec,
-                "aws_service": aws,
-                "norms": evid,
-            }
-        )
-    wb.close()
-    out.sort(key=_sort_key)
-    return out
 
 
 def main() -> None:

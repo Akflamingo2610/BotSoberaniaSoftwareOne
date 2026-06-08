@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from .database import Base, SessionLocal, engine
 from .models import Answer, Assessment, AuthToken, Company, Question, User
+from .question_catalog import DEFAULT_XLSX_NAME, load_rows_from_excel
 from .schemas import (
     ForgotPasswordRequest,
     LoginRequest,
@@ -36,6 +37,7 @@ logger = logging.getLogger("bot_soberania_api")
 
 AUTO_CREATE_SCHEMA = os.getenv("AUTO_CREATE_SCHEMA", "1") == "1"
 SKIP_STARTUP_BACKFILL = os.getenv("SKIP_STARTUP_BACKFILL", "0") == "1"
+REIMPORT_QUESTIONS = os.getenv("REIMPORT_QUESTIONS", "0") == "1"
 TOKEN_TTL_MINUTES = int(os.getenv("TOKEN_TTL_MINUTES", "1440"))  # 24h
 PASSWORD_MIN_LENGTH = int(os.getenv("PASSWORD_MIN_LENGTH", "8"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
@@ -104,7 +106,7 @@ def _resolve_data_file(filename: str, env_var: str = "") -> Optional[Path]:
 
 
 def _load_technical_pilar_maps() -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
-    xlsx_name = "Assessment_OTIMIZADO_176_Perguntas_v4 1 (2).xlsx"
+    xlsx_name = DEFAULT_XLSX_NAME
     xlsx_candidates = [
         os.getenv("DEFAULT_TECH_PILAR_XLSX", "").strip(),
         *[
@@ -270,70 +272,82 @@ def _backfill_question_domains(db: Session) -> int:
     return updated
 
 
-def _load_default_questions(db: Session) -> int:
-    csv_path = _resolve_data_file(
-        "Prototipo_Assessment_Tool_Maturidade_Soberania_v1_with_order_index.csv",
-        "DEFAULT_QUESTIONS_CSV",
-    )
-    if csv_path is None:
-        logger.warning("Arquivo de perguntas padrão não encontrado.")
-        return 0
+def _resolve_assessment_xlsx() -> Optional[Path]:
+    override = os.getenv("DEFAULT_ASSESSMENT_XLSX", "").strip()
+    if override:
+        path = Path(override)
+        return path if path.is_file() else None
+    return _resolve_data_file(DEFAULT_XLSX_NAME)
 
-    rows: list[Question] = []
-    encodings = ("utf-8-sig", "cp1252", "latin-1")
-    for enc in encodings:
-        try:
-            with csv_path.open("r", encoding=enc, newline="") as f:
-                reader = csv.DictReader(f, delimiter=";")
-                for i, row in enumerate(reader, start=1):
-                    recommendation = (row.get("Recommendation") or "").strip()
-                    phase = (row.get("Phase") or "").strip()
-                    pilar = (row.get("Pilares") or "").strip()
-                    if not recommendation or not phase or not pilar:
-                        continue
-                    rows.append(
-                        Question(
-                            created_at=datetime.utcnow(),
-                            phase=phase,
-                            pilar=pilar,
-                            recommendation=recommendation,
-                            weight=None,
-                            order_index=i,
-                            question_code=(row.get("Unnamed: 0") or "").strip() or None,
-                            dominio=None,
-                            recommendation_en=None,
-                            recommendation_es=None,
-                            guidance=(row.get("Guidance for assessments") or "").strip() or None,
-                            how_to_check=(row.get("How to check") or "").strip() or None,
-                            aws_service=(row.get("Associated \nAWS Service") or "").strip() or None,
-                            pilar_tecnico=None,
-                            norms=" · ".join(
-                                [
-                                    x
-                                    for x in (
-                                        (row.get("Normas Técnicas") or "").strip(),
-                                        (row.get("Geral (Brasil)") or "").strip(),
-                                        (row.get("Finanças Públicas (BCB)") or "").strip(),
-                                        (row.get("Educação") or "").strip(),
-                                    )
-                                    if x
-                                ]
-                            )
-                            or None,
-                        )
-                    )
-            break
-        except UnicodeDecodeError:
-            rows = []
-            continue
 
-    if not rows:
-        logger.warning("Nenhuma pergunta válida encontrada no CSV padrão: %s", csv_path)
-        return 0
-
-    db.add_all(rows)
+def _insert_questions_from_excel_rows(db: Session, rows: list[dict]) -> int:
+    now = datetime.utcnow()
+    for i, row in enumerate(rows, start=1):
+        db.add(
+            Question(
+                created_at=now,
+                phase=row["phase"],
+                pilar=row["pilar"],
+                recommendation=row["recommendation"],
+                weight=None,
+                order_index=i,
+                question_code=row["question_code"],
+                dominio=row["dominio"],
+                recommendation_en=None,
+                recommendation_es=None,
+                guidance=None,
+                how_to_check=None,
+                aws_service=row["aws_service"],
+                pilar_tecnico=row["pilar_tecnico"],
+                norms=row["norms"],
+            )
+        )
     db.commit()
     return len(rows)
+
+
+def _load_default_questions(db: Session) -> int:
+    xlsx_path = _resolve_assessment_xlsx()
+    if xlsx_path is None:
+        logger.warning("Arquivo Excel de perguntas nao encontrado (%s).", DEFAULT_XLSX_NAME)
+        return 0
+    try:
+        rows = load_rows_from_excel(xlsx_path)
+    except Exception:
+        logger.exception("Falha ao ler Excel de perguntas: %s", xlsx_path)
+        return 0
+    if not rows:
+        logger.warning("Nenhuma pergunta valida no Excel (Visualizar Soberania=ok).")
+        return 0
+    inserted = _insert_questions_from_excel_rows(db, rows)
+    logger.info(
+        "Bootstrap Excel: %s perguntas (%s).",
+        inserted,
+        ", ".join(f"{pilar}={sum(1 for r in rows if r['pilar'] == pilar)}" for pilar in ("Compliance", "Continuity", "Control")),
+    )
+    return inserted
+
+
+def _reimport_questions_from_excel(db: Session) -> int:
+    """Reimporta catálogo do Excel (apaga respostas e perguntas existentes)."""
+    from sqlalchemy import delete
+
+    xlsx_path = _resolve_assessment_xlsx()
+    if xlsx_path is None:
+        logger.warning("REIMPORT_QUESTIONS=1, mas Excel nao encontrado.")
+        return 0
+    rows = load_rows_from_excel(xlsx_path)
+    if not rows:
+        return 0
+    db.execute(delete(Answer))
+    db.execute(delete(Question))
+    db.flush()
+    inserted = _insert_questions_from_excel_rows(db, rows)
+    logger.warning(
+        "REIMPORT_QUESTIONS: catálogo recriado com %s perguntas (respostas anteriores removidas).",
+        inserted,
+    )
+    return inserted
 
 
 app.add_middleware(
@@ -357,10 +371,14 @@ def startup() -> None:
     try:
         with SessionLocal() as db:
             has_questions = int(db.scalar(select(func.count(Question.id))) or 0)
-            if has_questions == 0:
+            if REIMPORT_QUESTIONS:
+                inserted = _reimport_questions_from_excel(db)
+                if inserted:
+                    logger.info("Catálogo reimportado do Excel: %s perguntas.", inserted)
+            elif has_questions == 0:
                 inserted = _load_default_questions(db)
                 if inserted:
-                    logger.info("Bootstrap local: %s perguntas importadas automaticamente.", inserted)
+                    logger.info("Bootstrap: %s perguntas importadas do Excel.", inserted)
             updated_domains = _backfill_question_domains(db)
             if updated_domains:
                 logger.info("Backfill local: %s perguntas atualizadas com domínio.", updated_domains)
