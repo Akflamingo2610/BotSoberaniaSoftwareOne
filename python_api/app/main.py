@@ -35,6 +35,7 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 logger = logging.getLogger("bot_soberania_api")
 
 AUTO_CREATE_SCHEMA = os.getenv("AUTO_CREATE_SCHEMA", "1") == "1"
+SKIP_STARTUP_BACKFILL = os.getenv("SKIP_STARTUP_BACKFILL", "0") == "1"
 TOKEN_TTL_MINUTES = int(os.getenv("TOKEN_TTL_MINUTES", "1440"))  # 24h
 PASSWORD_MIN_LENGTH = int(os.getenv("PASSWORD_MIN_LENGTH", "8"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
@@ -44,8 +45,10 @@ ALLOW_DEV_BOOTSTRAP_LOGIN = os.getenv("ALLOW_DEV_BOOTSTRAP_LOGIN", "1") == "1"
 ALLOW_LEGACY_PASSWORD_LOGIN = os.getenv("ALLOW_LEGACY_PASSWORD_LOGIN", "1") == "1"
 ALLOWED_ORIGIN_REGEX = os.getenv(
     "ALLOWED_ORIGIN_REGEX",
-    # Inclui [::1] porque alguns browsers usam IPv6 no Origin mesmo com "localhost" na barra.
-    r"^https?://(\[::1\](:\d+)?|(localhost|127\.0\.0\.1)(:\d+)?)$",
+    # Local + Firebase Hosting (*.web.app / *.firebaseapp.com).
+    r"^https?://(\[::1\](:\d+)?|(localhost|127\.0\.0\.1)(:\d+)?)$"
+    r"|^https://[a-zA-Z0-9.-]+\.web\.app$"
+    r"|^https://[a-zA-Z0-9.-]+\.firebaseapp\.com$",
 )
 
 # key: "<ip>:<path>" -> [timestamps]
@@ -59,11 +62,55 @@ def _norm_text(value: object) -> str:
     return s
 
 
+def _safe_parent(base: Path, level: int) -> Optional[Path]:
+    try:
+        return base.parents[level]
+    except IndexError:
+        return None
+
+
+def _data_file_candidates(filename: str) -> list[Path]:
+    here = Path(__file__).resolve()
+    candidates: list[Path] = []
+    for base in (
+        _safe_parent(here, 1),  # python_api/ (Docker: /app)
+        _safe_parent(here, 2),  # repo root em dev local
+        _safe_parent(here, 3),
+    ):
+        if base is None:
+            continue
+        candidates.append(base / "data" / filename)
+        candidates.append(base / filename)
+    # dedupe preservando ordem
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for path in candidates:
+        key = str(path)
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
+
+
+def _resolve_data_file(filename: str, env_var: str = "") -> Optional[Path]:
+    override = os.getenv(env_var, "").strip() if env_var else ""
+    if override:
+        path = Path(override)
+        return path if path.is_file() else None
+    for candidate in _data_file_candidates(filename):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def _load_technical_pilar_maps() -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
+    xlsx_name = "Assessment_OTIMIZADO_176_Perguntas_v4 1 (2).xlsx"
     xlsx_candidates = [
         os.getenv("DEFAULT_TECH_PILAR_XLSX", "").strip(),
-        str(Path(__file__).resolve().parents[2] / "Assessment_OTIMIZADO_176_Perguntas_v4 1 (2).xlsx"),
-        str(Path(__file__).resolve().parents[3] / "Assessment_OTIMIZADO_176_Perguntas_v4 1 (2).xlsx"),
+        *[
+            str(path)
+            for path in _data_file_candidates(xlsx_name)
+        ],
         r"C:\Users\user\Downloads\Assessment_OTIMIZADO_176_Perguntas_v4 1 (2).xlsx",
     ]
     xlsx_path = next((p for p in xlsx_candidates if p and Path(p).is_file()), "")
@@ -108,7 +155,7 @@ def _load_technical_pilar_maps() -> tuple[dict[str, str], dict[str, str], dict[s
     col_domain = _find_col(lambda v: ("dominio" in v and "soberania" in v))
     if col_tech is None:
         wb.close()
-        return {}, {}
+        return {}, {}, {}
 
     by_code: dict[str, str] = {}
     by_recommendation: dict[str, str] = {}
@@ -176,14 +223,9 @@ def _backfill_question_technical_pilar(db: Session) -> int:
 
 
 def _load_domain_map_from_csv() -> tuple[dict[str, str], dict[str, str]]:
-    csv_path = Path(
-        os.getenv(
-            "DEFAULT_DOMAINS_CSV",
-            str(Path(__file__).resolve().parents[2] / "Data (1).csv"),
-        )
-    )
-    if not csv_path.is_file():
-        logger.warning("Arquivo de domínio não encontrado: %s", csv_path)
+    csv_path = _resolve_data_file("Data (1).csv", "DEFAULT_DOMAINS_CSV")
+    if csv_path is None:
+        logger.warning("Arquivo de domínio não encontrado.")
         return {}, {}
 
     by_code: dict[str, str] = {}
@@ -229,14 +271,12 @@ def _backfill_question_domains(db: Session) -> int:
 
 
 def _load_default_questions(db: Session) -> int:
-    csv_path = Path(
-        os.getenv(
-            "DEFAULT_QUESTIONS_CSV",
-            str(Path(__file__).resolve().parents[2] / "Prototipo_Assessment_Tool_Maturidade_Soberania_v1_with_order_index.csv"),
-        )
+    csv_path = _resolve_data_file(
+        "Prototipo_Assessment_Tool_Maturidade_Soberania_v1_with_order_index.csv",
+        "DEFAULT_QUESTIONS_CSV",
     )
-    if not csv_path.is_file():
-        logger.warning("Arquivo de perguntas padrão não encontrado: %s", csv_path)
+    if csv_path is None:
+        logger.warning("Arquivo de perguntas padrão não encontrado.")
         return 0
 
     rows: list[Question] = []
@@ -311,6 +351,10 @@ def startup() -> None:
     # Mantem compatibilidade local. Em ambientes com Alembic, use AUTO_CREATE_SCHEMA=0.
     if AUTO_CREATE_SCHEMA:
         Base.metadata.create_all(bind=engine)
+    if SKIP_STARTUP_BACKFILL:
+        logger.info("SKIP_STARTUP_BACKFILL=1: bootstrap/backfill de arquivos locais ignorado.")
+        return
+    try:
         with SessionLocal() as db:
             has_questions = int(db.scalar(select(func.count(Question.id))) or 0)
             if has_questions == 0:
@@ -323,6 +367,8 @@ def startup() -> None:
             updated_tech = _backfill_question_technical_pilar(db)
             if updated_tech:
                 logger.info("Backfill local: %s perguntas atualizadas com pilar técnico.", updated_tech)
+    except Exception:
+        logger.exception("Bootstrap/backfill no startup falhou; API continua online.")
 
 
 def get_db():
