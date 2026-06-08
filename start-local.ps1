@@ -8,7 +8,7 @@ Write-Host "Iniciando backend (FastAPI em :8000)..."
 Start-Process powershell -ArgumentList @(
   "-NoExit",
   "-Command",
-  "cd `"$pythonApiPath`"; python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+  "cd `"$pythonApiPath`"; python scripts\ensure_dev_user.py; python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
 )
 
 Start-Sleep -Seconds 2
@@ -17,7 +17,7 @@ Write-Host "Iniciando frontend (Flutter Web)..."
 Start-Process powershell -ArgumentList @(
   "-NoExit",
   "-Command",
-  "cd `"$flutterAppPath`"; flutter run -d chrome"
+  "cd `"$flutterAppPath`"; powershell -ExecutionPolicy Bypass -File .\run-flutter-dev.ps1"
 )
 
 Write-Host "Pronto. Dois terminais foram abertos (API + Flutter)."

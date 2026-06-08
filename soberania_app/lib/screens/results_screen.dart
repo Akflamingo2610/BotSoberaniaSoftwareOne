@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
@@ -17,6 +16,8 @@ import '../l10n/app_localizations.dart';
 import '../ui/brand.dart';
 import '../widgets/chat_panel.dart';
 import '../widgets/custom_radar_chart.dart';
+import '../widgets/roadmap_gantt_chart.dart';
+import '../widgets/client_results_pdf_builder.dart';
 import 'assessment_intro_screen.dart';
 
 /// Dados agregados para os gráficos.
@@ -73,6 +74,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   ResultsData? _data;
   Map<String, double> _scoreByTechnical = {};
   List<String> _technicalPilars = [];
+  Map<String, Map<String, double>> _maturityByTechnicalDomain = {};
   String? _userName;
   String? _userEmail;
   String? _botOverview;
@@ -141,6 +143,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       _data = null;
       _scoreByTechnical = {};
       _technicalPilars = [];
+      _maturityByTechnicalDomain = {};
     });
 
     try {
@@ -186,6 +189,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       final byPilar = <String, List<int>>{};
       final byDominio = <String, List<int>>{};
       final byTechnical = <String, List<int>>{};
+      final byTechDomain = <String, Map<String, List<int>>>{};
       for (final a in answers) {
         final q = questionMap[a.questionId];
         if (q == null || a.score == null) continue;
@@ -198,6 +202,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final tech = (questionTechnical[a.questionId] ?? '').trim();
         if (tech.isNotEmpty) {
           byTechnical.putIfAbsent(tech, () => []).add(pct);
+          final domKey = (q.dominio ?? '').trim();
+          if (domKey.isNotEmpty) {
+            final byDomain = byTechDomain.putIfAbsent(tech, () => {});
+            byDomain.putIfAbsent(domKey, () => []).add(pct);
+          }
         }
       }
 
@@ -223,6 +232,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
       final technicalPilars = scoreByTechnical.keys.toList()
         ..sort((a, b) => a.compareTo(b));
+      final maturityByTechDomain = <String, Map<String, double>>{};
+      for (final techEntry in byTechDomain.entries) {
+        final domains = <String, double>{};
+        for (final domainEntry in techEntry.value.entries) {
+          domains[domainEntry.key] = avg(domainEntry.value).roundToDouble();
+        }
+        maturityByTechDomain[techEntry.key] = domains;
+      }
 
       _data = ResultsData(
         scoreByPilar: scoreByPilar,
@@ -232,6 +249,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       );
       _scoreByTechnical = scoreByTechnical;
       _technicalPilars = technicalPilars;
+      _maturityByTechnicalDomain = maturityByTechDomain;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -318,6 +336,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
     return text.endsWith('.') || text.endsWith('!') || text.endsWith('?');
   }
 
+  String _criticalityLabel(double score) {
+    if (score >= 75) return 'Maduro';
+    if (score >= 50) return 'Em evolução';
+    if (score >= 25) return 'Crítico';
+    return 'Urgente';
+  }
+
   void _triggerQuickQuestion(String question) {
     setState(() {
       _quickQuestion = question.trim();
@@ -351,7 +376,36 @@ class _ResultsScreenState extends State<ResultsScreen> {
     if (_exportingPdf || _loading || _data == null) return;
     setState(() => _exportingPdf = true);
     try {
-      await WidgetsBinding.instance.endOfFrame;
+      final now = DateTime.now();
+      final dateStr =
+          '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+      final userName = (_userName ?? '').trim();
+      final pilarOrder = const ['Compliance', 'Continuity', 'Control'];
+      final pilarLabels = {
+        for (final p in pilarOrder) p: _localizedPilar(context, p),
+      };
+      final pilarScores = {
+        for (final p in pilarOrder) p: (_data!.scoreByPilar[p] ?? 0).round(),
+      };
+      final domainEntries = _data!.dominios
+          .map(
+            (d) => MapEntry(
+              _localizedDominio(context, d),
+              (_data!.scoreByDominio[d] ?? 0).round(),
+            ),
+          )
+          .toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final technicalEntries = _technicalPilars
+          .map((t) => MapEntry(t, (_scoreByTechnical[t] ?? 0).round()))
+          .toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+
+      final roadmapTitle = _languageCode == 'en'
+          ? 'Digital Sovereignty Roadmap'
+          : _languageCode == 'es'
+          ? 'Cronograma de Soberanía Digital'
+          : 'Cronograma de Soberania Digital';
 
       Future<Uint8List?> capture(
         GlobalKey key, {
@@ -366,413 +420,31 @@ class _ResultsScreenState extends State<ResultsScreen> {
         return byteData.buffer.asUint8List();
       }
 
-      final roadmapBytes = await capture(_pdfRoadmapKey, pixelRatio: 3.4);
+      final roadmapContext = _pdfRoadmapKey.currentContext;
+      if (roadmapContext != null) {
+        await Scrollable.ensureVisible(
+          roadmapContext,
+          duration: const Duration(milliseconds: 350),
+          alignment: 0.05,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      }
+      await WidgetsBinding.instance.endOfFrame;
+      final roadmapBytes = await capture(_pdfRoadmapKey, pixelRatio: 3.2);
 
       final doc = pw.Document();
-      final roadmapImage = roadmapBytes != null
-          ? pw.MemoryImage(roadmapBytes)
-          : null;
-
-      PdfColor pilarColor(String pilar) {
-        switch (pilar.trim().toLowerCase()) {
-          case 'compliance':
-            return const PdfColor(0.98, 0.40, 0.38);
-          case 'continuity':
-            return const PdfColor(0.29, 0.49, 0.70);
-          case 'control':
-            return const PdfColor(0.53, 0.39, 0.84);
-          default:
-            return const PdfColor(0.29, 0.49, 0.70);
-        }
-      }
-
-      PdfColor bandColor(int pct) {
-        if (pct >= 70) return const PdfColor(0.29, 0.49, 0.70);
-        return const PdfColor(0.95, 0.56, 0.17);
-      }
-
-      doc.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          margin: pw.EdgeInsets.zero,
-          build: (context) {
-            final now = DateTime.now();
-            final dateStr =
-                '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
-            final userName = (_userName ?? '').trim();
-            final pilarOrder = const ['Compliance', 'Continuity', 'Control'];
-            final domainList =
-                _data!.dominios
-                    .map(
-                      (d) =>
-                          MapEntry(d, (_data!.scoreByDominio[d] ?? 0).round()),
-                    )
-                    .toList()
-                  ..sort((a, b) => b.value.compareTo(a.value));
-            final technicalList =
-                _technicalPilars
-                    .map(
-                      (t) => MapEntry(t, (_scoreByTechnical[t] ?? 0).round()),
-                    )
-                    .toList()
-                  ..sort((a, b) => b.value.compareTo(a.value));
-
-            pw.Widget linearItem({required String label, required int pct}) {
-              final clamped = pct.clamp(0, 100);
-              final c = bandColor(clamped);
-              return pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: 8),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Expanded(
-                          child: pw.Text(
-                            label,
-                            maxLines: 1,
-                            style: pw.TextStyle(
-                              fontSize: 10,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.grey800,
-                            ),
-                          ),
-                        ),
-                        pw.Text(
-                          '$clamped%',
-                          style: pw.TextStyle(
-                            fontSize: 10,
-                            fontWeight: pw.FontWeight.bold,
-                            color: c,
-                          ),
-                        ),
-                      ],
-                    ),
-                    pw.SizedBox(height: 4),
-                    pw.Container(
-                      height: 8,
-                      color: const PdfColor(0.90, 0.90, 0.90),
-                      child: pw.Row(
-                        children: [
-                          if (clamped > 0)
-                            pw.Expanded(
-                              flex: clamped,
-                              child: pw.Container(color: c),
-                            ),
-                          if (clamped < 100)
-                            pw.Expanded(
-                              flex: (100 - clamped).clamp(1, 100),
-                              child: pw.SizedBox(),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
-                pw.Container(
-                  height: 75,
-                  color: const PdfColor(0.06, 0.06, 0.08),
-                  padding: const pw.EdgeInsets.symmetric(
-                    horizontal: 30,
-                    vertical: 14,
-                  ),
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        mainAxisAlignment: pw.MainAxisAlignment.center,
-                        children: [
-                          pw.Text(
-                            'Assessment de Soberania Digital',
-                            style: pw.TextStyle(
-                              fontSize: 18,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.white,
-                            ),
-                          ),
-                          pw.SizedBox(height: 4),
-                          pw.Text(
-                            userName.isNotEmpty
-                                ? 'Cliente: $userName'
-                                : 'Relatório de Resultados',
-                            style: const pw.TextStyle(
-                              fontSize: 11,
-                              color: PdfColors.grey400,
-                            ),
-                          ),
-                        ],
-                      ),
-                      pw.Text(
-                        dateStr,
-                        style: const pw.TextStyle(
-                          fontSize: 10,
-                          color: PdfColors.grey500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.Container(
-                  height: 110,
-                  color: const PdfColor(0.95, 0.95, 0.97),
-                  padding: const pw.EdgeInsets.fromLTRB(20, 14, 20, 14),
-                  child: pw.Row(
-                    children: pilarOrder.map((p) {
-                      final score = (_data!.scoreByPilar[p] ?? 0).round();
-                      final c = pilarColor(p);
-                      final label = _localizedPilar(this.context, p);
-                      return pw.Expanded(
-                        child: pw.Container(
-                          margin: const pw.EdgeInsets.symmetric(horizontal: 6),
-                          color: PdfColors.white,
-                          child: pw.Row(
-                            children: [
-                              pw.Container(width: 5, color: c),
-                              pw.Expanded(
-                                child: pw.Padding(
-                                  padding: const pw.EdgeInsets.all(10),
-                                  child: pw.Column(
-                                    crossAxisAlignment:
-                                        pw.CrossAxisAlignment.start,
-                                    mainAxisAlignment:
-                                        pw.MainAxisAlignment.center,
-                                    children: [
-                                      pw.Text(
-                                        label,
-                                        style: pw.TextStyle(
-                                          fontSize: 10,
-                                          color: c,
-                                          fontWeight: pw.FontWeight.bold,
-                                        ),
-                                      ),
-                                      pw.SizedBox(height: 4),
-                                      pw.Text(
-                                        '$score%',
-                                        style: pw.TextStyle(
-                                          fontSize: 28,
-                                          color: c,
-                                          fontWeight: pw.FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                pw.Container(
-                  height: 260,
-                  color: PdfColors.white,
-                  padding: const pw.EdgeInsets.fromLTRB(48, 18, 48, 12),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                    children: [
-                      pw.Text(
-                        'Score por Pilar',
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.grey800,
-                        ),
-                      ),
-                      pw.SizedBox(height: 14),
-                      pw.SizedBox(
-                        height: 180,
-                        child: pw.Row(
-                          crossAxisAlignment: pw.CrossAxisAlignment.end,
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                          children: pilarOrder.map((p) {
-                            final score = (_data!.scoreByPilar[p] ?? 0).round();
-                            final c = pilarColor(p);
-                            final label = _localizedPilar(this.context, p);
-                            final barH = 130 * (score / 100);
-                            return pw.Column(
-                              mainAxisAlignment: pw.MainAxisAlignment.end,
-                              children: [
-                                pw.Container(
-                                  padding: const pw.EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  color: const PdfColor(0, 0, 0),
-                                  child: pw.Text(
-                                    '$score%',
-                                    style: pw.TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: pw.FontWeight.bold,
-                                      color: PdfColors.white,
-                                    ),
-                                  ),
-                                ),
-                                pw.SizedBox(height: 4),
-                                pw.Container(width: 70, height: barH, color: c),
-                                pw.SizedBox(height: 6),
-                                pw.Text(
-                                  label,
-                                  style: pw.TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: pw.FontWeight.bold,
-                                    color: c,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.Container(
-                  height: 368,
-                  color: const PdfColor(0.95, 0.95, 0.97),
-                  padding: const pw.EdgeInsets.fromLTRB(32, 16, 32, 16),
-                  child: pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text(
-                              'Score por Domínio',
-                              style: pw.TextStyle(
-                                fontSize: 12,
-                                fontWeight: pw.FontWeight.bold,
-                                color: PdfColors.grey800,
-                              ),
-                            ),
-                            pw.SizedBox(height: 12),
-                            if (domainList.isEmpty)
-                              pw.Text('Sem dados de domínio')
-                            else
-                              ...domainList
-                                  .take(6)
-                                  .map(
-                                    (e) =>
-                                        linearItem(label: e.key, pct: e.value),
-                                  ),
-                          ],
-                        ),
-                      ),
-                      pw.SizedBox(width: 16),
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text(
-                              'Score por Pilar Técnico',
-                              style: pw.TextStyle(
-                                fontSize: 12,
-                                fontWeight: pw.FontWeight.bold,
-                                color: PdfColors.grey800,
-                              ),
-                            ),
-                            pw.SizedBox(height: 12),
-                            if (technicalList.isEmpty)
-                              pw.Text('Sem dados de pilar técnico')
-                            else
-                              ...technicalList
-                                  .take(6)
-                                  .map(
-                                    (e) =>
-                                        linearItem(label: e.key, pct: e.value),
-                                  ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.Container(
-                  height: 28,
-                  color: const PdfColor(0.06, 0.06, 0.08),
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 32),
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(
-                        'Soberania Digital — Assessment Report'
-                        '${userName.isNotEmpty ? "  |  $userName" : ""}',
-                        style: const pw.TextStyle(
-                          fontSize: 8,
-                          color: PdfColors.grey500,
-                        ),
-                      ),
-                      pw.Text(
-                        'Página 1 de 2',
-                        style: pw.TextStyle(
-                          fontSize: 8,
-                          color: PdfColors.grey500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      );
-
-      if (roadmapImage != null) {
-        final roadmapTitle = _languageCode == 'en'
-            ? 'Digital Sovereignty Roadmap'
-            : _languageCode == 'es'
-            ? 'Cronograma de Soberanía Digital'
-            : 'Cronograma de Soberania Digital';
-        doc.addPage(
-          pw.Page(
-            pageFormat: PdfPageFormat.a4,
-            margin: const pw.EdgeInsets.fromLTRB(10, 10, 10, 10),
-            build: (context) {
-              return pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    roadmapTitle,
-                    style: pw.TextStyle(
-                      fontSize: 16,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                  pw.SizedBox(height: 8),
-                  pw.Expanded(
-                    child: pw.Container(
-                      width: double.infinity,
-                      child: pw.Image(roadmapImage, fit: pw.BoxFit.contain),
-                    ),
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Align(
-                    alignment: pw.Alignment.centerRight,
-                    child: pw.Text(
-                      'Página 2 de 2',
-                      style: pw.TextStyle(
-                        fontSize: 8,
-                        color: PdfColors.grey600,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      }
+      ClientResultsPdfBuilder(
+        userName: userName,
+        dateStr: dateStr,
+        pilarOrder: pilarOrder,
+        pilarLabels: pilarLabels,
+        pilarScores: pilarScores,
+        domainEntries: domainEntries,
+        technicalEntries: technicalEntries,
+        roadmapImage: roadmapBytes != null ? pw.MemoryImage(roadmapBytes) : null,
+        roadmapTitle: roadmapTitle,
+        languageCode: _languageCode,
+      ).addPages(doc);
 
       final bytes = await doc.save();
       await Printing.sharePdf(
@@ -837,10 +509,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final weakestDomain = domainEntries.isNotEmpty ? domainEntries[0] : null;
 
     String period(int i) {
-      if (_languageCode == 'en')
+      if (_languageCode == 'en') {
         return ['0-30 days', '31-60 days', '61-90 days'][i];
-      if (_languageCode == 'es')
+      }
+      if (_languageCode == 'es') {
         return ['0-30 días', '31-60 días', '61-90 días'][i];
+      }
       return ['0-30 dias', '31-60 dias', '61-90 dias'][i];
     }
 
@@ -1241,7 +915,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                         : _languageCode == 'es'
                                         ? 'Toque una barra o porcentaje para pedir una explicación al bot.'
                                         : 'Toque em uma barra ou porcentagem para pedir explicação ao bot.',
-                                    fillChartHeight: true,
+                                    height: 420,
                                     child: _PilarBarChart(
                                       data: _data!,
                                       labelBuilder: (p) =>
@@ -1263,7 +937,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                         : _languageCode == 'es'
                                         ? 'Toque una etiqueta de dominio o un punto de la red para ver qué significa su porcentaje.'
                                         : 'Toque no nome do domínio ou em um ponto do gráfico de teia para ver o que sua porcentagem significa.',
-                                    fillChartHeight: true,
+                                    height: 420,
                                     child: _DominioRadarChart(
                                       data: _data!,
                                       labelBuilder: (d) =>
@@ -1328,7 +1002,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   final roadmapCard = roadmapSteps.isNotEmpty
                       ? RepaintBoundary(
                           key: _pdfRoadmapKey,
-                          child: _RoadmapTimelineCard(
+                          child: RoadmapGanttCard(
                             title: _languageCode == 'en'
                                 ? 'Digital Sovereignty Roadmap'
                                 : _languageCode == 'es'
@@ -1339,7 +1013,45 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                 : _languageCode == 'es'
                                 ? 'Plan para aumentar el potencial del negocio en los próximos 90 días según sus puntuaciones actuales.'
                                 : 'Plano para aumentar o potencial do negócio nos próximos 90 dias com base nos seus scores atuais.',
-                            steps: roadmapSteps,
+                            activityColumnLabel: _languageCode == 'en'
+                                ? 'Activity / Phase'
+                                : _languageCode == 'es'
+                                ? 'Actividad / Fase'
+                                : 'Atividade / Fase',
+                            phaseLabels: _languageCode == 'en'
+                                ? const [
+                                    '0-30 days',
+                                    '31-60 days',
+                                    '61-90 days',
+                                  ]
+                                : _languageCode == 'es'
+                                ? const [
+                                    '0-30 días',
+                                    '31-60 días',
+                                    '61-90 días',
+                                  ]
+                                : const [
+                                    '0-30 dias',
+                                    '31-60 dias',
+                                    '61-90 dias',
+                                  ],
+                            legendTitle: _languageCode == 'en'
+                                ? 'Phase legend'
+                                : _languageCode == 'es'
+                                ? 'Leyenda de fases'
+                                : 'Legenda das fases',
+                            steps: roadmapSteps
+                                .map(
+                                  (s) => RoadmapGanttStep(
+                                    period: s.period,
+                                    title: s.title,
+                                    description: s.description,
+                                    actions: s.actions,
+                                    services: s.services,
+                                    performanceNote: s.performanceNote,
+                                  ),
+                                )
+                                .toList(),
                           ),
                         )
                       : const SizedBox.shrink();
@@ -1348,6 +1060,63 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       summaryContent,
+                      if (_technicalPilars.isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        Card(
+                          elevation: 0,
+                          color: Brand.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(color: Brand.border),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Score por Pilar Técnico',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: Brand.black,
+                                      ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Validação de maturidade dos pilares técnicos do assessment.',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: Colors.black54),
+                                ),
+                                const SizedBox(height: 12),
+                                _TechnicalPilarLinearChart(
+                                  entries: _technicalPilars
+                                      .map(
+                                        (t) => MapEntry(
+                                          t,
+                                          _scoreByTechnical[t] ?? 0,
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        if (_maturityByTechnicalDomain['Residência e Localização']?['Soberania de Dados'] !=
+                            null)
+                          _AssessmentExplainCard(
+                            text:
+                                'Maturidade de Residência e Localização em Soberania de Dados: '
+                                '${_maturityByTechnicalDomain['Residência e Localização']!['Soberania de Dados']!.round()}% '
+                                '(${_criticalityLabel(_maturityByTechnicalDomain['Residência e Localização']!['Soberania de Dados']!)})',
+                          ),
+                        const SizedBox(height: 14),
+                        _TechnicalDomainMatrixCard(
+                          matrix: _maturityByTechnicalDomain,
+                        ),
+                      ],
                       if (roadmapSteps.isNotEmpty) ...[
                         const SizedBox(height: 24),
                         roadmapCard,
@@ -1419,6 +1188,12 @@ class _BotOverviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final lang = Localizations.localeOf(context).languageCode.toLowerCase();
+    final heading = lang.startsWith('en')
+        ? 'Assessment explanation'
+        : lang.startsWith('es')
+        ? 'Explicación del assessment'
+        : 'Explicação do assessment';
     return Card(
       elevation: 0,
       color: Brand.white,
@@ -1434,37 +1209,220 @@ class _BotOverviewCard extends StatelessWidget {
             Icon(Icons.smart_toy, color: Brand.black, size: 24),
             const SizedBox(width: 12),
             Expanded(
-              child: loading
-                  ? Row(
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Brand.black,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          l10n.t('results_overview_loading'),
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(color: Brand.black),
-                        ),
-                      ],
-                    )
-                  : overview != null && overview!.isNotEmpty
-                  ? SelectableText(
-                      overview!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        height: 1.5,
-                        color: Brand.black,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    heading,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: Brand.black,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  loading
+                      ? Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Brand.black,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              l10n.t('results_overview_loading'),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: Brand.black),
+                            ),
+                          ],
+                        )
+                      : overview != null && overview!.isNotEmpty
+                      ? SelectableText(
+                          overview!,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(height: 1.5, color: Brand.black),
+                        )
+                      : const SizedBox.shrink(),
+                ],
+              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AssessmentExplainCard extends StatelessWidget {
+  final String text;
+  const _AssessmentExplainCard({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Brand.assessmentCtaBlue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Brand.assessmentCtaBlue.withValues(alpha: 0.30),
+        ),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w700, color: Brand.black),
+      ),
+    );
+  }
+}
+
+class _TechnicalPilarLinearChart extends StatelessWidget {
+  final List<MapEntry<String, double>> entries;
+  const _TechnicalPilarLinearChart({required this.entries});
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return const Center(child: Text('Sem dados de pilar técnico'));
+    }
+    Color colorFor(int pct) {
+      if (pct >= 75) return const Color(0xFF2E9E5B);
+      if (pct >= 50) return const Color(0xFF4E79A7);
+      return const Color(0xFFF28E2B);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: entries.map((e) {
+        final pct = e.value.round().clamp(0, 100);
+        final color = colorFor(pct);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: Text(
+                  e.key,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 7,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: pct / 100,
+                    minHeight: 12,
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                    backgroundColor: const Color(0xFFE5E7EB),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 46,
+                child: Text(
+                  '$pct%',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontWeight: FontWeight.w800, color: color),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _TechnicalDomainMatrixCard extends StatelessWidget {
+  final Map<String, Map<String, double>> matrix;
+  const _TechnicalDomainMatrixCard({required this.matrix});
+
+  @override
+  Widget build(BuildContext context) {
+    final domains = <String>{};
+    for (final row in matrix.values) {
+      domains.addAll(row.keys);
+    }
+    final orderedDomains = domains.toList()..sort();
+    final orderedTechs = matrix.keys.toList()..sort();
+
+    final rows = <TableRow>[
+      TableRow(
+        decoration: BoxDecoration(
+          color: Brand.assessmentCtaBlue.withValues(alpha: 0.08),
+        ),
+        children: [
+          _tblCell('Pilar Técnico', isHeader: true),
+          ...orderedDomains.map((d) => _tblCell(d, isHeader: true)),
+        ],
+      ),
+      ...orderedTechs.map((tech) {
+        final row = matrix[tech] ?? const <String, double>{};
+        return TableRow(
+          children: [
+            _tblCell(tech),
+            ...orderedDomains.map((d) {
+              final v = row[d];
+              return _tblCell(v == null ? '—' : '${v.round()}%');
+            }),
+          ],
+        );
+      }),
+    ];
+
+    return Card(
+      elevation: 0,
+      color: Brand.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Brand.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Matriz por Pilar Técnico e Domínio',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+            const SizedBox(height: 10),
+            Table(
+              border: TableBorder.all(color: Brand.border, width: 0.8),
+              columnWidths: {
+                0: const FlexColumnWidth(2.1),
+                for (var i = 0; i < orderedDomains.length; i++)
+                  i + 1: const FlexColumnWidth(1.2),
+              },
+              children: rows,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tblCell(String text, {bool isHeader = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      child: Text(
+        text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: isHeader ? TextAlign.left : TextAlign.center,
+        style: TextStyle(
+          fontWeight: isHeader ? FontWeight.w700 : FontWeight.w500,
+          fontSize: isHeader ? 12 : 11,
+          color: Brand.black,
         ),
       ),
     );
@@ -1477,23 +1435,15 @@ class _ChartCard extends StatelessWidget {
   final Widget child;
   final double height;
 
-  /// Em [Row] lado a lado: gráfico preenche a altura para igualar o cartão vizinho.
-  final bool fillChartHeight;
-
   const _ChartCard({
     required this.title,
     this.subtitle,
     required this.child,
     this.height = 220,
-    this.fillChartHeight = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final chartSlot = fillChartHeight
-        ? Expanded(child: child)
-        : SizedBox(height: height, child: child);
-
     return Card(
       elevation: 0,
       color: Brand.white,
@@ -1502,10 +1452,10 @@ class _ChartCard extends StatelessWidget {
         side: const BorderSide(color: Brand.border),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: fillChartHeight ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               title,
@@ -1523,238 +1473,8 @@ class _ChartCard extends StatelessWidget {
                 ).textTheme.bodySmall?.copyWith(color: Colors.black54),
               ),
             ],
-            const SizedBox(height: 16),
-            chartSlot,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RoadmapTimelineCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final List<_RoadmapStep> steps;
-
-  const _RoadmapTimelineCard({
-    required this.title,
-    required this.subtitle,
-    required this.steps,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Brand.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Brand.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: Brand.black,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.black54),
-            ),
-            const SizedBox(height: 16),
-            ...steps.asMap().entries.map((entry) {
-              final i = entry.key;
-              final step = entry.value;
-              final isLast = i == steps.length - 1;
-              return Padding(
-                padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 42,
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: const BoxDecoration(
-                              color: Brand.assessmentCtaBlue,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${i + 1}',
-                              style: const TextStyle(
-                                color: Brand.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                          if (!isLast)
-                            Container(
-                              width: 2,
-                              height: 56,
-                              margin: const EdgeInsets.only(top: 4),
-                              color: Brand.border,
-                            ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                        decoration: BoxDecoration(
-                          color: Brand.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Brand.border),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              step.period,
-                              style: const TextStyle(
-                                color: Brand.assessmentCtaBlue,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              step.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                color: Brand.black,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              step.description,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                height: 1.35,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Serviços AWS recomendados',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Brand.black,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: step.services
-                                  .map(
-                                    (svc) => Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Brand.white,
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                        border: Border.all(color: Brand.border),
-                                      ),
-                                      child: Text(
-                                        svc,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: Brand.black,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Ações prioritárias',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Brand.black,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            ...step.actions.map(
-                              (act) => Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 6),
-                                      child: Icon(
-                                        Icons.circle,
-                                        size: 6,
-                                        color: Brand.assessmentCtaBlue,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        act,
-                                        style: const TextStyle(
-                                          fontSize: 12.5,
-                                          color: Colors.black87,
-                                          height: 1.3,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEAF2FF),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                step.performanceNote,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Brand.black,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+            const SizedBox(height: 18),
+            SizedBox(height: height, child: child),
           ],
         ),
       ),
@@ -1870,6 +1590,9 @@ class _PilarBarChart extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final chartHeight = constraints.maxHeight.isFinite && constraints.maxHeight > 0
+            ? constraints.maxHeight
+            : 220.0;
         final chart = BarChart(
           BarChartData(
             alignment: BarChartAlignment.spaceAround,
@@ -1949,17 +1672,21 @@ class _PilarBarChart extends StatelessWidget {
           duration: const Duration(milliseconds: 300),
         );
 
-        return MouseRegion(
-          cursor: onPilarTap == null
-              ? SystemMouseCursors.basic
-              : SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTapUp: (details) => _handleFallbackTap(
-              details.localPosition,
-              Size(constraints.maxWidth, constraints.maxHeight),
+        return SizedBox(
+          height: chartHeight,
+          width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
+          child: MouseRegion(
+            cursor: onPilarTap == null
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapUp: (details) => _handleFallbackTap(
+                details.localPosition,
+                Size(constraints.maxWidth, chartHeight),
+              ),
+              child: chart,
             ),
-            child: chart,
           ),
         );
       },

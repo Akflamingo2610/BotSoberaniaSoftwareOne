@@ -1,0 +1,25 @@
+COMO ABRIR O PROJETO
+====================
+
+Opcao 1 (mais facil):
+  Clique duas vezes em ABRIR.bat
+
+Opcao 2 (PowerShell):
+  cd C:\Users\user\Downloads\BotSoberaniaSoftwareOne-branchmiguel
+  .\start-local.ps1
+
+Opcao 3 (manual):
+  Terminal 1 - Backend:
+    cd python_api
+    python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  Terminal 2 - Frontend:
+    cd soberania_app
+    powershell -ExecutionPolicy Bypass -File .\run-flutter-dev.ps1
+
+IMPORTANTE:
+- Nao use "cd flutter run" (isso da erro).
+- Use apenas "flutter run -d chrome" ou run-flutter-dev.ps1 dentro da pasta soberania_app.
+- O hot restart automatico (tecla R) roda ao final de atualizacoes do Cursor via hook + hot-restart.ps1.
+- Login padrao local: miguelparazzi@gmail.com / miguelparazzi18
+- (Conta existente no banco: mbuenoparazzi@gmail.com — use a senha cadastrada ou Cadastre-se)

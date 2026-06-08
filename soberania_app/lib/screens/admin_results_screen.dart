@@ -8,6 +8,7 @@ import '../data/aws_norm_correlation.dart';
 import '../models/models.dart';
 import '../ui/brand.dart';
 import '../widgets/custom_radar_chart.dart';
+import '../widgets/roadmap_gantt_chart.dart';
 
 class AdminResultsScreen extends StatefulWidget {
   const AdminResultsScreen({
@@ -28,12 +29,18 @@ class _RoadmapStep {
   final String title;
   final String description;
   final String impact;
+  final List<String> actions;
+  final List<String> services;
+  final String? performanceNote;
 
   const _RoadmapStep({
     required this.period,
     required this.title,
     required this.description,
     required this.impact,
+    this.actions = const [],
+    this.services = const [],
+    this.performanceNote,
   });
 }
 
@@ -177,6 +184,7 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
       final svcWeights = <String, double>{};
       final normWeights = <String, double>{};
       final pillars = <String>{};
+      final techScores = <String, List<int>>{};
 
       for (final m in source) {
         final pct = scoreTextToPercent(m['score']?.toString());
@@ -192,8 +200,11 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
         for (final n in _splitItems(m['norms']?.toString())) {
           normWeights[n] = (normWeights[n] ?? 0) + w;
         }
-        final pt = (m['pilar_tecnico'] ?? '').toString().trim();
-        if (pt.isNotEmpty) pillars.add(pt);
+        final pt = _validateTechnicalPilar(
+          m['pilar_tecnico']?.toString() ?? '',
+        );
+        if (pt != 'Não informado') pillars.add(pt);
+        techScores.putIfAbsent(pt, () => []).add(pct);
       }
 
       final topSvcs = _topItems(svcWeights, _topServices);
@@ -205,10 +216,22 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
                 ? 'Pontos a evoluir no domínio'
                 : pillars.join(' · '));
 
+      final techValues = <double>[
+        for (final e in techScores.entries)
+          if (e.value.isNotEmpty)
+            e.value.reduce((a, b) => a + b) / e.value.length,
+      ];
+      final techAvg = techValues.isEmpty
+          ? 0.0
+          : techValues.reduce((a, b) => a + b) / techValues.length;
+      final techMaturity =
+          '${techAvg.round()}% · ${_criticalityLabel(techAvg)}';
+
       return {
         'domain': domain,
         'gap': gap,
-        'technical': pillars.isEmpty ? '—' : pillars.join(' · '),
+        'technical': pillars.isEmpty ? 'Não informado' : pillars.join(' · '),
+        'technical_maturity': techMaturity,
         'aws': topSvcs.isEmpty ? '—' : topSvcs.join(' · '),
         'norms': topNorms.isEmpty ? '—' : topNorms.join(' · '),
       };
@@ -227,6 +250,114 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
     if (score >= 50) return 'Em evolução';
     if (score >= 25) return 'Crítico';
     return 'Urgente';
+  }
+
+  String _validateTechnicalPilar(String raw) {
+    final normalized = _normalizeTechnicalPilar(raw);
+    return normalized.isEmpty ? 'Não informado' : normalized;
+  }
+
+  double? _maturityByTechInDomain(
+    List<dynamic> answers, {
+    required String technicalPilar,
+    required String domain,
+  }) {
+    final normTech = _normalizeTechnicalPilar(technicalPilar);
+    final normDomain = _normalizeDomain(domain);
+    final scores = <int>[];
+    for (final a in answers) {
+      final m = a as Map;
+      final d = _normalizeDomain(m['dominio']?.toString() ?? '');
+      final t = _normalizeTechnicalPilar(m['pilar_tecnico']?.toString() ?? '');
+      if (d == normDomain && t == normTech) {
+        scores.add(scoreTextToPercent(m['score']?.toString()));
+      }
+    }
+    if (scores.isEmpty) return null;
+    return scores.reduce((x, y) => x + y) / scores.length;
+  }
+
+  List<Map<String, String>> _buildTechnicalDomainTraceability(
+    List<dynamic> answers,
+  ) {
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final a in answers) {
+      final m = a as Map<String, dynamic>;
+      final domain = _normalizeDomain((m['dominio'] ?? '').toString());
+      if (domain.isEmpty) continue;
+      final technical = _validateTechnicalPilar(
+        m['pilar_tecnico']?.toString() ?? '',
+      );
+      final key = '$technical|||$domain';
+      grouped.putIfAbsent(key, () => []).add(m);
+    }
+
+    final rows = <Map<String, String>>[];
+    for (final entry in grouped.entries) {
+      final parts = entry.key.split('|||');
+      final technical = parts[0];
+      final domain = parts[1];
+      final items = entry.value;
+      final problems = items
+          .where(
+            (m) => scoreTextToPercent(m['score']?.toString()) < _gapThreshold,
+          )
+          .toList();
+      final source = problems.isEmpty ? items : problems;
+      final avg =
+          items
+              .map((m) => scoreTextToPercent(m['score']?.toString()))
+              .reduce((a, b) => a + b) /
+          items.length;
+
+      final svcWeights = <String, double>{};
+      final normWeights = <String, double>{};
+      for (final m in source) {
+        final pct = scoreTextToPercent(m['score']?.toString());
+        final w = problems.isEmpty
+            ? 1.0
+            : (5 - pct / 25).clamp(1, 5).toDouble();
+        for (final svc in _splitItems(m['aws_service']?.toString())) {
+          svcWeights[svc] = (svcWeights[svc] ?? 0) + w;
+          for (final n in normsInferredFromAwsServiceToken(svc)) {
+            normWeights[n] = (normWeights[n] ?? 0) + w;
+          }
+        }
+        for (final n in _splitItems(m['norms']?.toString())) {
+          normWeights[n] = (normWeights[n] ?? 0) + w;
+        }
+      }
+
+      final aws = _topItems(svcWeights, _topServices);
+      final norms = _topItems(normWeights, _topNorms);
+      rows.add({
+        'technical': technical,
+        'domain': domain,
+        'maturity': '${avg.round()}% · ${_criticalityLabel(avg)}',
+        'aws': aws.isEmpty ? '—' : aws.join(' · '),
+        'norms': norms.isEmpty ? '—' : norms.join(' · '),
+      });
+    }
+
+    int techRank(String t) {
+      final i = _technicalPilarOrder.indexOf(t);
+      return i < 0 ? 999 : i;
+    }
+
+    int domainRank(String d) {
+      final i = _domainOrder.indexOf(d);
+      return i < 0 ? 999 : i;
+    }
+
+    rows.sort((a, b) {
+      final t = techRank(a['technical']!).compareTo(techRank(b['technical']!));
+      if (t != 0) return t;
+      final d = domainRank(a['domain']!).compareTo(domainRank(b['domain']!));
+      if (d != 0) return d;
+      return a['domain']!.compareTo(b['domain']!);
+    });
+
+    return rows;
   }
 
   Map<String, double> _calcPilarScores(List<dynamic> answers) {
@@ -550,6 +681,68 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
       return 'Ganho potencial: +$g pts';
     }
 
+    final weakPilarKey = pilarEntries.isNotEmpty ? pilarEntries.first.key : 'Compliance';
+    final midPilarKey = pilarEntries.length > 1 ? pilarEntries[1].key : weakPilarKey;
+    final strongPilarKey = pilarEntries.isNotEmpty ? pilarEntries.last.key : weakPilarKey;
+
+    List<String> servicesForPilar(String pilarKey) {
+      final k = pilarKey.toLowerCase();
+      if (k.contains('compliance') || k.contains('conform')) {
+        return const [
+          'AWS Config',
+          'AWS Security Hub',
+          'AWS Audit Manager',
+          'AWS CloudTrail',
+        ];
+      }
+      if (k.contains('continuity') || k.contains('contin')) {
+        return const [
+          'AWS Backup',
+          'AWS Resilience Hub',
+          'Amazon CloudWatch',
+          'Elastic Disaster Recovery',
+        ];
+      }
+      return const [
+        'AWS IAM / IAM Identity Center',
+        'AWS KMS',
+        'AWS Organizations (SCP)',
+        'Amazon GuardDuty',
+      ];
+    }
+
+    List<String> actionsForStep(int stepIndex, String pilarLabel) {
+      if (stepIndex == 0) {
+        return [
+          'Criar backlog priorizado para $weakDomain com responsáveis claros.',
+          'Ativar controles e alertas base em ${servicesForPilar(weakPilarKey).take(2).join(' + ')}.',
+          'Definir rito semanal de governança com visibilidade executiva.',
+        ];
+      }
+      if (stepIndex == 1) {
+        return [
+          'Automatizar coleta de evidências e relatórios de conformidade.',
+          'Integrar alertas ao fluxo de incidentes e playbooks de resposta.',
+          'Medir KPIs de lead time, retrabalho e queda de incidentes críticos.',
+        ];
+      }
+      return [
+        'Escalar controles comprovados para outros domínios e áreas.',
+        'Padronizar arquitetura alvo e runbooks operacionais.',
+        'Conectar evolução do score com KPIs de negócio ($pilarLabel).',
+      ];
+    }
+
+    String performanceNoteFor(int stepIndex) {
+      if (stepIndex == 0) {
+        return 'Efeito esperado: resposta mais rápida a incidentes, menor interrupção operacional e redução imediata do risco de conformidade.';
+      }
+      if (stepIndex == 1) {
+        return 'Efeito esperado: maior previsibilidade de entrega, mais produtividade do time e menos esforço manual em auditorias e operação.';
+      }
+      return 'Efeito esperado: maior resiliência, escala segura e aumento de desempenho do negócio com confiabilidade, controle de custo e confiança do cliente.';
+    }
+
     return [
       _RoadmapStep(
         period: '0-30 dias',
@@ -557,6 +750,9 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
         description:
             'Priorize ações rápidas para reduzir riscos no domínio mais crítico ($weakDomain) e aumentar a previsibilidade operacional.',
         impact: gain(weakScore),
+        actions: actionsForStep(0, weakPilar),
+        services: servicesForPilar(weakPilarKey),
+        performanceNote: performanceNoteFor(0),
       ),
       _RoadmapStep(
         period: '31-60 dias',
@@ -564,6 +760,9 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
         description:
             'Automatize monitoramento, evidências e processos para acelerar maturidade e reduzir esforço manual da operação.',
         impact: gain(midScore),
+        actions: actionsForStep(1, midPilar),
+        services: servicesForPilar(midPilarKey),
+        performanceNote: performanceNoteFor(1),
       ),
       _RoadmapStep(
         period: '61-90 dias',
@@ -571,6 +770,9 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
         description:
             'Consolidar boas práticas e expandir iniciativas para inovação, resiliência e vantagem competitiva sustentável.',
         impact: gain(strongScore),
+        actions: actionsForStep(2, strongPilar),
+        services: servicesForPilar(strongPilarKey),
+        performanceNote: performanceNoteFor(2),
       ),
     ];
   }
@@ -833,77 +1035,69 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
                     ),
                   ),
 
-                  // ── Score por domínio + pilar técnico (368pt) ─────────────
+                  // ── Score por domínio + pilar técnico (pilar técnico embaixo)
                   pw.Container(
                     height: 368,
                     color: const PdfColor(0.95, 0.95, 0.97),
                     padding: const pw.EdgeInsets.fromLTRB(32, 16, 32, 16),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                       children: [
-                        pw.Expanded(
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Text(
-                                'Score por Domínio',
-                                style: pw.TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.grey800,
-                                ),
-                              ),
-                              pw.SizedBox(height: 12),
-                              if (dominioList.isEmpty)
-                                pw.Text(
-                                  'Sem dados de domínio',
-                                  style: const pw.TextStyle(
-                                    fontSize: 10,
-                                    color: PdfColors.grey500,
-                                  ),
-                                )
-                              else
-                                ...dominioList.map(
-                                  (e) => _pdfLinearScoreItem(
-                                    label: e.key,
-                                    pct: e.value.round(),
-                                  ),
-                                ),
-                            ],
+                        pw.Text(
+                          'Score por Domínio',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.grey800,
                           ),
                         ),
-                        pw.SizedBox(width: 16),
-                        pw.Expanded(
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Text(
-                                'Score por Pilar Técnico',
-                                style: pw.TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.grey800,
+                        pw.SizedBox(height: 10),
+                        if (dominioList.isEmpty)
+                          pw.Text(
+                            'Sem dados de domínio',
+                            style: const pw.TextStyle(
+                              fontSize: 10,
+                              color: PdfColors.grey500,
+                            ),
+                          )
+                        else
+                          ...dominioList
+                              .take(3)
+                              .map(
+                                (e) => _pdfLinearScoreItem(
+                                  label: e.key,
+                                  pct: e.value.round(),
                                 ),
                               ),
-                              pw.SizedBox(height: 12),
-                              if (technicalList.isEmpty)
-                                pw.Text(
-                                  'Sem dados de pilar técnico',
-                                  style: const pw.TextStyle(
-                                    fontSize: 10,
-                                    color: PdfColors.grey500,
-                                  ),
-                                )
-                              else
-                                ...technicalList.map(
-                                  (e) => _pdfLinearScoreItem(
-                                    label: e.key,
-                                    pct: e.value.round(),
-                                  ),
-                                ),
-                            ],
+                        pw.SizedBox(height: 8),
+                        pw.Container(height: 1, color: PdfColors.grey300),
+                        pw.SizedBox(height: 10),
+                        pw.Text(
+                          'Score por Pilar Técnico',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.grey800,
                           ),
                         ),
+                        pw.SizedBox(height: 10),
+                        if (technicalList.isEmpty)
+                          pw.Text(
+                            'Sem dados de pilar técnico',
+                            style: const pw.TextStyle(
+                              fontSize: 10,
+                              color: PdfColors.grey500,
+                            ),
+                          )
+                        else
+                          ...technicalList
+                              .take(3)
+                              .map(
+                                (e) => _pdfLinearScoreItem(
+                                  label: e.key,
+                                  pct: e.value.round(),
+                                ),
+                              ),
                       ],
                     ),
                   ),
@@ -925,9 +1119,7 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
                           ),
                         ),
                         pw.Text(
-                          includeDetailedPages
-                              ? 'Página 1 de 5'
-                              : 'Página 1 de 1',
+                          'Página 1 de 5',
                           style: const pw.TextStyle(
                             fontSize: 8,
                             color: PdfColors.grey500,
@@ -1241,11 +1433,12 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
             margin: pw.EdgeInsets.zero,
             build: (ctx) {
               // Soma total = 595 (largura útil A4)
-              const colDomain = 100.0;
-              const colScore = 74.0;
-              const colTechnical = 120.0;
-              const colAws = 185.0;
-              const colNorms = 116.0;
+              const colDomain = 84.0;
+              const colScore = 66.0;
+              const colTechnical = 110.0;
+              const colTechMaturity = 80.0;
+              const colAws = 150.0;
+              const colNorms = 105.0;
 
               const headerH = 80.0;
               const introH = 36.0;
@@ -1369,6 +1562,7 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
                           _trcHdr('Domínio', colDomain),
                           _trcHdr('Maturidade', colScore),
                           _trcHdr('Pilar Técnico AWS', colTechnical),
+                          _trcHdr('Maturidade Pilar Técnico', colTechMaturity),
                           _trcHdr('Serviços AWS Recomendados', colAws),
                           _trcHdr('Normas / Leis', colNorms),
                         ],
@@ -1508,6 +1702,30 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
                                     ),
                                   ),
                                 ],
+                              ),
+                            ),
+                            // Serviços AWS
+                            pw.Container(
+                              width: colTechMaturity,
+                              padding: const pw.EdgeInsets.all(6),
+                              decoration: const pw.BoxDecoration(
+                                border: pw.Border(
+                                  right: pw.BorderSide(
+                                    color: PdfColors.grey200,
+                                    width: 0.4,
+                                  ),
+                                ),
+                              ),
+                              child: pw.Center(
+                                child: pw.Text(
+                                  item['technical_maturity'] ?? '—',
+                                  style: pw.TextStyle(
+                                    fontSize: 8,
+                                    color: PdfColors.grey800,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                  textAlign: pw.TextAlign.center,
+                                ),
                               ),
                             ),
                             // Serviços AWS
@@ -1741,8 +1959,17 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
     final answers = (widget.assessment['answers'] as List<dynamic>?) ?? [];
     final pilarScores = _calcPilarScores(answers);
     final dominioScores = _calcDominioScores(answers);
+    final technicalScores = _calcTechnicalPilarScores(answers);
+    final technicalEntries = _orderedTechnicalEntries(technicalScores);
+    final domainMatrix = _buildTraceability(answers);
+    final technicalMatrix = _buildTechnicalDomainTraceability(answers);
     final dominioKeys = dominioScores.keys.toList()..sort();
     final roadmapSteps = _buildRoadmapSteps(pilarScores, dominioScores);
+    final rlDataMaturity = _maturityByTechInDomain(
+      answers,
+      technicalPilar: 'Residência e Localização',
+      domain: 'Soberania de Dados',
+    );
 
     final subtitle = widget.userName.isNotEmpty
         ? 'Resultados de ${widget.userName}'
@@ -1834,7 +2061,7 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
 
                       final barCard = _ChartCard(
                         title: 'Score por Pilar',
-                        height: wide ? null : 300,
+                        height: wide ? 320 : 280,
                         child: _PilarBarChart(
                           pilars: _pilars,
                           pilarScores: pilarScores,
@@ -1845,17 +2072,29 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
 
                       final radarCard = _ChartCard(
                         title: 'Score por Domínio',
-                        height: wide ? null : 360,
+                        height: wide ? 320 : 300,
                         child: dominioKeys.isNotEmpty
-                            ? CustomRadarChart(
-                                labels: dominioKeys,
-                                values: dominioKeys
-                                    .map((k) => dominioScores[k] ?? 0)
-                                    .toList(),
-                                fillColor: Brand.accentBlue,
-                                borderColor: Brand.accentRed,
-                                gridColor: Brand.border,
-                                textColor: Brand.black,
+                            ? LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final size = constraints.maxWidth
+                                      .clamp(0.0, 320.0);
+                                  return Center(
+                                    child: SizedBox(
+                                      width: size,
+                                      height: size,
+                                      child: CustomRadarChart(
+                                        labels: dominioKeys,
+                                        values: dominioKeys
+                                            .map((k) => dominioScores[k] ?? 0)
+                                            .toList(),
+                                        fillColor: Brand.accentBlue,
+                                        borderColor: Brand.accentRed,
+                                        gridColor: Brand.border,
+                                        textColor: Brand.black,
+                                      ),
+                                    ),
+                                  );
+                                },
                               )
                             : const Center(
                                 child: Text(
@@ -1866,16 +2105,13 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
                       );
 
                       if (wide) {
-                        return SizedBox(
-                          height: 440,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(child: barCard),
-                              const SizedBox(width: 16),
-                              Expanded(child: radarCard),
-                            ],
-                          ),
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: barCard),
+                            const SizedBox(width: 16),
+                            Expanded(child: radarCard),
+                          ],
                         );
                       }
                       return Column(
@@ -1887,12 +2123,108 @@ class _AdminResultsScreenState extends State<AdminResultsScreen> {
                       );
                     },
                   ),
+                  const SizedBox(height: 16),
+                  _ChartCard(
+                    title: 'Score por Pilar Técnico',
+                    child: _TechnicalScoreBars(entries: technicalEntries),
+                  ),
+                  const SizedBox(height: 10),
+                  if (rlDataMaturity != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Brand.assessmentCtaBlue.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Brand.assessmentCtaBlue.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        'Maturidade de Residência e Localização em Soberania de Dados: '
+                        '${rlDataMaturity.round()}% (${_criticalityLabel(rlDataMaturity)})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Brand.black,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 20),
-                  _RoadmapTimelineCard(
+                  RoadmapGanttCard(
                     title: 'Cronograma de Evolução da Soberania Digital',
                     subtitle:
                         'Plano de 90 dias para aumentar potencial e maturidade com base nos resultados atuais do assessment.',
-                    steps: roadmapSteps,
+                    steps: roadmapSteps
+                        .map(
+                          (s) => RoadmapGanttStep(
+                            period: s.period,
+                            title: s.title,
+                            description: s.description,
+                            actions: s.actions,
+                            services: s.services,
+                            performanceNote: s.performanceNote,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final wide = constraints.maxWidth >= 920;
+                      final domainCard = _SimpleMatrixCard(
+                        title: 'Matriz por Domínio',
+                        rows: domainMatrix
+                            .map(
+                              (r) => [
+                                r['domain'] ?? '—',
+                                r['technical'] ?? '—',
+                                r['technical_maturity'] ?? '—',
+                              ],
+                            )
+                            .toList(),
+                        headers: const [
+                          'Domínio',
+                          'Pilar Técnico',
+                          'Maturidade Técnica',
+                        ],
+                      );
+                      final technicalCard = _SimpleMatrixCard(
+                        title: 'Matriz por Pilar Técnico',
+                        rows: technicalMatrix
+                            .map(
+                              (r) => [
+                                r['technical'] ?? '—',
+                                r['domain'] ?? '—',
+                                r['maturity'] ?? '—',
+                              ],
+                            )
+                            .toList(),
+                        headers: const [
+                          'Pilar Técnico',
+                          'Domínio',
+                          'Maturidade',
+                        ],
+                      );
+                      if (wide) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: domainCard),
+                            const SizedBox(width: 12),
+                            Expanded(child: technicalCard),
+                          ],
+                        );
+                      }
+                      return Column(
+                        children: [
+                          domainCard,
+                          const SizedBox(height: 12),
+                          technicalCard,
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 28),
                   // ── Análise completa por pilar ────────────────────────────
@@ -1988,7 +2320,11 @@ class _ScoreChipsRow extends StatelessWidget {
 // ── Card de gráfico ─────────────────────────────────────────────────────────
 
 class _ChartCard extends StatelessWidget {
-  const _ChartCard({required this.title, required this.child, this.height});
+  const _ChartCard({
+    required this.title,
+    required this.child,
+    this.height,
+  });
 
   final String title;
   final Widget child;
@@ -2007,147 +2343,19 @@ class _ChartCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: height == null ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               title,
               style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
             ),
             const SizedBox(height: 16),
-            height != null
-                ? SizedBox(height: height, child: child)
-                : Expanded(child: child),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RoadmapTimelineCard extends StatelessWidget {
-  const _RoadmapTimelineCard({
-    required this.title,
-    required this.subtitle,
-    required this.steps,
-  });
-
-  final String title;
-  final String subtitle;
-  final List<_RoadmapStep> steps;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Brand.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Brand.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-                color: Brand.black,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-            const SizedBox(height: 14),
-            ...steps.asMap().entries.map((entry) {
-              final idx = entry.key;
-              final step = entry.value;
-              final isLast = idx == steps.length - 1;
-              return Padding(
-                padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 36,
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 20,
-                            height: 20,
-                            decoration: const BoxDecoration(
-                              color: Brand.assessmentCtaBlue,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${idx + 1}',
-                              style: const TextStyle(
-                                color: Brand.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          if (!isLast)
-                            Container(
-                              width: 2,
-                              height: 54,
-                              margin: const EdgeInsets.only(top: 4),
-                              color: Brand.border,
-                            ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                        decoration: BoxDecoration(
-                          color: Brand.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Brand.border),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              step.period,
-                              style: const TextStyle(
-                                color: Brand.assessmentCtaBlue,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              step.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                color: Brand.black,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              step.description,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                height: 1.35,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+            if (height != null)
+              ClipRect(
+                child: SizedBox(height: height, child: child),
+              )
+            else
+              child,
           ],
         ),
       ),
@@ -2258,6 +2466,157 @@ class _PilarBarChart extends StatelessWidget {
         barGroups: bars,
       ),
       duration: const Duration(milliseconds: 300),
+    );
+  }
+}
+
+class _TechnicalScoreBars extends StatelessWidget {
+  const _TechnicalScoreBars({required this.entries});
+
+  final List<MapEntry<String, double>> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return const Center(
+        child: Text(
+          'Sem dados de pilar técnico',
+          style: TextStyle(color: Colors.black38),
+        ),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < entries.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: Text(
+                  entries[i].key,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 7,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: entries[i].value.round().clamp(0, 100) / 100,
+                    minHeight: 12,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      entries[i].value.round().clamp(0, 100) >= 75
+                          ? const Color(0xFF2E9E5B)
+                          : entries[i].value.round().clamp(0, 100) >= 50
+                          ? const Color(0xFF4E79A7)
+                          : const Color(0xFFF28E2B),
+                    ),
+                    backgroundColor: const Color(0xFFE5E7EB),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 48,
+                child: Text(
+                  '${entries[i].value.round().clamp(0, 100)}%',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: entries[i].value.round().clamp(0, 100) >= 75
+                        ? const Color(0xFF2E9E5B)
+                        : entries[i].value.round().clamp(0, 100) >= 50
+                        ? const Color(0xFF4E79A7)
+                        : const Color(0xFFF28E2B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SimpleMatrixCard extends StatelessWidget {
+  const _SimpleMatrixCard({
+    required this.title,
+    required this.headers,
+    required this.rows,
+  });
+
+  final String title;
+  final List<String> headers;
+  final List<List<String>> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: Brand.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Brand.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+            const SizedBox(height: 10),
+            Table(
+              border: TableBorder.all(color: Brand.border, width: 0.8),
+              columnWidths: {
+                for (var i = 0; i < headers.length; i++)
+                  i: const FlexColumnWidth(1),
+              },
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
+                TableRow(
+                  decoration: BoxDecoration(
+                    color: Brand.assessmentCtaBlue.withValues(alpha: 0.08),
+                  ),
+                  children: headers
+                      .map((h) => _matrixCell(h, isHeader: true))
+                      .toList(),
+                ),
+                ...rows.map(
+                  (r) => TableRow(
+                    children: r.map((c) => _matrixCell(c)).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _matrixCell(String text, {bool isHeader = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      child: Text(
+        text,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: isHeader ? FontWeight.w700 : FontWeight.w500,
+          fontSize: isHeader ? 12 : 11.5,
+          color: Brand.black,
+          height: 1.25,
+        ),
+      ),
     );
   }
 }

@@ -10,6 +10,8 @@ npm-debug.log*
 build/
 *.iml
 .idea/
+soberania_app/.flutter_vm_uri
+soberania_app/.flutter_run.log
 
 # Firebase
 .firebase/
